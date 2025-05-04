@@ -11,6 +11,12 @@ import {
   Settings,
   LogOut,
   LayoutDashboard,
+  Brain,
+  Building2,
+  ShieldCheck,
+  Layers,
+  MessagesSquare,
+  FileBarChart,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -65,42 +71,86 @@ export function Sidebar() {
       
       {/* Navigation links */}
       <nav className="flex-1 py-4 space-y-1 overflow-y-auto">
+        {/* 1. Módulo de Comunicação */}
         <NavLink 
           href="/" 
           icon={<Inbox />} 
           label="Caixa de Entrada" 
           active={location === "/"} 
         />
+        
+        {/* 2. Módulo de IA */}
+        <NavLink 
+          href="/ai" 
+          icon={<Brain />} 
+          label="Assistente IA" 
+          active={location.startsWith("/ai")} 
+        />
+        
+        {/* 3. Módulo de CRM */}
         <NavLink 
           href="/crm" 
           icon={<LayoutDashboard />} 
           label="CRM" 
           active={location.startsWith("/crm")} 
         />
+        
+        {/* Contatos - parte do CRM */}
         <NavLink 
           href="/contacts" 
           icon={<Users />} 
           label="Contatos" 
           active={location === "/contacts"} 
         />
+        
+        {/* 4. Módulo Multi-Tenant */}
         <NavLink 
-          href="/teams" 
-          icon={<UserCog />} 
-          label="Equipes" 
-          active={location === "/teams"} 
+          href="/organization" 
+          icon={<Building2 />} 
+          label="Organização" 
+          active={location.startsWith("/organization")} 
         />
+        
+        {/* 5. Módulo de Autenticação e Permissões */}
+        <NavLink 
+          href="/security" 
+          icon={<ShieldCheck />} 
+          label="Segurança" 
+          active={location.startsWith("/security")} 
+        />
+        
+        {/* 6. Módulo de Integrações */}
+        <NavLink 
+          href="/integrations" 
+          icon={<Layers />} 
+          label="Integrações" 
+          active={location.startsWith("/integrations")} 
+        />
+        
+        {/* 7. Módulo de Suporte Interno */}
+        <NavLink 
+          href="/team-chat" 
+          icon={<MessagesSquare />} 
+          label="Chat da Equipe" 
+          active={location.startsWith("/team-chat")} 
+        />
+        
+        {/* 8. Módulo de Relatórios */}
         <NavLink 
           href="/reports" 
-          icon={<BarChart2 />} 
+          icon={<FileBarChart />} 
           label="Relatórios" 
-          active={location === "/reports"} 
+          active={location.startsWith("/reports")} 
         />
+        
+        {/* Outros */}
         <NavLink 
           href="/payments" 
           icon={<DollarSign />} 
           label="Pagamentos" 
           active={location === "/payments"} 
         />
+        
         <NavLink 
           href="/settings" 
           icon={<Settings />} 

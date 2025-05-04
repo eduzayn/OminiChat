@@ -62,31 +62,33 @@ function CustomerProfile() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   
+  // Função para buscar atividades
+  const fetchActivities = async (contactId: number) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/contacts/${contactId}/activities`, {
+        credentials: "include"
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch activities: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setActivities(data);
+    } catch (err) {
+      console.error("Error fetching contact activities:", err);
+      setActivities([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
   // Fetch contact details and activities when active conversation changes
   useEffect(() => {
     if (activeConversation) {
-      setIsLoading(true);
       setContact(activeConversation.contact);
-      
-      // Fetch activities for the contact
-      fetch(`/api/contacts/${activeConversation.contact.id}/activities`, {
-        credentials: "include"
-      })
-        .then(res => {
-          if (!res.ok) {
-            throw new Error(`Failed to fetch activities: ${res.status}`);
-          }
-          return res.json();
-        })
-        .then(data => {
-          setActivities(data);
-          setIsLoading(false);
-        })
-        .catch(err => {
-          console.error("Error fetching contact activities:", err);
-          setIsLoading(false);
-          setActivities([]);
-        });
+      fetchActivities(activeConversation.contact.id);
     } else {
       setContact(null);
       setActivities([]);
@@ -165,9 +167,7 @@ function CustomerProfile() {
       });
       
       // Refresh activities
-      const response = await fetch(`/api/contacts/${contact.id}/activities`);
-      const data = await response.json();
-      setActivities(data);
+      await fetchActivities(contact.id);
       
     } catch (error) {
       console.error("Error sending invoice:", error);
@@ -194,9 +194,7 @@ function CustomerProfile() {
       });
       
       // Refresh activities
-      const response = await fetch(`/api/contacts/${contact.id}/activities`);
-      const data = await response.json();
-      setActivities(data);
+      await fetchActivities(contact.id);
       
     } catch (error) {
       console.error("Error adding note:", error);

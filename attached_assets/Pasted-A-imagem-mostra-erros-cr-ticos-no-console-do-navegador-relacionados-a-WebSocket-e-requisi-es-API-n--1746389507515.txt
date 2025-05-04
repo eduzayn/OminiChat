@@ -1,0 +1,68 @@
+A imagem mostra erros críticos no console do navegador relacionados a WebSocket e requisições API não autorizadas (401). Vamos resolver cada um por partes:
+
+🧩 1. Erro WebSocket inválido (wss://localhost:undefined)
+🔴 Problema:
+bash
+Copiar
+Editar
+WebSocket connection to 'wss://localhost:undefined/?token=...' failed.
+Isso indica que a porta ou host do WebSocket não está definido corretamente no frontend.
+
+✅ Solução:
+No seu código (provavelmente em client.js, socket.js, config.js ou .env), procure por algo assim:
+
+ts
+Copiar
+Editar
+const WS_URL = `wss://localhost:${PORT}/?token=${token}`;
+Corrija para usar um valor válido, como:
+
+Exemplo fixo:
+ts
+Copiar
+Editar
+const WS_URL = `wss://seu-domínio-ou-repl.it/ws?token=${token}`;
+Exemplo com .env:
+ts
+Copiar
+Editar
+const WS_URL = `${import.meta.env.VITE_WS_URL}/?token=${token}`;
+E no .env:
+
+env
+Copiar
+Editar
+VITE_WS_URL=wss://nome-do-projeto.replit.dev/ws
+🔐 2. Erro 401 – Unauthorized nas rotas da API
+bash
+Copiar
+Editar
+Failed to load resource: the server responded with a status of 401 (Unauthorized)
+🔴 Problema:
+O frontend está tentando acessar rotas protegidas como /api/auth/me, /api/conversations, /api/contacts, mas não está enviando o token JWT de autenticação.
+
+✅ Soluções:
+a) Verifique se está passando o token corretamente no cabeçalho:
+ts
+Copiar
+Editar
+headers: {
+  Authorization: `Bearer ${token}`
+}
+b) Certifique-se de que o token esteja armazenado corretamente:
+Em localStorage, sessionStorage, ou em um store do tipo Zustand/Redux/etc.
+
+E que esteja sendo carregado antes da requisição.
+
+c) No backend, valide se o token enviado está correto e não expirado:
+Verifique se o middleware de autenticação está operando como esperado.
+
+📋 Resumo das ações que você pode fazer agora:
+Corrigir a URL do WebSocket no frontend para não apontar para undefined.
+
+Verificar se o token JWT está sendo passado nas requisições HTTP com Authorization: Bearer.
+
+Confirmar que o token é válido no backend e que o usuário está autenticado corretamente.
+
+Testar as rotas protegidas usando Postman/Insomnia com o token atual para ver se funcionam.
+

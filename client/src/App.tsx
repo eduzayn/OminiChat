@@ -11,6 +11,7 @@ import CRMDashboard from "@/pages/crm/index";
 import PipelineView from "@/pages/crm/pipeline";
 import LeadsManagement from "@/pages/crm/leads";
 import SettingsPage from "@/pages/settings/index";
+import AIAssistantPage from "@/pages/ai/index";
 import { useAuth } from "./context/auth-context";
 import { AuthProvider } from "./context/auth-context";
 import { SocketProvider } from "./context/socket-context";
@@ -49,18 +50,7 @@ function Router() {
       <Route path="/" component={Dashboard} />
       
       {/* 2. Módulo de IA */}
-      <Route path="/ai">
-        {() => <PlaceholderPage 
-          moduleName="Assistente IA" 
-          description="O módulo de IA está sendo desenvolvido para fornecer suporte por inteligência artificial em todo o sistema."
-          features={[
-            "Assistente contextualizado para atendimento",
-            "Central de treinamento com RAG e embeddings",
-            "Correção e sugestão de mensagens para equipe",
-            "Integração em múltiplas áreas do sistema"
-          ]}
-        />}
-      </Route>
+      <Route path="/ai" component={AIAssistantPage} />
       
       {/* 3. Módulo de CRM */}
       <Route path="/crm" component={CRMDashboard} />

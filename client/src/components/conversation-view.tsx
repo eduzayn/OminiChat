@@ -154,7 +154,8 @@ function DateSeparator({ date }: { date: Date }) {
 function ConversationView() {
   const { activeConversation } = useConversation();
   const { user } = useAuth();
-  const { socket } = useSocket();
+  const socketContext = useSocket();
+  const { socket, connected, sendMessage: sendSocketMessage, addListener } = socketContext;
   const [messageInput, setMessageInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -188,39 +189,66 @@ function ConversationView() {
   
   // Listen for new messages from the socket
   useEffect(() => {
-    if (socket && activeConversation) {
-      const handleNewMessage = (message: Message) => {
-        if (message.conversationId === activeConversation.id) {
-          setMessages(prev => [...prev, message]);
-          
-          // Mark as read if it's a client message
-          if (!message.isFromAgent) {
-            apiRequest("PATCH", `/api/conversations/${activeConversation.id}/messages/${message.id}/read`, {})
-              .catch(err => console.error("Error marking message as read:", err));
-          }
+    if (!socket || !activeConversation) return;
+    
+    // Criação de handlers para diferentes tipos de eventos
+    const handleNewMessage = (data: any) => {
+      const message = data.message || data;
+      if (message.conversationId === activeConversation.id) {
+        setMessages(prev => [...prev, message]);
+        
+        // Marcar como lida se for uma mensagem do cliente
+        if (!message.isFromAgent) {
+          apiRequest("PATCH", `/api/conversations/${activeConversation.id}/messages/${message.id}/read`, {})
+            .catch(err => console.error("Erro ao marcar mensagem como lida:", err));
         }
-      };
-      
-      const handleTypingStatus = (data: any) => {
-        if (data.conversationId === activeConversation.id && !data.isAgent) {
-          setIsTyping(data.isTyping);
+        
+        // Rolagem para o final da conversa
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }
+    };
+    
+    const handleTypingStatus = (data: any) => {
+      // Verificar se é para a conversa atual e não é do agente
+      if (data.conversationId === activeConversation.id && !data.isAgent) {
+        setIsTyping(data.isTyping);
+        
+        // Auto-reset do status de digitação após um tempo
+        if (data.isTyping) {
+          setTimeout(() => {
+            setIsTyping(false);
+          }, 10000); // Resetar após 10 segundos se não receber outra atualização
         }
-      };
+      }
+    };
+    
+    // Usar a nova API de addListener do socket-context
+    const removeNewMessageListener = addListener("new_message", handleNewMessage);
+    const removeTypingListener = addListener("typing_status", handleTypingStatus);
+    
+    // Iniciar com status não está digitando
+    setIsTyping(false);
+    
+    // Enviar sinal de que a conversa está aberta
+    sendSocketMessage("conversation_opened", {
+      conversationId: activeConversation.id,
+      agentId: user?.id
+    });
+    
+    // Limpar listeners ao desmontar ou mudar de conversa
+    return () => {
+      removeNewMessageListener();
+      removeTypingListener();
       
-      socket.addEventListener("message", (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === "new_message") {
-          handleNewMessage(data.message);
-        } else if (data.type === "typing_status") {
-          handleTypingStatus(data.data);
-        }
-      });
-      
-      return () => {
-        socket.removeEventListener("message", () => {});
-      };
-    }
-  }, [socket, activeConversation]);
+      // Informar que o agente fechou a conversa
+      if (socket && connected) {
+        sendSocketMessage("conversation_closed", {
+          conversationId: activeConversation.id,
+          agentId: user?.id
+        });
+      }
+    };
+  }, [socket, activeConversation, connected, user, addListener, sendSocketMessage]);
   
   const sendMessage = async () => {
     if (!messageInput.trim() || !activeConversation) return;
@@ -256,16 +284,15 @@ function ConversationView() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setMessageInput(e.target.value);
     
-    // Send typing status through socket
-    if (socket && activeConversation) {
-      socket.send(JSON.stringify({
-        type: "typing_status",
-        data: {
-          conversationId: activeConversation.id,
-          isTyping: e.target.value.length > 0,
-          isAgent: true
-        }
-      }));
+    // Enviar status de digitação através do socket usando a nova API
+    if (socket && activeConversation && connected) {
+      sendSocketMessage("typing_status", {
+        conversationId: activeConversation.id,
+        isTyping: e.target.value.length > 0,
+        isAgent: true,
+        agentId: user?.id,
+        agentName: user?.name
+      });
     }
   };
   

@@ -1,12 +1,17 @@
 import { WebSocketServer, WebSocket } from 'ws';
-import { drizzle } from 'drizzle-orm/pg-pool';
+import { eq } from 'drizzle-orm';
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from '@shared/schema';
 
 // Store connected clients by user ID
 const clients: Map<number, WebSocket> = new Map();
 
+// Define o tipo específico do banco de dados
+type DrizzleDB = ReturnType<typeof drizzle<typeof schema>>;
+
 // Setup WebSocket server
-export function setupWebSocketServer(wss: WebSocketServer, db: ReturnType<typeof drizzle>): void {
+export function setupWebSocketServer(wss: WebSocketServer, db: any): void {
   wss.on('connection', (ws: WebSocket) => {
     console.log('Client connected');
     
@@ -22,38 +27,50 @@ export function setupWebSocketServer(wss: WebSocketServer, db: ReturnType<typeof
         
         // Handle authentication
         if (messageType === 'authenticate') {
-          userId = messageData.userId;
-          userRole = messageData.role;
-          clients.set(userId, ws);
-          console.log(`User ${userId} (${userRole}) authenticated`);
+          const msgUserId = messageData.userId || null;
           
-          // Send confirmation to client
-          ws.send(JSON.stringify({
-            type: 'authentication_success',
-            data: { userId, userRole }
-          }));
-          
-          // Send online status to other users
-          broadcastToClients({
-            type: 'user_status',
-            data: {
-              userId,
-              isOnline: true,
-              timestamp: new Date().toISOString()
-            }
-          });
-          
-          // TODO: Update user status in database
-          try {
-            await db.update(schema.users)
-              .set({ 
+          // Garantir que userId seja um número válido
+          if (typeof msgUserId === 'number') {
+            userId = msgUserId;
+            userRole = messageData.role || 'user';
+            
+            // Registrar esse cliente
+            clients.set(userId, ws);
+            console.log(`User ${userId} (${userRole}) authenticated`);
+            
+            // Send confirmation to client
+            ws.send(JSON.stringify({
+              type: 'authentication_success',
+              data: { userId, userRole }
+            }));
+            
+            // Send online status to other users
+            broadcastToClients({
+              type: 'user_status',
+              data: {
+                userId,
                 isOnline: true,
-                lastSeen: new Date()
-              })
-              .where(schema.users.id.equals(userId))
-              .execute();
-          } catch (err) {
-            console.error('Error updating user online status:', err);
+                timestamp: new Date().toISOString()
+              }
+            });
+            
+            // Update user status in database
+            try {
+              await db.execute(`
+                UPDATE users 
+                SET is_online = true, last_seen = NOW() 
+                WHERE id = ${userId}
+              `);
+              console.log(`User ${userId} marked as online in database`);
+            } catch (error) {
+              console.error('Error updating user online status:', error);
+            }
+          } else {
+            console.error('Invalid userId received:', msgUserId);
+            ws.send(JSON.stringify({
+              type: 'authentication_error',
+              data: { message: 'Invalid user ID' }
+            }));
           }
         }
         
@@ -143,16 +160,18 @@ export function setupWebSocketServer(wss: WebSocketServer, db: ReturnType<typeof
         
         // Update database
         try {
-          db.update(schema.users)
-            .set({ 
-              isOnline: false,
-              lastSeen: new Date()
-            })
-            .where(schema.users.id.equals(userId))
-            .execute()
-            .catch(err => console.error('Error updating user offline status:', err));
-        } catch (err) {
-          console.error('Error updating user offline status:', err);
+          // Executa consulta SQL direta para maior simplicidade
+          if (userId) {
+            db.execute(`
+              UPDATE users 
+              SET is_online = false, last_seen = NOW() 
+              WHERE id = ${userId}
+            `)
+            .catch(error => console.error('Error updating user offline status:', error));
+            console.log(`User ${userId} marked as offline in database`);
+          }
+        } catch (error) {
+          console.error('Error updating user offline status:', error);
         }
       }
     });

@@ -93,7 +93,7 @@ export async function analyzeSentiment(text: string): Promise<{
  * @returns A resposta gerada
  */
 export async function generateQuickResponse(
-  type: "concise" | "summary" | "correction",
+  type: "concise" | "summary" | "correction" | "auto",
   messageContent: string,
   conversationHistory?: string
 ): Promise<string> {
@@ -112,9 +112,86 @@ export async function generateQuickResponse(
     case "correction":
       prompt = `Corrija os erros gramaticais, melhore a clareza e reformule o seguinte texto mantendo o significado original: "${messageContent}"`;
       break;
+    case "auto":
+      prompt = `Você é um assistente de atendimento profissional. Gere uma resposta automática para a seguinte mensagem do cliente. Seja prestativo, direto e amigável, mas não excessivamente formal: "${messageContent}"`;
+      if (conversationHistory) {
+        prompt += `\n\nHistórico da conversa:\n${conversationHistory}`;
+      }
+      break;
     default:
       return "Tipo de resposta rápida não suportado.";
   }
   
   return generateAIResponse(prompt, conversationHistory);
+}
+
+/**
+ * Verifica se uma mensagem deve receber resposta automática
+ * @param message Conteúdo da mensagem
+ * @param conversationHistory Histórico da conversa
+ * @returns Objeto com flag indicando se deve responder e a resposta sugerida
+ */
+export async function shouldAutoReply(
+  message: string, 
+  conversationHistory?: string
+): Promise<{
+  shouldReply: boolean;
+  suggestedReply?: string;
+  confidence: number;
+}> {
+  try {
+    const prompt = `
+Analise a mensagem abaixo e determine se deve receber uma resposta automática.
+Considere os seguintes critérios:
+- A mensagem contém uma pergunta clara e simples?
+- A mensagem parece solicitar informações básicas?
+- A mensagem pode ser respondida sem intervenção humana?
+- A mensagem não demonstra frustração ou raiva extrema?
+- A mensagem não menciona problemas complexos que precisam de investigação?
+
+Mensagem: "${message}"
+${conversationHistory ? `\nHistórico da conversa:\n${conversationHistory}` : ''}
+
+Responda APENAS com um objeto JSON contendo:
+- shouldReply: boolean (true se você acredita que a mensagem deve receber resposta automática)
+- confidence: número de 0 a 1 (sua confiança na decisão)
+- reason: string curta explicando sua decisão
+`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: "Você é um analisador de mensagens especializado em determinar se uma mensagem precisa de intervenção humana ou pode ser respondida automaticamente."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.3
+    });
+
+    const result = JSON.parse(response.choices[0].message.content);
+    
+    // Se deve responder automaticamente, gerar resposta sugerida
+    let suggestedReply: string | undefined = undefined;
+    if (result.shouldReply) {
+      suggestedReply = await generateQuickResponse("auto", message, conversationHistory);
+    }
+    
+    return {
+      shouldReply: result.shouldReply,
+      suggestedReply,
+      confidence: parseFloat(result.confidence) || 0.5
+    };
+  } catch (error) {
+    console.error("Erro ao analisar necessidade de resposta automática:", error);
+    return {
+      shouldReply: false,
+      confidence: 0
+    };
+  }
 }

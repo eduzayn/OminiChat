@@ -69,8 +69,15 @@ function CustomerProfile() {
       setContact(activeConversation.contact);
       
       // Fetch activities for the contact
-      fetch(`/api/contacts/${activeConversation.contact.id}/activities`)
-        .then(res => res.json())
+      fetch(`/api/contacts/${activeConversation.contact.id}/activities`, {
+        credentials: "include"
+      })
+        .then(res => {
+          if (!res.ok) {
+            throw new Error(`Failed to fetch activities: ${res.status}`);
+          }
+          return res.json();
+        })
         .then(data => {
           setActivities(data);
           setIsLoading(false);

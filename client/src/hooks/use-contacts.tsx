@@ -12,6 +12,17 @@ export function useContacts() {
     refetch
   } = useQuery<Contact[]>({
     queryKey: ["/api/contacts"],
+    queryFn: async () => {
+      const response = await fetch("/api/contacts", {
+        credentials: "include",
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch contacts");
+      }
+      
+      return response.json();
+    }
   });
 
   const updateContact = useMutation({

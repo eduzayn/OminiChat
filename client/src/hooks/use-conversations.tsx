@@ -12,6 +12,17 @@ export function useConversations() {
     refetch
   } = useQuery<Conversation[]>({
     queryKey: ["/api/conversations"],
+    queryFn: async () => {
+      const response = await fetch("/api/conversations", {
+        credentials: "include",
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch conversations");
+      }
+      
+      return response.json();
+    }
   });
 
   const assignConversation = useMutation({

@@ -193,7 +193,24 @@ function ConversationView() {
     
     // Criação de handlers para diferentes tipos de eventos
     const handleNewMessage = (data: any) => {
+      console.log("Dados de nova mensagem recebidos:", data);
+      
+      // Verificar se os dados são válidos
+      if (!data) {
+        console.error("Dados de mensagem inválidos recebidos do socket:", data);
+        return;
+      }
+      
+      // Extrair a mensagem do objeto data, com fallback para o próprio objeto
       const message = data.message || data;
+      
+      // Verificar se a mensagem tem os campos necessários
+      if (!message || !message.conversationId) {
+        console.error("Mensagem recebida do socket está em formato inválido:", message);
+        return;
+      }
+      
+      // Processar a mensagem se pertence à conversa ativa
       if (message.conversationId === activeConversation.id) {
         setMessages(prev => [...prev, message]);
         

@@ -344,7 +344,7 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
       // Broadcast new message to all connected clients
       broadcastToClients({
         type: "new_message",
-        message: messageWithDetails
+        data: messageWithDetails
       });
       
       return res.status(201).json(messageWithDetails);

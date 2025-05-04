@@ -7,6 +7,7 @@ import { registerConversationRoutes } from "./handlers/conversations";
 import { registerContactRoutes } from "./handlers/contacts";
 import { registerChannelRoutes } from "./handlers/channels";
 import { registerPaymentRoutes } from "./handlers/payments";
+import { registerAIRoutes } from "./handlers/ai";
 import { setupWebSocketServer } from "./services/socket";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -22,6 +23,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerContactRoutes(app, apiPrefix);
   registerChannelRoutes(app, apiPrefix);
   registerPaymentRoutes(app, apiPrefix);
+  registerAIRoutes(app, apiPrefix);
   
   // Create WebSocket server
   const wss = new WebSocketServer({ 

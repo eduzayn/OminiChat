@@ -584,14 +584,114 @@ function ConversationView() {
         </div>
         <div className="flex items-center justify-between mt-2">
           <div className="flex items-center text-xs text-neutral-500">
-            <Button variant="ghost" className="flex items-center hover:text-primary-500 mr-3 p-0">
-              <Ticket className="mr-1 h-3 w-3" />
-              <span>Modelos</span>
-            </Button>
-            <Button variant="ghost" className="flex items-center hover:text-primary-500 p-0">
-              <Bot className="mr-1 h-3 w-3" />
-              <span>Assistente IA</span>
-            </Button>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" className="flex items-center hover:text-primary-500 mr-3 p-0">
+                  <Ticket className="mr-1 h-3 w-3" />
+                  <span>Modelos</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-2">
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium mb-2">Modelos de mensagem</h3>
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    {[
+                      {
+                        title: "Boas-vindas",
+                        text: "Olá! Bem-vindo à OmniConnect. Como posso ajudar você hoje?"
+                      },
+                      {
+                        title: "Agradecimento",
+                        text: "Muito obrigado pelo contato. Estamos à disposição para qualquer esclarecimento adicional."
+                      },
+                      {
+                        title: "Transferência",
+                        text: "Preciso transferir seu atendimento para um especialista. Aguarde um momento, por favor."
+                      },
+                      {
+                        title: "Solicitação recebida",
+                        text: "Sua solicitação foi registrada com sucesso. Estaremos processando e retornaremos em breve."
+                      },
+                      {
+                        title: "Fechamento",
+                        text: "Foi um prazer atendê-lo. Caso precise de mais alguma coisa, estamos à disposição."
+                      }
+                    ].map((template, index) => (
+                      <Button 
+                        key={index}
+                        variant="outline" 
+                        className="w-full flex flex-col items-start p-2 h-auto"
+                        onClick={() => setMessageInput(template.text)}
+                      >
+                        <span className="font-medium text-xs text-left mb-1">{template.title}</span>
+                        <span className="text-xs text-left text-neutral-600 line-clamp-2">{template.text}</span>
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+            
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" className="flex items-center hover:text-primary-500 p-0">
+                  <Bot className="mr-1 h-3 w-3" />
+                  <span>Assistente IA</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 p-2">
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium mb-2">Assistente IA</h3>
+                  <div className="space-y-2">
+                    <Button 
+                      variant="outline" 
+                      className="w-full flex items-center justify-between p-2"
+                      onClick={() => {
+                        setMessageInput(prev => 
+                          prev + (prev ? " " : "") + "Responda de forma concisa e profissional"); 
+                        toast({ 
+                          description: "Para usar o assistente IA, você precisa configurar um serviço de IA com OpenAI API.",
+                          duration: 5000
+                        });
+                      }}
+                    >
+                      <span>Resposta concisa</span>
+                      <span className="text-xs text-neutral-500">→</span>
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="w-full flex items-center justify-between p-2"
+                      onClick={() => {
+                        setMessageInput(prev => 
+                          prev + (prev ? " " : "") + "Resuma as informações principais da conversa"); 
+                        toast({ 
+                          description: "Para usar o assistente IA, você precisa configurar um serviço de IA com OpenAI API.",
+                          duration: 5000
+                        });
+                      }}
+                    >
+                      <span>Resumir conversa</span>
+                      <span className="text-xs text-neutral-500">→</span>
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="w-full flex items-center justify-between p-2"
+                      onClick={() => {
+                        setMessageInput(prev => 
+                          prev + (prev ? " " : "") + "Corrija os erros gramaticais e melhore o texto"); 
+                        toast({ 
+                          description: "Para usar o assistente IA, você precisa configurar um serviço de IA com OpenAI API.",
+                          duration: 5000
+                        });
+                      }}
+                    >
+                      <span>Corrigir texto</span>
+                      <span className="text-xs text-neutral-500">→</span>
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
           {isTyping && (
             <div className="text-xs text-neutral-500">

@@ -95,12 +95,14 @@ function AIAssistantPage() {
     setSentimentResult(null);
     
     try {
-      const response = await apiRequest("/api/ai/analyze-sentiment", {
-        method: "POST",
-        body: JSON.stringify({ text: data.text })
-      });
+      const response = await apiRequest(
+        "POST",
+        "/api/ai/analyze-sentiment",
+        { text: data.text }
+      );
       
-      setSentimentResult(response);
+      const result = await response.json();
+      setSentimentResult(result);
       toast({
         title: "Análise completada",
         description: "A análise de sentimento foi realizada com sucesso."
@@ -123,12 +125,14 @@ function AIAssistantPage() {
     setAutoReplyResult(null);
     
     try {
-      const response = await apiRequest("/api/ai/auto-reply-test", {
-        method: "POST",
-        body: JSON.stringify({ message: data.text })
-      });
+      const response = await apiRequest(
+        "POST",
+        "/api/ai/auto-reply-test", 
+        { message: data.text }
+      );
       
-      setAutoReplyResult(response);
+      const result = await response.json();
+      setAutoReplyResult(result);
       toast({
         title: "Teste completado",
         description: "O teste de resposta automática foi realizado com sucesso."
@@ -148,10 +152,11 @@ function AIAssistantPage() {
   // Salvar configurações
   const saveSettings = async (data: AISettingsForm) => {
     try {
-      await apiRequest("/api/ai/settings", {
-        method: "POST",
-        body: JSON.stringify(data)
-      });
+      await apiRequest(
+        "POST",
+        "/api/ai/settings",
+        data
+      );
       
       toast({
         title: "Configurações salvas",
@@ -204,381 +209,381 @@ function AIAssistantPage() {
             <h1 className="text-2xl font-bold">Assistente IA</h1>
           </div>
         
-        <p className="text-gray-600 mb-8">
-          O módulo de IA está sendo desenvolvido para fornecer suporte por inteligência artificial em todo o sistema,
-          incluindo análise de sentimento, respostas automáticas e sugestões de mensagens.
-        </p>
-        
-        <Tabs defaultValue="demo" className="w-full">
-          <TabsList className="grid grid-cols-3 w-full max-w-2xl mb-6">
-            <TabsTrigger value="demo">
-              <MessageSquare className="mr-2 h-4 w-4" />
-              Demonstração
-            </TabsTrigger>
-            <TabsTrigger value="settings">
-              <Settings className="mr-2 h-4 w-4" />
-              Configurações
-            </TabsTrigger>
-            <TabsTrigger value="metrics">
-              <BarChart className="mr-2 h-4 w-4" />
-              Métricas
-            </TabsTrigger>
-          </TabsList>
+          <p className="text-gray-600 mb-8">
+            O módulo de IA está sendo desenvolvido para fornecer suporte por inteligência artificial em todo o sistema,
+            incluindo análise de sentimento, respostas automáticas e sugestões de mensagens.
+          </p>
           
-          {/* Aba de Demonstração */}
-          <TabsContent value="demo" className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-2">
-              {/* Card para testar análise de sentimento */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <Gauge className="mr-2 h-5 w-5 text-primary" />
-                    Análise de Sentimento
-                  </CardTitle>
-                  <CardDescription>
-                    Analise o tom emocional de uma mensagem para detectar frustração, impaciência ou raiva.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Form {...sentimentForm}>
-                    <form onSubmit={sentimentForm.handleSubmit(analyzeSentiment)} className="space-y-4">
-                      <FormField
-                        control={sentimentForm.control}
-                        name="text"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Mensagem para análise</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                placeholder="Digite uma mensagem para analisar o sentimento..."
-                                className="min-h-32"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <Button 
-                        type="submit" 
-                        disabled={isAnalyzing}
-                        className="w-full"
-                      >
-                        {isAnalyzing ? "Analisando..." : "Analisar Sentimento"}
-                      </Button>
-                    </form>
-                  </Form>
-                  
-                  {sentimentResult && (
-                    <div className="mt-4 p-4 bg-gray-50 rounded-md">
-                      <h4 className="font-semibold mb-3">Resultado da Análise:</h4>
-                      
-                      <div className="mb-3">
-                        <span className="font-medium">Sentimento: </span>
-                        <span className={`font-semibold ${
-                          sentimentResult.sentiment === "positive" ? "text-green-600" :
-                          sentimentResult.sentiment === "negative" ? "text-red-600" :
-                          "text-yellow-600"
-                        }`}>
-                          {sentimentResult.sentiment === "positive" ? "Positivo" :
-                           sentimentResult.sentiment === "negative" ? "Negativo" :
-                           "Neutro"}
-                        </span>
-                        <span className="text-sm text-gray-500 ml-2">
-                          (score: {sentimentResult.score.toFixed(2)})
-                        </span>
-                      </div>
-                      
-                      <p className="text-sm mb-3">
-                        <span className="font-medium">Confiança: </span>
-                        <span>{(sentimentResult.confidence * 100).toFixed(1)}%</span>
-                      </p>
-                      
-                      {sentimentResult.emotions && (
-                        <div className="mt-4">
-                          <h5 className="font-medium mb-2">Análise Emocional:</h5>
-                          {renderEmotionIndicator(sentimentResult.emotions.anger, "Raiva")}
-                          {renderEmotionIndicator(sentimentResult.emotions.frustration, "Frustração")}
-                          {renderEmotionIndicator(sentimentResult.emotions.impatience, "Impaciência")}
-                          {renderEmotionIndicator(sentimentResult.emotions.urgency, "Urgência")}
-                        </div>
-                      )}
-                      
-                      {sentimentResult.needsHumanIntervention && (
-                        <div className="mt-4 p-3 bg-red-50 text-red-800 rounded-md flex items-start">
-                          <AlertTriangle className="mt-0.5 mr-2 h-5 w-5 text-red-600 flex-shrink-0" />
-                          <div>
-                            <p className="font-semibold">Requer Intervenção Humana</p>
-                            <p className="text-sm">
-                              {sentimentResult.interventionReason || 
-                               "O tom emocional desta mensagem sugere que um atendente humano deve responder."}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-              
-              {/* Card para testar resposta automática */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <MessageCircleMore className="mr-2 h-5 w-5 text-primary" />
-                    Resposta Automática
-                  </CardTitle>
-                  <CardDescription>
-                    Teste se uma mensagem receberá resposta automática e veja a sugestão de resposta.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Form {...sentimentForm}>
-                    <form onSubmit={sentimentForm.handleSubmit(testAutoReply)} className="space-y-4">
-                      <FormField
-                        control={sentimentForm.control}
-                        name="text"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Mensagem de teste</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                placeholder="Digite uma mensagem para testar a resposta automática..."
-                                className="min-h-32"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <Button 
-                        type="submit" 
-                        disabled={isTestingAutoReply}
-                        className="w-full"
-                      >
-                        {isTestingAutoReply ? "Processando..." : "Testar Resposta"}
-                      </Button>
-                    </form>
-                  </Form>
-                  
-                  {autoReplyResult && (
-                    <div className="mt-4 p-4 bg-gray-50 rounded-md">
-                      <div className="flex items-center mb-3">
-                        <h4 className="font-semibold">Resultado do teste:</h4>
-                        <span className={`ml-2 px-2 py-0.5 text-xs font-medium rounded ${
-                          autoReplyResult.shouldReply ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                        }`}>
-                          {autoReplyResult.shouldReply ? "Resposta Automática" : "Intervenção Humana"}
-                        </span>
-                      </div>
-                      
-                      <p className="text-sm mb-3">
-                        <span className="font-medium">Confiança: </span>
-                        <span>{(autoReplyResult.confidence * 100).toFixed(1)}%</span>
-                      </p>
-                      
-                      {autoReplyResult.shouldReply && autoReplyResult.suggestedReply && (
-                        <div className="mt-3">
-                          <h5 className="font-medium mb-2">Resposta Sugerida:</h5>
-                          <div className="p-3 bg-blue-50 text-blue-800 rounded-md">
-                            {autoReplyResult.suggestedReply}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {autoReplyResult.sentimentAnalysis && (
-                        <div className="mt-4 text-sm">
-                          <h5 className="font-medium mb-1">Informações adicionais:</h5>
-                          <p>
-                            Sentimento: <span className={`font-medium ${
-                              autoReplyResult.sentimentAnalysis.sentiment === "positive" ? "text-green-600" :
-                              autoReplyResult.sentimentAnalysis.sentiment === "negative" ? "text-red-600" :
-                              "text-yellow-600"
-                            }`}>
-                              {autoReplyResult.sentimentAnalysis.sentiment === "positive" ? "Positivo" :
-                               autoReplyResult.sentimentAnalysis.sentiment === "negative" ? "Negativo" :
-                               "Neutro"}
-                            </span>
-                          </p>
-                          
-                          {!autoReplyResult.shouldReply && autoReplyResult.sentimentAnalysis.interventionReason && (
-                            <div className="mt-2 p-2 bg-yellow-50 text-yellow-800 rounded-md text-xs">
-                              {autoReplyResult.sentimentAnalysis.interventionReason}
-                            </div>
+          <Tabs defaultValue="demo" className="w-full">
+            <TabsList className="grid grid-cols-3 w-full max-w-2xl mb-6">
+              <TabsTrigger value="demo">
+                <MessageSquare className="mr-2 h-4 w-4" />
+                Demonstração
+              </TabsTrigger>
+              <TabsTrigger value="settings">
+                <Settings className="mr-2 h-4 w-4" />
+                Configurações
+              </TabsTrigger>
+              <TabsTrigger value="metrics">
+                <BarChart className="mr-2 h-4 w-4" />
+                Métricas
+              </TabsTrigger>
+            </TabsList>
+            
+            {/* Aba de Demonstração */}
+            <TabsContent value="demo" className="space-y-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                {/* Card para testar análise de sentimento */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <Gauge className="mr-2 h-5 w-5 text-primary" />
+                      Análise de Sentimento
+                    </CardTitle>
+                    <CardDescription>
+                      Analise o tom emocional de uma mensagem para detectar frustração, impaciência ou raiva.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Form {...sentimentForm}>
+                      <form onSubmit={sentimentForm.handleSubmit(analyzeSentiment)} className="space-y-4">
+                        <FormField
+                          control={sentimentForm.control}
+                          name="text"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Mensagem para análise</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="Digite uma mensagem para analisar o sentimento..."
+                                  className="min-h-32"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
                           )}
+                        />
+                        <Button 
+                          type="submit" 
+                          disabled={isAnalyzing}
+                          className="w-full"
+                        >
+                          {isAnalyzing ? "Analisando..." : "Analisar Sentimento"}
+                        </Button>
+                      </form>
+                    </Form>
+                    
+                    {sentimentResult && (
+                      <div className="mt-4 p-4 bg-gray-50 rounded-md">
+                        <h4 className="font-semibold mb-3">Resultado da Análise:</h4>
+                        
+                        <div className="mb-3">
+                          <span className="font-medium">Sentimento: </span>
+                          <span className={`font-semibold ${
+                            sentimentResult.sentiment === "positive" ? "text-green-600" :
+                            sentimentResult.sentiment === "negative" ? "text-red-600" :
+                            "text-yellow-600"
+                          }`}>
+                            {sentimentResult.sentiment === "positive" ? "Positivo" :
+                             sentimentResult.sentiment === "negative" ? "Negativo" :
+                             "Neutro"}
+                          </span>
+                          <span className="text-sm text-gray-500 ml-2">
+                            (score: {sentimentResult.score.toFixed(2)})
+                          </span>
                         </div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-          
-          {/* Aba de Configurações */}
-          <TabsContent value="settings">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Settings className="mr-2 h-5 w-5 text-primary" />
-                  Configurações do Assistente IA
-                </CardTitle>
-                <CardDescription>
-                  Configure os parâmetros do sistema de IA para resposta automática e análise de sentimento.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Form {...settingsForm}>
-                  <form onSubmit={settingsForm.handleSubmit(saveSettings)} className="space-y-6">
-                    <FormField
-                      control={settingsForm.control}
-                      name="autoReplyEnabled"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-base">Resposta Automática</FormLabel>
-                            <FormDescription>
-                              Ativar sistema de resposta automática para mensagens iniciais.
-                            </FormDescription>
+                        
+                        <p className="text-sm mb-3">
+                          <span className="font-medium">Confiança: </span>
+                          <span>{(sentimentResult.confidence * 100).toFixed(1)}%</span>
+                        </p>
+                        
+                        {sentimentResult.emotions && (
+                          <div className="mt-4">
+                            <h5 className="font-medium mb-2">Análise Emocional:</h5>
+                            {renderEmotionIndicator(sentimentResult.emotions.anger, "Raiva")}
+                            {renderEmotionIndicator(sentimentResult.emotions.frustration, "Frustração")}
+                            {renderEmotionIndicator(sentimentResult.emotions.impatience, "Impaciência")}
+                            {renderEmotionIndicator(sentimentResult.emotions.urgency, "Urgência")}
                           </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <FormField
-                      control={settingsForm.control}
-                      name="escalateNegative"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-base">Encaminhar Negativos</FormLabel>
-                            <FormDescription>
-                              Encaminhar automaticamente mensagens com sentimento muito negativo para atendimento humano.
-                            </FormDescription>
+                        )}
+                        
+                        {sentimentResult.needsHumanIntervention && (
+                          <div className="mt-4 p-3 bg-red-50 text-red-800 rounded-md flex items-start">
+                            <AlertTriangle className="mt-0.5 mr-2 h-5 w-5 text-red-600 flex-shrink-0" />
+                            <div>
+                              <p className="font-semibold">Requer Intervenção Humana</p>
+                              <p className="text-sm">
+                                {sentimentResult.interventionReason || 
+                                 "O tom emocional desta mensagem sugere que um atendente humano deve responder."}
+                              </p>
+                            </div>
                           </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+                
+                {/* Card para testar resposta automática */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center">
+                      <MessageCircleMore className="mr-2 h-5 w-5 text-primary" />
+                      Resposta Automática
+                    </CardTitle>
+                    <CardDescription>
+                      Teste se uma mensagem receberá resposta automática e veja a sugestão de resposta.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Form {...sentimentForm}>
+                      <form onSubmit={sentimentForm.handleSubmit(testAutoReply)} className="space-y-4">
+                        <FormField
+                          control={sentimentForm.control}
+                          name="text"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Mensagem de teste</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="Digite uma mensagem para testar a resposta automática..."
+                                  className="min-h-32"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <Button 
+                          type="submit" 
+                          disabled={isTestingAutoReply}
+                          className="w-full"
+                        >
+                          {isTestingAutoReply ? "Processando..." : "Testar Resposta"}
+                        </Button>
+                      </form>
+                    </Form>
                     
-                    <FormField
-                      control={settingsForm.control}
-                      name="autoAssignToBot"
-                      render={({ field }) => (
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                          <div className="space-y-0.5">
-                            <FormLabel className="text-base">Atribuição Automática ao Bot</FormLabel>
-                            <FormDescription>
-                              Atribuir automaticamente conversas com resposta automática ao agente virtual.
-                            </FormDescription>
+                    {autoReplyResult && (
+                      <div className="mt-4 p-4 bg-gray-50 rounded-md">
+                        <div className="flex items-center mb-3">
+                          <h4 className="font-semibold">Resultado do teste:</h4>
+                          <span className={`ml-2 px-2 py-0.5 text-xs font-medium rounded ${
+                            autoReplyResult.shouldReply ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                          }`}>
+                            {autoReplyResult.shouldReply ? "Resposta Automática" : "Intervenção Humana"}
+                          </span>
+                        </div>
+                        
+                        <p className="text-sm mb-3">
+                          <span className="font-medium">Confiança: </span>
+                          <span>{(autoReplyResult.confidence * 100).toFixed(1)}%</span>
+                        </p>
+                        
+                        {autoReplyResult.shouldReply && autoReplyResult.suggestedReply && (
+                          <div className="mt-3">
+                            <h5 className="font-medium mb-2">Resposta Sugerida:</h5>
+                            <div className="p-3 bg-blue-50 text-blue-800 rounded-md">
+                              {autoReplyResult.suggestedReply}
+                            </div>
                           </div>
-                          <FormControl>
-                            <Switch
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                    
-                    <div className="grid gap-6 md:grid-cols-2">
+                        )}
+                        
+                        {autoReplyResult.sentimentAnalysis && (
+                          <div className="mt-4 text-sm">
+                            <h5 className="font-medium mb-1">Informações adicionais:</h5>
+                            <p>
+                              Sentimento: <span className={`font-medium ${
+                                autoReplyResult.sentimentAnalysis.sentiment === "positive" ? "text-green-600" :
+                                autoReplyResult.sentimentAnalysis.sentiment === "negative" ? "text-red-600" :
+                                "text-yellow-600"
+                              }`}>
+                                {autoReplyResult.sentimentAnalysis.sentiment === "positive" ? "Positivo" :
+                                 autoReplyResult.sentimentAnalysis.sentiment === "negative" ? "Negativo" :
+                                 "Neutro"}
+                              </span>
+                            </p>
+                            
+                            {!autoReplyResult.shouldReply && autoReplyResult.sentimentAnalysis.interventionReason && (
+                              <div className="mt-2 p-2 bg-yellow-50 text-yellow-800 rounded-md text-xs">
+                                {autoReplyResult.sentimentAnalysis.interventionReason}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+            
+            {/* Aba de Configurações */}
+            <TabsContent value="settings">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Settings className="mr-2 h-5 w-5 text-primary" />
+                    Configurações do Assistente IA
+                  </CardTitle>
+                  <CardDescription>
+                    Configure os parâmetros do sistema de IA para resposta automática e análise de sentimento.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Form {...settingsForm}>
+                    <form onSubmit={settingsForm.handleSubmit(saveSettings)} className="space-y-6">
                       <FormField
                         control={settingsForm.control}
-                        name="sentimentThreshold"
+                        name="autoReplyEnabled"
                         render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Limite de Emoção Negativa (0-10)</FormLabel>
-                            <FormDescription>
-                              Nível de raiva/frustração a partir do qual uma mensagem é encaminhada para humano.
-                            </FormDescription>
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-base">Resposta Automática</FormLabel>
+                              <FormDescription>
+                                Ativar sistema de resposta automática para mensagens iniciais.
+                              </FormDescription>
+                            </div>
                             <FormControl>
-                              <Input
-                                type="number"
-                                min="0"
-                                max="10"
-                                step="0.5"
-                                {...field}
-                                onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
                               />
                             </FormControl>
-                            <FormMessage />
                           </FormItem>
                         )}
                       />
                       
                       <FormField
                         control={settingsForm.control}
-                        name="confidenceThreshold"
+                        name="escalateNegative"
                         render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Limite de Confiança (0-1)</FormLabel>
-                            <FormDescription>
-                              Nível mínimo de confiança para que uma resposta automática seja enviada.
-                            </FormDescription>
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-base">Encaminhar Negativos</FormLabel>
+                              <FormDescription>
+                                Encaminhar automaticamente mensagens com sentimento muito negativo para atendimento humano.
+                              </FormDescription>
+                            </div>
                             <FormControl>
-                              <Input
-                                type="number"
-                                min="0"
-                                max="1"
-                                step="0.1"
-                                {...field}
-                                onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
                               />
                             </FormControl>
-                            <FormMessage />
                           </FormItem>
                         )}
                       />
-                    </div>
-                    
-                    <Button type="submit" className="w-full">
-                      Salvar Configurações
-                    </Button>
-                  </form>
-                </Form>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          {/* Aba de Métricas */}
-          <TabsContent value="metrics">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <BarChart className="mr-2 h-5 w-5 text-primary" />
-                  Métricas do Assistente IA
-                </CardTitle>
-                <CardDescription>
-                  Estatísticas de desempenho do assistente de IA no sistema.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-12">
-                  <Sparkles className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-500">Módulo em Desenvolvimento</h3>
-                  <p className="text-sm text-gray-400 mt-2 max-w-md mx-auto">
-                    O painel de métricas está sendo implementado e estará disponível em breve.
-                    Aqui serão exibidas estatísticas sobre respostas automáticas, análises de sentimento
-                    e performance do sistema de IA.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                      
+                      <FormField
+                        control={settingsForm.control}
+                        name="autoAssignToBot"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-base">Atribuição Automática ao Bot</FormLabel>
+                              <FormDescription>
+                                Atribuir automaticamente conversas com resposta automática ao agente virtual.
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <div className="grid gap-6 md:grid-cols-2">
+                        <FormField
+                          control={settingsForm.control}
+                          name="sentimentThreshold"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Limite de Emoção Negativa (0-10)</FormLabel>
+                              <FormDescription>
+                                Nível de raiva/frustração a partir do qual uma mensagem é encaminhada para humano.
+                              </FormDescription>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="10"
+                                  step="0.5"
+                                  {...field}
+                                  onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        
+                        <FormField
+                          control={settingsForm.control}
+                          name="confidenceThreshold"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Limite de Confiança (0-1)</FormLabel>
+                              <FormDescription>
+                                Nível mínimo de confiança para que uma resposta automática seja enviada.
+                              </FormDescription>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="1"
+                                  step="0.1"
+                                  {...field}
+                                  onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                      
+                      <Button type="submit" className="w-full">
+                        Salvar Configurações
+                      </Button>
+                    </form>
+                  </Form>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
+            {/* Aba de Métricas */}
+            <TabsContent value="metrics">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <BarChart className="mr-2 h-5 w-5 text-primary" />
+                    Métricas do Assistente IA
+                  </CardTitle>
+                  <CardDescription>
+                    Estatísticas de desempenho do assistente de IA no sistema.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-center py-12">
+                    <Sparkles className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-500">Módulo em Desenvolvimento</h3>
+                    <p className="text-sm text-gray-400 mt-2 max-w-md mx-auto">
+                      O painel de métricas está sendo implementado e estará disponível em breve.
+                      Aqui serão exibidas estatísticas sobre respostas automáticas, análises de sentimento
+                      e performance do sistema de IA.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </>

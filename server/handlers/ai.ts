@@ -1,5 +1,5 @@
 import { Express, Request, Response } from "express";
-import { generateAIResponse, analyzeSentiment, generateQuickResponse } from "../services/ai";
+import { generateAIResponse, analyzeSentiment, generateQuickResponse, shouldAutoReply } from "../services/ai";
 import { db } from "@db";
 import { eq } from "drizzle-orm";
 import { messages } from "@shared/schema";
@@ -18,6 +18,49 @@ function isAuthenticated(req: any, res: any, next: any) {
  * @param apiPrefix Prefixo da API
  */
 export function registerAIRoutes(app: Express, apiPrefix: string) {
+
+  // Rota para configurações da IA
+  app.post(`${apiPrefix}/ai/settings`, isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const settings = req.body;
+      
+      // Aqui poderíamos salvar as configurações no banco de dados
+      // Por enquanto apenas retornamos sucesso
+      
+      return res.status(200).json({ 
+        message: "Configurações salvas com sucesso",
+        settings 
+      });
+      
+    } catch (error) {
+      console.error("Erro ao salvar configurações de IA:", error);
+      return res.status(500).json({
+        message: "Erro ao salvar configurações de IA",
+        error: error instanceof Error ? error.message : "Erro desconhecido"
+      });
+    }
+  });
+  
+  // Teste de resposta automática
+  app.post(`${apiPrefix}/ai/auto-reply-test`, isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const { message } = req.body;
+      
+      if (!message) {
+        return res.status(400).json({ message: "Mensagem é obrigatória" });
+      }
+      
+      const result = await shouldAutoReply(message);
+      return res.status(200).json(result);
+      
+    } catch (error) {
+      console.error("Erro ao testar resposta automática:", error);
+      return res.status(500).json({
+        message: "Erro ao processar teste de resposta automática",
+        error: error instanceof Error ? error.message : "Erro desconhecido"
+      });
+    }
+  });
   
   // Gerar resposta de IA para uma pergunta específica
   app.post(`${apiPrefix}/ai/generate-response`, isAuthenticated, async (req: Request, res: Response) => {

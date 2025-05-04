@@ -10,6 +10,7 @@ import {
   DollarSign,
   Settings,
   LogOut,
+  LayoutDashboard,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,12 @@ export function Sidebar() {
           icon={<Inbox />} 
           label="Caixa de Entrada" 
           active={location === "/"} 
+        />
+        <NavLink 
+          href="/crm" 
+          icon={<LayoutDashboard />} 
+          label="CRM" 
+          active={location.startsWith("/crm")} 
         />
         <NavLink 
           href="/contacts" 

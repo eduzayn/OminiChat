@@ -6,6 +6,9 @@ import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Login from "@/pages/login";
 import ContactsPage from "@/pages/contacts";
+import CRMDashboard from "@/pages/crm/index";
+import PipelineView from "@/pages/crm/pipeline";
+import LeadsManagement from "@/pages/crm/leads";
 import { useAuth } from "./context/auth-context";
 import { AuthProvider } from "./context/auth-context";
 import { SocketProvider } from "./context/socket-context";
@@ -39,6 +42,9 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/" component={Dashboard} />
       <Route path="/contacts" component={ContactsPage} />
+      <Route path="/crm" component={CRMDashboard} />
+      <Route path="/crm/pipeline" component={PipelineView} />
+      <Route path="/crm/leads" component={LeadsManagement} />
       <Route component={NotFound} />
     </Switch>
   );

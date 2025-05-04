@@ -20,7 +20,7 @@ import {
   Contact,
   DollarSign,
   Filter,
-  FunnelIcon,
+  FilterIcon,
   Inbox,
   List,
   PieChart,
@@ -139,7 +139,7 @@ function CRMDashboard() {
                         <div className="flex justify-between items-center">
                           <div className="text-2xl font-bold">{opportunityStats.open.count}</div>
                           <div className="p-2 rounded-full bg-blue-50 text-blue-600">
-                            <FunnelIcon className="h-5 w-5" />
+                            <FilterIcon className="h-5 w-5" />
                           </div>
                         </div>
                         <div className="text-sm text-neutral-500 mt-1">
@@ -266,7 +266,7 @@ function CRMDashboard() {
                 <TabsContent value="pipeline" className="mt-6">
                   <div className="relative">
                     <div className="border rounded-lg p-6 text-center">
-                      <FunnelIcon className="mx-auto h-12 w-12 text-neutral-300 mb-3" />
+                      <FilterIcon className="mx-auto h-12 w-12 text-neutral-300 mb-3" />
                       <h3 className="text-lg font-medium">Conteúdo do Pipeline</h3>
                       <p className="text-neutral-500 mb-4">
                         Esta funcionalidade será implementada em breve. Aqui você poderá visualizar e gerenciar seu funil de vendas completo.

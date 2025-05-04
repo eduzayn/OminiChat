@@ -14,15 +14,18 @@ const PgSession = connectPgSimple(session);
 app.use(session({
   store: new PgSession({
     pool: pool,
-    tableName: 'session' // Use default table name or specify your own
+    tableName: 'session' // Use default table name
   }),
+  name: 'omni.sid', // Personalizado para evitar conflitos
   secret: process.env.SESSION_SECRET || 'omnichannel-session-secret',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
+    secure: false, // Sempre falso para desenvolvimento
     httpOnly: true,
-    maxAge: 1000 * 60 * 60 * 24 // 24 hours
+    maxAge: 1000 * 60 * 60 * 24, // 24 hours
+    sameSite: 'lax', // Melhor compatibilidade com navegadores
+    path: '/' // Garante que o cookie está disponível em todo o site
   }
 }));
 

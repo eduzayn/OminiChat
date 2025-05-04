@@ -86,8 +86,9 @@ function ContactsPage() {
         tags: [],
         isOnline: false,
         metadata: {},
-        avatarUrl: null
-        // Os campos lastSeen e createdAt, updatedAt serão preenchidos pelo backend
+        avatarUrl: null,
+        lastSeen: null
+        // Os campos createdAt, updatedAt serão preenchidos pelo backend
       });
       
       setNewContact({

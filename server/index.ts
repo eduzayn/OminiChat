@@ -5,6 +5,15 @@ import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
 import { pool } from '@db';
 
+// Estender a sessão
+declare module 'express-session' {
+  interface SessionData {
+    userId: number;
+    userRole: string;
+    username: string;
+  }
+}
+
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -14,20 +23,29 @@ const PgSession = connectPgSimple(session);
 app.use(session({
   store: new PgSession({
     pool: pool,
-    tableName: 'session' // Use default table name
+    tableName: 'session', // Use default table name
+    createTableIfMissing: true // Cria a tabela se não existir
   }),
-  name: 'omni.sid', // Personalizado para evitar conflitos
+  name: 'connect.sid', // Usa o mesmo nome do cookie padrão para evitar conflitos
   secret: process.env.SESSION_SECRET || 'omnichannel-session-secret',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false, // Sempre falso para desenvolvimento
+    secure: false, // Sempre falso para desenvolvimento 
     httpOnly: true,
     maxAge: 1000 * 60 * 60 * 24, // 24 hours
     sameSite: 'lax', // Melhor compatibilidade com navegadores
     path: '/' // Garante que o cookie está disponível em todo o site
   }
 }));
+
+// Middleware de debug para sessão
+app.use((req: any, res, next) => {
+  if (req.path.startsWith('/api')) {
+    console.log(`Session debug: ${req.path}, userId: ${req.session?.userId || 'none'}`);
+  }
+  next();
+});
 
 app.use((req, res, next) => {
   const start = Date.now();

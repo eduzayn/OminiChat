@@ -21,10 +21,24 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Usar a URL atual do navegador para conectar ao WebSocket
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
+      const host = window.location.host || window.location.hostname;
       
-      ws = new WebSocket(wsUrl);
+      if (!host) {
+        console.error("Cannot establish WebSocket connection: host is undefined");
+        return;
+      }
+      
+      const wsUrl = `${protocol}//${host}/ws`;
+      console.log("Connecting to WebSocket at:", wsUrl);
+      
+      try {
+        ws = new WebSocket(wsUrl);
+      } catch (error) {
+        console.error("Failed to create WebSocket connection:", error);
+        return;
+      }
 
       ws.onopen = () => {
         console.log("WebSocket connection established");

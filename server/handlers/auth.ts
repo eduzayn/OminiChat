@@ -11,6 +11,15 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
+// Middleware to check if user is authenticated
+function isAuthenticated(req: any, res: any, next: any) {
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+  
+  next();
+}
+
 export function registerAuthRoutes(app: Express, apiPrefix: string) {
   // Login route
   app.post(`${apiPrefix}/auth/login`, async (req, res) => {
@@ -92,6 +101,31 @@ export function registerAuthRoutes(app: Express, apiPrefix: string) {
       
     } catch (error) {
       console.error("Auth check error:", error);
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  });
+  
+  // Get all agents (for assignment)
+  app.get(`${apiPrefix}/users/agents`, isAuthenticated, async (req, res) => {
+    try {
+      // Buscar usuários com papel de agente ou admin
+      const agents = await db.select({
+        id: users.id,
+        name: users.name,
+        username: users.username,
+        role: users.role,
+        avatarUrl: users.avatarUrl,
+        createdAt: users.createdAt
+      })
+      .from(users)
+      .where(
+        eq(users.role, "agent")
+      );
+      
+      return res.status(200).json(agents);
+      
+    } catch (error) {
+      console.error("Error fetching agents:", error);
       return res.status(500).json({ message: "Internal server error" });
     }
   });

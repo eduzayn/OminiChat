@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Message, MessageTemplate } from "@shared/schema";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { 
   Phone, 
   DollarSign, 
@@ -33,6 +33,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 function ChannelBadge({ type }: { type: string }) {
   let icon = null;
@@ -161,6 +169,131 @@ function DateSeparator({ date }: { date: Date }) {
   );
 }
 
+// Componente para atribuição de atendentes
+function AssignToAgentDropdown({ 
+  conversationId, 
+  currentAgentId 
+}: { 
+  conversationId: number;
+  currentAgentId: number | null;
+}) {
+  const { toast } = useToast();
+  
+  // Buscar os agentes disponíveis
+  const agentsQuery = useQuery({
+    queryKey: ['/api/users/agents'],
+    queryFn: async () => {
+      const response = await apiRequest("GET", '/api/users/agents');
+      return response.json();
+    }
+  });
+  
+  // Mutation para atribuir a conversa
+  const assignConversationMutation = useMutation({
+    mutationFn: async (agentId: number | null) => {
+      return await apiRequest("PATCH", `/api/conversations/${conversationId}/assign`, {
+        agentId
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      toast({
+        description: "Conversa atribuída com sucesso",
+        duration: 3000
+      });
+    },
+    onError: () => {
+      toast({
+        variant: "destructive",
+        description: "Erro ao atribuir conversa",
+        duration: 5000
+      });
+    }
+  });
+  
+  // Função para atribuir automaticamente
+  const assignAutomatically = async () => {
+    try {
+      // Aqui seria uma lógica mais complexa no mundo real,
+      // como balanceamento de carga, capacidade do agente, etc.
+      // Por simplicidade, vamos escolher o primeiro agente da lista
+      // ou um aleatório se houver mais de um
+      
+      const agents = agentsQuery.data || [];
+      
+      if (agents.length === 0) {
+        toast({
+          variant: "destructive",
+          description: "Não há agentes disponíveis para atribuição automática",
+          duration: 5000
+        });
+        return;
+      }
+      
+      // Escolha aleatória de um agente
+      const randomIndex = Math.floor(Math.random() * agents.length);
+      const randomAgent = agents[randomIndex];
+      
+      assignConversationMutation.mutate(randomAgent.id);
+      
+    } catch (error) {
+      console.error("Erro na atribuição automática:", error);
+      toast({
+        variant: "destructive",
+        description: "Erro ao realizar atribuição automática",
+        duration: 5000
+      });
+    }
+  };
+  
+  return (
+    <>
+      <DropdownMenuItem 
+        className="cursor-pointer"
+        onClick={() => assignAutomatically()}
+      >
+        🤖 Atribuir automaticamente
+      </DropdownMenuItem>
+      
+      <DropdownMenuSeparator />
+      
+      <DropdownMenuLabel>Atribuir para:</DropdownMenuLabel>
+      
+      {agentsQuery.isLoading ? (
+        <DropdownMenuItem disabled>
+          Carregando agentes...
+        </DropdownMenuItem>
+      ) : agentsQuery.data?.length === 0 ? (
+        <DropdownMenuItem disabled>
+          Nenhum agente disponível
+        </DropdownMenuItem>
+      ) : (
+        <>
+          {/* Opção para remover atribuição */}
+          <DropdownMenuItem 
+            className="cursor-pointer"
+            onClick={() => assignConversationMutation.mutate(null)}
+          >
+            ❌ Remover atribuição
+          </DropdownMenuItem>
+          
+          {/* Lista de agentes */}
+          {agentsQuery.data?.map((agent: any) => (
+            <DropdownMenuItem 
+              key={agent.id}
+              className="cursor-pointer"
+              onClick={() => assignConversationMutation.mutate(agent.id)}
+            >
+              {currentAgentId === agent.id ? "✅ " : ""}
+              {agent.name}
+            </DropdownMenuItem>
+          ))}
+        </>
+      )}
+    </>
+  );
+}
+
 function ConversationView() {
   const { activeConversation } = useConversation();
   const { user } = useAuth();
@@ -177,8 +310,9 @@ function ConversationView() {
   const messageTemplatesQuery = useQuery({
     queryKey: ['/api/message-templates'],
     queryFn: async () => {
-      const response = await apiRequest('/api/message-templates');
-      return response as MessageTemplate[];
+      const response = await apiRequest("GET", '/api/message-templates');
+      const data = await response.json();
+      return data as MessageTemplate[];
     }
   });
   

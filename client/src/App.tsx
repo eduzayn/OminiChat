@@ -156,17 +156,10 @@ function Router() {
       </Route>
       
       <Route path="/settings">
-        {() => <PlaceholderPage 
-          moduleName="Configurações" 
-          description="O módulo de configurações permite personalizar o sistema de acordo com as necessidades da sua organização."
-          features={[
-            "Perfil de usuário",
-            "Preferências de notificação",
-            "Aparência e tema",
-            "Configurações de segurança",
-            "Integrações de API"
-          ]}
-        />}
+        {() => <React.Suspense fallback={<div>Carregando...</div>}>
+          {/* Usando o componente real de configurações */}
+          {React.createElement(require("@/pages/settings/index").default)}
+        </React.Suspense>}
       </Route>
       
       <Route component={NotFound} />

@@ -12,6 +12,8 @@ export const users = pgTable("users", {
   email: text("email").notNull(),
   role: text("role").notNull().default("agent"),
   avatarUrl: text("avatar_url"),
+  isOnline: boolean("is_online").default(false),
+  lastSeen: timestamp("last_seen"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

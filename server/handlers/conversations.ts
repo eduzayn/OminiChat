@@ -289,10 +289,17 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
       
       // Insert message
       // Garantir que todos os campos obrigatórios estejam presentes
+      // Certifique-se de que conversationId e content são números/strings válidos
+      if (typeof messageData.conversationId !== 'number' || 
+          typeof messageData.content !== 'string' || 
+          !messageData.content.trim()) {
+        return res.status(400).json({ message: "Invalid message data: content and conversationId are required" });
+      }
+      
       const validMessageData = {
         conversationId: messageData.conversationId,
         content: messageData.content,
-        isFromAgent: messageData.isFromAgent || false,
+        isFromAgent: messageData.isFromAgent === true,
         agentId: messageData.agentId || null,
         contactId: messageData.contactId || null,
         status: "sent"
@@ -300,7 +307,7 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
       
       const [newMessage] = await db
         .insert(messages)
-        .values(validMessageData)
+        .values([validMessageData])
         .returning();
       
       // Update conversation lastMessageAt

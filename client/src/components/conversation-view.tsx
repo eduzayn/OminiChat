@@ -201,8 +201,8 @@ function ConversationView() {
         return;
       }
       
-      // Extrair a mensagem do objeto data, com fallback para o próprio objeto
-      const message = data.message || data;
+      // Usar o próprio objeto data como mensagem, já que o socket-context já faz o processamento
+      const message = data;
       
       // Verificar se a mensagem tem os campos necessários
       if (!message || !message.conversationId) {

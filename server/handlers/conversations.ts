@@ -288,9 +288,19 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
       }
       
       // Insert message
+      // Garantir que todos os campos obrigatórios estejam presentes
+      const validMessageData = {
+        conversationId: messageData.conversationId,
+        content: messageData.content,
+        isFromAgent: messageData.isFromAgent || false,
+        agentId: messageData.agentId || null,
+        contactId: messageData.contactId || null,
+        status: "sent"
+      };
+      
       const [newMessage] = await db
         .insert(messages)
-        .values(messageData)
+        .values(validMessageData)
         .returning();
       
       // Update conversation lastMessageAt

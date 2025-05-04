@@ -33,9 +33,13 @@ function Dashboard() {
       };
       
       socket.addEventListener("message", (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === "new_message") {
-          handleNewMessage(data.message);
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === "new_message" && data.data) {
+            handleNewMessage(data.data);
+          }
+        } catch (error) {
+          console.error("Erro ao processar mensagem WebSocket:", error);
         }
       });
       

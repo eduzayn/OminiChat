@@ -237,6 +237,13 @@ export const notesRelations = relations(notes, ({ one }) => ({
   }),
 }));
 
+export const messageTemplatesRelations = relations(messageTemplates, ({ one }) => ({
+  createdByUser: one(users, {
+    fields: [messageTemplates.createdBy],
+    references: [users.id],
+  }),
+}));
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -271,3 +278,8 @@ export type Note = typeof notes.$inferSelect & {
   user: User;
 };
 export type InsertNote = z.infer<typeof insertNoteSchema>;
+
+export type MessageTemplate = typeof messageTemplates.$inferSelect & {
+  createdByUser?: User;
+};
+export type InsertMessageTemplate = z.infer<typeof insertMessageTemplateSchema>;

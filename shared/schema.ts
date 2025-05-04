@@ -139,11 +139,29 @@ export const insertNoteSchema = createInsertSchema(notes, {
   content: (schema) => schema.min(1, "Note content cannot be empty"),
 });
 
+// Message Templates Table
+export const messageTemplates = pgTable("message_templates", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  category: text("category").default("general"),
+  isActive: boolean("is_active").default(true),
+  createdBy: integer("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertMessageTemplateSchema = createInsertSchema(messageTemplates, {
+  title: (schema) => schema.min(2, "Title must be at least 2 characters"),
+  content: (schema) => schema.min(5, "Template content must be at least 5 characters"),
+});
+
 // Define Relations
 export const usersRelations = relations(users, ({ many }) => ({
   assignedConversations: many(conversations),
   messages: many(messages),
   notes: many(notes),
+  messageTemplates: many(messageTemplates),
 }));
 
 export const contactsRelations = relations(contacts, ({ many }) => ({

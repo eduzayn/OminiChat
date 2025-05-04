@@ -42,45 +42,86 @@ export async function generateAIResponse(prompt: string, conversationHistory?: s
 }
 
 /**
- * Analisa o sentimento de um texto
+ * Analisa o sentimento de um texto, com detecção avançada de estados emocionais
  * @param text O texto a ser analisado
- * @returns Objeto contendo a polaridade do sentimento e confiança
+ * @returns Objeto contendo a análise detalhada do sentimento e estado emocional
  */
 export async function analyzeSentiment(text: string): Promise<{
   sentiment: "positive" | "neutral" | "negative";
   score: number;
   confidence: number;
+  emotions: {
+    anger: number;
+    frustration: number;
+    impatience: number;
+    urgency: number;
+  };
+  needsHumanIntervention: boolean;
+  interventionReason?: string;
 }> {
   try {
+    const prompt = `
+Analise o sentimento e tom emocional desta mensagem e forneça uma análise detalhada.
+
+Texto: "${text}"
+
+Responda com um objeto JSON contendo:
+- sentiment: "positive", "neutral" ou "negative"
+- score: número entre -1 (muito negativo) e 1 (muito positivo)
+- confidence: número entre 0 e 1 indicando sua confiança na análise
+- emotions: objeto com pontuações de 0 a 10 para:
+  - anger: nível de raiva
+  - frustration: nível de frustração
+  - impatience: nível de impaciência
+  - urgency: nível de urgência
+- needsHumanIntervention: boolean (true se você acredita que um humano deve responder)
+- interventionReason: string curta explicando por que precisa de intervenção humana (se needsHumanIntervention for true)
+`;
+
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
         {
           role: "system",
-          content: 
-            "Analise o sentimento do texto a seguir e retorne um objeto JSON com: sentiment (positive, neutral, negative), score (de -1 a 1) e confidence (de 0 a 1)."
+          content: "Você é um analisador de sentimento especializado em detectar emoções e tom em mensagens de atendimento ao cliente."
         },
         {
           role: "user",
-          content: text
+          content: prompt
         }
       ],
-      response_format: { type: "json_object" }
+      response_format: { type: "json_object" },
+      temperature: 0.3
     });
 
-    const result = JSON.parse(response.choices[0].message.content);
+    const result = JSON.parse(response.choices[0].message.content || "{}");
 
     return {
-      sentiment: result.sentiment,
+      sentiment: result.sentiment || "neutral",
       score: parseFloat(result.score) || 0,
-      confidence: parseFloat(result.confidence) || 0.5
+      confidence: parseFloat(result.confidence) || 0.5,
+      emotions: {
+        anger: parseFloat(result.emotions?.anger) || 0,
+        frustration: parseFloat(result.emotions?.frustration) || 0,
+        impatience: parseFloat(result.emotions?.impatience) || 0,
+        urgency: parseFloat(result.emotions?.urgency) || 0
+      },
+      needsHumanIntervention: result.needsHumanIntervention || false,
+      interventionReason: result.interventionReason
     };
   } catch (error) {
     console.error("Erro ao analisar sentimento:", error);
     return {
       sentiment: "neutral",
       score: 0,
-      confidence: 0
+      confidence: 0,
+      emotions: {
+        anger: 0,
+        frustration: 0,
+        impatience: 0,
+        urgency: 0
+      },
+      needsHumanIntervention: false
     };
   }
 }
@@ -138,16 +179,52 @@ export async function shouldAutoReply(
   shouldReply: boolean;
   suggestedReply?: string;
   confidence: number;
+  sentimentAnalysis?: {
+    sentiment: "positive" | "neutral" | "negative";
+    score: number;
+    emotions: {
+      anger: number;
+      frustration: number;
+      impatience: number;
+      urgency: number;
+    };
+    needsHumanIntervention: boolean;
+    interventionReason?: string;
+  }
 }> {
   try {
+    // Primeiro fazer análise de sentimento para detectar se há necessidade de intervenção humana
+    const sentimentAnalysis = await analyzeSentiment(message);
+    
+    // Se a análise de sentimento indica que precisa de intervenção humana, não responder automaticamente
+    if (sentimentAnalysis.needsHumanIntervention || 
+        sentimentAnalysis.emotions.anger > 6 || 
+        sentimentAnalysis.emotions.frustration > 7) {
+      return {
+        shouldReply: false,
+        confidence: sentimentAnalysis.confidence,
+        sentimentAnalysis
+      };
+    }
+    
+    // Se o sentimento é muito negativo, também não responder automaticamente
+    if (sentimentAnalysis.sentiment === "negative" && sentimentAnalysis.score < -0.6) {
+      return {
+        shouldReply: false,
+        confidence: sentimentAnalysis.confidence,
+        sentimentAnalysis
+      };
+    }
+    
+    // Se passou pela análise de sentimento, fazer uma análise adicional de complexidade e tipo da mensagem
     const prompt = `
 Analise a mensagem abaixo e determine se deve receber uma resposta automática.
 Considere os seguintes critérios:
 - A mensagem contém uma pergunta clara e simples?
 - A mensagem parece solicitar informações básicas?
 - A mensagem pode ser respondida sem intervenção humana?
-- A mensagem não demonstra frustração ou raiva extrema?
 - A mensagem não menciona problemas complexos que precisam de investigação?
+- A mensagem não requer acesso a sistemas ou informações específicas do cliente?
 
 Mensagem: "${message}"
 ${conversationHistory ? `\nHistórico da conversa:\n${conversationHistory}` : ''}
@@ -174,7 +251,7 @@ Responda APENAS com um objeto JSON contendo:
       temperature: 0.3
     });
 
-    const result = JSON.parse(response.choices[0].message.content);
+    const result = JSON.parse(response.choices[0].message.content || "{}");
     
     // Se deve responder automaticamente, gerar resposta sugerida
     let suggestedReply: string | undefined = undefined;
@@ -183,9 +260,10 @@ Responda APENAS com um objeto JSON contendo:
     }
     
     return {
-      shouldReply: result.shouldReply,
+      shouldReply: result.shouldReply || false,
       suggestedReply,
-      confidence: parseFloat(result.confidence) || 0.5
+      confidence: parseFloat(result.confidence) || 0.5,
+      sentimentAnalysis
     };
   } catch (error) {
     console.error("Erro ao analisar necessidade de resposta automática:", error);

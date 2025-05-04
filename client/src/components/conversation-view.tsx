@@ -646,13 +646,47 @@ function ConversationView() {
                     <Button 
                       variant="outline" 
                       className="w-full flex items-center justify-between p-2"
-                      onClick={() => {
-                        setMessageInput(prev => 
-                          prev + (prev ? " " : "") + "Responda de forma concisa e profissional"); 
-                        toast({ 
-                          description: "Para usar o assistente IA, você precisa configurar um serviço de IA com OpenAI API.",
-                          duration: 5000
-                        });
+                      onClick={async () => {
+                        try {
+                          setMessageInput("Gerando resposta concisa...");
+                          
+                          const response = await fetch("/api/ai/quick-response", {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify({
+                              type: "concise",
+                              messageContent: messageInput,
+                              conversationId: activeConversation?.id
+                            })
+                          });
+                          
+                          const data = await response.json();
+                          
+                          if (response.ok) {
+                            setMessageInput(data.response);
+                            toast({
+                              description: "Resposta gerada com sucesso",
+                              duration: 3000
+                            });
+                          } else {
+                            setMessageInput("");
+                            toast({
+                              variant: "destructive",
+                              description: data.message || "Erro ao gerar resposta concisa",
+                              duration: 5000
+                            });
+                          }
+                        } catch (error) {
+                          console.error("Erro ao gerar resposta:", error);
+                          setMessageInput("");
+                          toast({
+                            variant: "destructive",
+                            description: "Erro ao comunicar com o serviço de IA",
+                            duration: 5000
+                          });
+                        }
                       }}
                     >
                       <span>Resposta concisa</span>
@@ -661,13 +695,47 @@ function ConversationView() {
                     <Button 
                       variant="outline" 
                       className="w-full flex items-center justify-between p-2"
-                      onClick={() => {
-                        setMessageInput(prev => 
-                          prev + (prev ? " " : "") + "Resuma as informações principais da conversa"); 
-                        toast({ 
-                          description: "Para usar o assistente IA, você precisa configurar um serviço de IA com OpenAI API.",
-                          duration: 5000
-                        });
+                      onClick={async () => {
+                        try {
+                          setMessageInput("Gerando resumo da conversa...");
+                          
+                          const response = await fetch("/api/ai/quick-response", {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify({
+                              type: "summary",
+                              messageContent: messageInput,
+                              conversationId: activeConversation?.id
+                            })
+                          });
+                          
+                          const data = await response.json();
+                          
+                          if (response.ok) {
+                            setMessageInput(data.response);
+                            toast({
+                              description: "Resumo gerado com sucesso",
+                              duration: 3000
+                            });
+                          } else {
+                            setMessageInput("");
+                            toast({
+                              variant: "destructive",
+                              description: data.message || "Erro ao gerar resumo da conversa",
+                              duration: 5000
+                            });
+                          }
+                        } catch (error) {
+                          console.error("Erro ao gerar resumo:", error);
+                          setMessageInput("");
+                          toast({
+                            variant: "destructive",
+                            description: "Erro ao comunicar com o serviço de IA",
+                            duration: 5000
+                          });
+                        }
                       }}
                     >
                       <span>Resumir conversa</span>
@@ -676,13 +744,56 @@ function ConversationView() {
                     <Button 
                       variant="outline" 
                       className="w-full flex items-center justify-between p-2"
-                      onClick={() => {
-                        setMessageInput(prev => 
-                          prev + (prev ? " " : "") + "Corrija os erros gramaticais e melhore o texto"); 
-                        toast({ 
-                          description: "Para usar o assistente IA, você precisa configurar um serviço de IA com OpenAI API.",
-                          duration: 5000
-                        });
+                      onClick={async () => {
+                        try {
+                          if (!messageInput.trim()) {
+                            toast({
+                              description: "Digite um texto para corrigir",
+                              duration: 3000
+                            });
+                            return;
+                          }
+                          
+                          const originalText = messageInput;
+                          setMessageInput("Corrigindo texto...");
+                          
+                          const response = await fetch("/api/ai/quick-response", {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify({
+                              type: "correction",
+                              messageContent: originalText,
+                              conversationId: activeConversation?.id
+                            })
+                          });
+                          
+                          const data = await response.json();
+                          
+                          if (response.ok) {
+                            setMessageInput(data.response);
+                            toast({
+                              description: "Texto corrigido com sucesso",
+                              duration: 3000
+                            });
+                          } else {
+                            setMessageInput(originalText);
+                            toast({
+                              variant: "destructive",
+                              description: data.message || "Erro ao corrigir texto",
+                              duration: 5000
+                            });
+                          }
+                        } catch (error) {
+                          console.error("Erro ao corrigir texto:", error);
+                          setMessageInput("");
+                          toast({
+                            variant: "destructive",
+                            description: "Erro ao comunicar com o serviço de IA",
+                            duration: 5000
+                          });
+                        }
                       }}
                     >
                       <span>Corrigir texto</span>

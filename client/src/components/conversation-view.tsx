@@ -595,38 +595,23 @@ function ConversationView() {
                 <div className="space-y-2">
                   <h3 className="text-sm font-medium mb-2">Modelos de mensagem</h3>
                   <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                    {[
-                      {
-                        title: "Boas-vindas",
-                        text: "Olá! Bem-vindo à OmniConnect. Como posso ajudar você hoje?"
-                      },
-                      {
-                        title: "Agradecimento",
-                        text: "Muito obrigado pelo contato. Estamos à disposição para qualquer esclarecimento adicional."
-                      },
-                      {
-                        title: "Transferência",
-                        text: "Preciso transferir seu atendimento para um especialista. Aguarde um momento, por favor."
-                      },
-                      {
-                        title: "Solicitação recebida",
-                        text: "Sua solicitação foi registrada com sucesso. Estaremos processando e retornaremos em breve."
-                      },
-                      {
-                        title: "Fechamento",
-                        text: "Foi um prazer atendê-lo. Caso precise de mais alguma coisa, estamos à disposição."
-                      }
-                    ].map((template, index) => (
-                      <Button 
-                        key={index}
-                        variant="outline" 
-                        className="w-full flex flex-col items-start p-2 h-auto"
-                        onClick={() => setMessageInput(template.text)}
-                      >
-                        <span className="font-medium text-xs text-left mb-1">{template.title}</span>
-                        <span className="text-xs text-left text-neutral-600 line-clamp-2">{template.text}</span>
-                      </Button>
-                    ))}
+                    {messageTemplates?.length > 0 ? (
+                      messageTemplates.map((template) => (
+                        <Button 
+                          key={template.id}
+                          variant="outline" 
+                          className="w-full flex flex-col items-start p-2 h-auto"
+                          onClick={() => setMessageInput(template.content)}
+                        >
+                          <span className="font-medium text-xs text-left mb-1">{template.title}</span>
+                          <span className="text-xs text-left text-neutral-600 line-clamp-2">{template.content}</span>
+                        </Button>
+                      ))
+                    ) : (
+                      <div className="text-center py-2 text-xs text-gray-500">
+                        Carregando modelos...
+                      </div>
+                    )}
                   </div>
                 </div>
               </PopoverContent>

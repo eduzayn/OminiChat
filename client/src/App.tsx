@@ -10,6 +10,7 @@ import ContactsPage from "@/pages/contacts";
 import CRMDashboard from "@/pages/crm/index";
 import PipelineView from "@/pages/crm/pipeline";
 import LeadsManagement from "@/pages/crm/leads";
+import SettingsPage from "@/pages/settings/index";
 import { useAuth } from "./context/auth-context";
 import { AuthProvider } from "./context/auth-context";
 import { SocketProvider } from "./context/socket-context";
@@ -155,16 +156,7 @@ function Router() {
         />}
       </Route>
       
-      <Route path="/settings">
-        {() => {
-          const Settings = require("@/pages/settings/index").default;
-          return (
-            <Suspense fallback={<div>Carregando...</div>}>
-              <Settings />
-            </Suspense>
-          );
-        }}
-      </Route>
+      <Route path="/settings" component={SettingsPage} />
       
       <Route component={NotFound} />
     </Switch>

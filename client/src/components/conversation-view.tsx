@@ -16,13 +16,22 @@ import {
   Send,
   Ticket,
   Bot,
-  MessageSquare
+  MessageSquare,
+  Image,
+  FileText,
+  Music,
+  Video
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { 
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 function ChannelBadge({ type }: { type: string }) {
   let icon = null;
@@ -499,12 +508,62 @@ function ConversationView() {
       {/* Conversation input */}
       <div className="bg-white border-t border-neutral-200 p-4">
         <div className="flex items-center">
-          <Button variant="ghost" size="icon" className="text-neutral-500 hover:text-neutral-700">
-            <Paperclip className="h-5 w-5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="text-neutral-500 hover:text-neutral-700">
-            <SmilePlus className="h-5 w-5" />
-          </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-neutral-500 hover:text-neutral-700">
+                <Paperclip className="h-5 w-5" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-60 p-2">
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium mb-2">Anexar arquivo</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="outline" className="flex flex-col items-center justify-center p-3 h-auto space-y-1" onClick={() => toast({ description: "Função de imagem será implementada em breve." })}>
+                    <Image className="h-5 w-5 text-neutral-500" />
+                    <span className="text-xs">Imagem</span>
+                  </Button>
+                  <Button variant="outline" className="flex flex-col items-center justify-center p-3 h-auto space-y-1" onClick={() => toast({ description: "Função de documento será implementada em breve." })}>
+                    <FileText className="h-5 w-5 text-neutral-500" />
+                    <span className="text-xs">Documento</span>
+                  </Button>
+                  <Button variant="outline" className="flex flex-col items-center justify-center p-3 h-auto space-y-1" onClick={() => toast({ description: "Função de áudio será implementada em breve." })}>
+                    <Music className="h-5 w-5 text-neutral-500" />
+                    <span className="text-xs">Áudio</span>
+                  </Button>
+                  <Button variant="outline" className="flex flex-col items-center justify-center p-3 h-auto space-y-1" onClick={() => toast({ description: "Função de vídeo será implementada em breve." })}>
+                    <Video className="h-5 w-5 text-neutral-500" />
+                    <span className="text-xs">Vídeo</span>
+                  </Button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+          
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-neutral-500 hover:text-neutral-700">
+                <SmilePlus className="h-5 w-5" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-60 p-2">
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium mb-2">Emojis</h3>
+                <div className="grid grid-cols-6 gap-1">
+                  {["😀", "😂", "❤️", "👍", "🙏", "🔥", "✅", "🎉", "🤔", "😊", "👋", "⭐", "🚀", "👏", "🌟", "💯", "🙌", "💪"].map((emoji) => (
+                    <Button 
+                      key={emoji}
+                      variant="ghost" 
+                      className="h-9 w-9 p-0" 
+                      onClick={() => setMessageInput(prev => prev + emoji)}
+                    >
+                      {emoji}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+          
           <div className="flex-1 mx-2">
             <Input
               type="text"

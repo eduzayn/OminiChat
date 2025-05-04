@@ -1,3 +1,4 @@
+import React, { Suspense, useEffect } from "react";
 import { Switch, Route, useLocation } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -13,7 +14,6 @@ import { useAuth } from "./context/auth-context";
 import { AuthProvider } from "./context/auth-context";
 import { SocketProvider } from "./context/socket-context";
 import { ConversationProvider } from "./context/conversation-context";
-import { useEffect } from "react";
 
 // Página de placeholder para módulos em desenvolvimento
 import PlaceholderPage from "@/pages/placeholder";
@@ -156,10 +156,14 @@ function Router() {
       </Route>
       
       <Route path="/settings">
-        {() => <React.Suspense fallback={<div>Carregando...</div>}>
-          {/* Usando o componente real de configurações */}
-          {React.createElement(require("@/pages/settings/index").default)}
-        </React.Suspense>}
+        {() => {
+          const Settings = require("@/pages/settings/index").default;
+          return (
+            <Suspense fallback={<div>Carregando...</div>}>
+              <Settings />
+            </Suspense>
+          );
+        }}
       </Route>
       
       <Route component={NotFound} />

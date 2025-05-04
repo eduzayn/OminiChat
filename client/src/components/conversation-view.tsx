@@ -5,7 +5,8 @@ import { useSocket } from "@/context/socket-context";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Message } from "@shared/schema";
+import { Message, MessageTemplate } from "@shared/schema";
+import { useQuery } from "@tanstack/react-query";
 import { 
   Phone, 
   DollarSign, 
@@ -171,6 +172,17 @@ function ConversationView() {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  
+  // Fetch message templates
+  const messageTemplatesQuery = useQuery({
+    queryKey: ['/api/message-templates'],
+    queryFn: async () => {
+      const response = await apiRequest('/api/message-templates');
+      return response as MessageTemplate[];
+    }
+  });
+  
+  const messageTemplates = messageTemplatesQuery.data || [];
   
   // Fetch messages for the active conversation
   useEffect(() => {

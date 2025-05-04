@@ -26,16 +26,14 @@ function NavLink({ href, icon, label, active }: NavLinkProps) {
   const isMobile = useMobile();
   
   return (
-    <Link href={href}>
-      <a className={cn(
-        "flex items-center px-4 py-2.5 transition-all",
-        active 
-          ? "text-primary-500 bg-primary-50 border-l-4 border-primary-500" 
-          : "text-neutral-600 hover:bg-neutral-100 border-l-4 border-transparent"
-      )}>
-        <span className="text-xl md:text-lg">{icon}</span>
-        {!isMobile && <span className="ml-3 text-sm font-medium">{label}</span>}
-      </a>
+    <Link href={href} className={cn(
+      "flex items-center px-4 py-2.5 transition-all",
+      active 
+        ? "text-primary-500 bg-primary-50 border-l-4 border-primary-500" 
+        : "text-neutral-600 hover:bg-neutral-100 border-l-4 border-transparent"
+    )}>
+      <span className="text-xl md:text-lg">{icon}</span>
+      {!isMobile && <span className="ml-3 text-sm font-medium">{label}</span>}
     </Link>
   );
 }

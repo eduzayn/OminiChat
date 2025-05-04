@@ -90,12 +90,18 @@ function SettingsPage() {
   // Consultas para buscar dados
   const messageTemplatesQuery = useQuery({
     queryKey: ['/api/message-templates'],
-    queryFn: () => apiRequest('/api/message-templates')
+    queryFn: async () => {
+      const response = await apiRequest('/api/message-templates');
+      return response || [];
+    }
   });
   
   const channelsQuery = useQuery({
     queryKey: ['/api/channels'],
-    queryFn: () => apiRequest('/api/channels')
+    queryFn: async () => {
+      const response = await apiRequest('/api/channels');
+      return response || [];
+    }
   });
   
   // Manipuladores para respostas rápidas
@@ -123,8 +129,11 @@ function SettingsPage() {
     try {
       if (editingTemplate) {
         // Atualizar modelo existente
-        await apiRequest(`/api/message-templates/${editingTemplate.id}`, {
+        await fetch(`/api/message-templates/${editingTemplate.id}`, {
           method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json'
+          },
           body: JSON.stringify(templateForm)
         });
         toast({
@@ -133,8 +142,11 @@ function SettingsPage() {
         });
       } else {
         // Criar novo modelo
-        await apiRequest('/api/message-templates', {
+        await fetch('/api/message-templates', {
           method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
           body: JSON.stringify(templateForm)
         });
         toast({
@@ -159,7 +171,7 @@ function SettingsPage() {
     if (!confirm("Tem certeza que deseja excluir este modelo?")) return;
     
     try {
-      await apiRequest(`/api/message-templates/${id}`, {
+      await fetch(`/api/message-templates/${id}`, {
         method: 'DELETE'
       });
       
@@ -222,8 +234,11 @@ function SettingsPage() {
     try {
       if (editingChannel) {
         // Atualizar canal existente
-        await apiRequest(`/api/channels/${editingChannel.id}`, {
+        await fetch(`/api/channels/${editingChannel.id}`, {
           method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json'
+          },
           body: JSON.stringify(channelForm)
         });
         toast({
@@ -232,8 +247,11 @@ function SettingsPage() {
         });
       } else {
         // Criar novo canal
-        await apiRequest('/api/channels', {
+        await fetch('/api/channels', {
           method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
           body: JSON.stringify(channelForm)
         });
         toast({
@@ -256,8 +274,11 @@ function SettingsPage() {
   
   const handleToggleChannelStatus = async (id: number, isActive: boolean) => {
     try {
-      await apiRequest(`/api/channels/${id}`, {
+      await fetch(`/api/channels/${id}`, {
         method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify({ isActive: !isActive })
       });
       
@@ -281,7 +302,7 @@ function SettingsPage() {
     if (!confirm("Tem certeza que deseja excluir este canal?")) return;
     
     try {
-      await apiRequest(`/api/channels/${id}`, {
+      await fetch(`/api/channels/${id}`, {
         method: 'DELETE'
       });
       

@@ -477,9 +477,22 @@ function ConversationView() {
           <Button variant="ghost" size="icon" title="Informações do Contato">
             <Info className="h-5 w-5" />
           </Button>
-          <Button variant="ghost" size="icon" title="Mais Opções">
-            <MoreHorizontal className="h-5 w-5" />
-          </Button>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" title="Mais Opções">
+                <MoreHorizontal className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Ações</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <AssignToAgentDropdown
+                conversationId={activeConversation.id}
+                currentAgentId={activeConversation.assignedTo || null}
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       

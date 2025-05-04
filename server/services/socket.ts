@@ -19,7 +19,7 @@ export function setupWebSocketServer(wss: WebSocketServer, db: any): void {
     let userRole: string | null = null;
     
     // Handle messages from clients
-    ws.on('message', async (message: string) => {
+    ws.on('message', (message: string) => {
       try {
         const data = JSON.parse(message);
         const messageType = data.type;
@@ -54,14 +54,22 @@ export function setupWebSocketServer(wss: WebSocketServer, db: any): void {
               }
             });
             
-            // Update user status in database
+            // Update user status in database usando Drizzle ORM
             try {
-              await db.execute(`
-                UPDATE users 
-                SET is_online = true, last_seen = NOW() 
-                WHERE id = ${userId}
-              `);
-              console.log(`User ${userId} marked as online in database`);
+              // Uso de promises em vez de await
+              db.update(schema.users)
+                .set({ 
+                  isOnline: true, 
+                  lastSeen: new Date() 
+                })
+                .where(eq(schema.users.id, userId))
+                .execute()
+                .then(() => {
+                  console.log(`User ${userId} marked as online in database`);
+                })
+                .catch((error) => {
+                  console.error('Error updating user online status:', error);
+                });
             } catch (error) {
               console.error('Error updating user online status:', error);
             }
@@ -160,15 +168,22 @@ export function setupWebSocketServer(wss: WebSocketServer, db: any): void {
         
         // Update database
         try {
-          // Executa consulta SQL direta para maior simplicidade
+          // Atualiza o status do usuário usando o Drizzle ORM em vez de SQL direto
           if (userId) {
-            db.execute(`
-              UPDATE users 
-              SET is_online = false, last_seen = NOW() 
-              WHERE id = ${userId}
-            `)
-            .catch(error => console.error('Error updating user offline status:', error));
-            console.log(`User ${userId} marked as offline in database`);
+            // Uso de promises em vez de await
+            db.update(schema.users)
+              .set({ 
+                isOnline: false, 
+                lastSeen: new Date() 
+              })
+              .where(eq(schema.users.id, userId))
+              .execute()
+              .then(() => {
+                console.log(`User ${userId} marked as offline in database`);
+              })
+              .catch((err) => {
+                console.error('Error updating user offline status:', err);
+              });
           }
         } catch (error) {
           console.error('Error updating user offline status:', error);

@@ -212,7 +212,15 @@ function ConversationView() {
       
       // Processar a mensagem se pertence à conversa ativa
       if (message.conversationId === activeConversation.id) {
-        setMessages(prev => [...prev, message]);
+        // Verificar se a mensagem já existe para evitar duplicação
+        setMessages(prev => {
+          // Se a mensagem já existe na lista, não adicione novamente
+          const messageExists = prev.some(m => m.id === message.id);
+          if (messageExists) {
+            return prev;
+          }
+          return [...prev, message];
+        });
         
         // Marcar como lida se for uma mensagem do cliente
         if (!message.isFromAgent) {
@@ -279,8 +287,15 @@ function ConversationView() {
       
       const newMessage = await response.json();
       
-      // Optimistically add the message to the UI
-      setMessages(prev => [...prev, newMessage]);
+      // Adicionar a mensagem à UI apenas se ela não existir já
+      setMessages(prev => {
+        // Verificar se a mensagem já existe na lista para evitar duplicação
+        const messageExists = prev.some(m => m.id === newMessage.id);
+        if (messageExists) {
+          return prev;
+        }
+        return [...prev, newMessage];
+      });
       
       // Clear the input
       setMessageInput("");

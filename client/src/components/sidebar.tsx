@@ -67,37 +67,37 @@ export function Sidebar() {
         <NavLink 
           href="/" 
           icon={<Inbox />} 
-          label="Inbox" 
+          label="Caixa de Entrada" 
           active={location === "/"} 
         />
         <NavLink 
           href="/contacts" 
           icon={<Users />} 
-          label="Contacts" 
+          label="Contatos" 
           active={location === "/contacts"} 
         />
         <NavLink 
           href="/teams" 
           icon={<UserCog />} 
-          label="Teams" 
+          label="Equipes" 
           active={location === "/teams"} 
         />
         <NavLink 
           href="/reports" 
           icon={<BarChart2 />} 
-          label="Reports" 
+          label="Relatórios" 
           active={location === "/reports"} 
         />
         <NavLink 
           href="/payments" 
           icon={<DollarSign />} 
-          label="Payments" 
+          label="Pagamentos" 
           active={location === "/payments"} 
         />
         <NavLink 
           href="/settings" 
           icon={<Settings />} 
-          label="Settings" 
+          label="Configurações" 
           active={location === "/settings"} 
         />
       </nav>

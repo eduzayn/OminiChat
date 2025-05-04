@@ -15,10 +15,12 @@ import {
   SmilePlus, 
   Send,
   Ticket,
-  Bot
+  Bot,
+  MessageSquare
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -133,11 +135,11 @@ function DateSeparator({ date }: { date: Date }) {
   yesterday.setDate(yesterday.getDate() - 1);
   
   if (date.toDateString() === today.toDateString()) {
-    label = "Today";
+    label = "Hoje";
   } else if (date.toDateString() === yesterday.toDateString()) {
-    label = "Yesterday";
+    label = "Ontem";
   } else {
-    label = format(date, "MMMM d, yyyy");
+    label = format(date, "d 'de' MMMM, yyyy", { locale: ptBR });
   }
   
   return (
@@ -316,13 +318,27 @@ function ConversationView() {
     return (
       <div className="flex-1 flex items-center justify-center bg-neutral-50">
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-neutral-100 rounded-full mb-4">
-            <i className="ri-chat-3-line text-neutral-400 text-2xl"></i>
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-neutral-100 rounded-full mb-4">
+            <i className="ri-chat-3-line text-neutral-400 text-3xl"></i>
           </div>
-          <h3 className="text-lg font-medium text-neutral-800 mb-2">No Conversation Selected</h3>
+          <h3 className="text-xl font-medium text-neutral-800 mb-2">Nenhuma Conversa Selecionada</h3>
           <p className="text-sm text-neutral-500 max-w-sm">
-            Select a conversation from the list to start chatting
+            Selecione uma conversa da lista para começar a interagir
           </p>
+          <div className="mt-6 flex gap-3 justify-center">
+            <Button variant="outline" className="flex items-center gap-2 px-4">
+              <i className="ri-whatsapp-fill text-success-500"></i>
+              <span>WhatsApp</span>
+            </Button>
+            <Button variant="outline" className="flex items-center gap-2 px-4">
+              <i className="ri-instagram-fill text-secondary-700"></i>
+              <span>Instagram</span>
+            </Button>
+            <Button variant="outline" className="flex items-center gap-2 px-4">
+              <i className="ri-facebook-fill text-primary-700"></i>
+              <span>Facebook</span>
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -361,27 +377,27 @@ function ConversationView() {
             </div>
             <p className="text-xs text-neutral-500">
               {activeConversation.contact.lastSeen 
-                ? `Last active ${format(new Date(activeConversation.contact.lastSeen), 'MMM d, h:mm a')}` 
-                : "Never active"}
+                ? `Ativo em ${format(new Date(activeConversation.contact.lastSeen), 'd MMM, HH:mm', { locale: ptBR })}` 
+                : "Nunca ativo"}
             </p>
           </div>
         </div>
         <div className="flex items-center space-x-3">
-          <Button variant="ghost" size="icon" title="Call">
+          <Button variant="ghost" size="icon" title="Ligar">
             <Phone className="h-5 w-5" />
           </Button>
           <Button 
             variant="ghost" 
             size="icon" 
             onClick={createPaymentRequest}
-            title="Create Payment Request"
+            title="Criar Cobrança"
           >
             <DollarSign className="h-5 w-5" />
           </Button>
-          <Button variant="ghost" size="icon" title="Contact Info">
+          <Button variant="ghost" size="icon" title="Informações do Contato">
             <Info className="h-5 w-5" />
           </Button>
-          <Button variant="ghost" size="icon" title="More Options">
+          <Button variant="ghost" size="icon" title="Mais Opções">
             <MoreHorizontal className="h-5 w-5" />
           </Button>
         </div>
@@ -395,7 +411,11 @@ function ConversationView() {
           </div>
         ) : messages.length === 0 ? (
           <div className="text-center py-8">
-            <p className="text-sm text-neutral-500">No messages yet</p>
+            <p className="text-sm text-neutral-500">Nenhuma mensagem ainda</p>
+            <Button variant="outline" className="mt-3 text-sm">
+              <MessageSquare className="h-4 w-4 mr-2" />
+              Enviar primeira mensagem
+            </Button>
           </div>
         ) : (
           Object.entries(messagesByDate).map(([date, dateMessages]) => (
@@ -429,7 +449,7 @@ function ConversationView() {
           <div className="flex-1 mx-2">
             <Input
               type="text"
-              placeholder="Type your message..."
+              placeholder="Digite sua mensagem..."
               className="w-full p-2"
               value={messageInput}
               onChange={handleInputChange}
@@ -448,16 +468,16 @@ function ConversationView() {
           <div className="flex items-center text-xs text-neutral-500">
             <Button variant="ghost" className="flex items-center hover:text-primary-500 mr-3 p-0">
               <Ticket className="mr-1 h-3 w-3" />
-              <span>Templates</span>
+              <span>Modelos</span>
             </Button>
             <Button variant="ghost" className="flex items-center hover:text-primary-500 p-0">
               <Bot className="mr-1 h-3 w-3" />
-              <span>AI Assist</span>
+              <span>Assistente IA</span>
             </Button>
           </div>
           {isTyping && (
             <div className="text-xs text-neutral-500">
-              {activeConversation.contact.name} is typing...
+              {activeConversation.contact.name} está digitando...
             </div>
           )}
         </div>

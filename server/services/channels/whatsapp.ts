@@ -1,8 +1,9 @@
 import { Channel } from "@shared/schema";
 import axios from "axios";
+import { setupZAPIChannel } from "./zapi";
 
 // Function to set up and configure WhatsApp channel
-export async function setupChannel(channel: Channel): Promise<{ status: string; message?: string }> {
+export async function setupChannel(channel: Channel): Promise<{ status: string; message?: string; qrCode?: string }> {
   try {
     // Check channel configuration
     if (!channel.config || !channel.type) {
@@ -15,10 +16,14 @@ export async function setupChannel(channel: Channel): Promise<{ status: string; 
     // Different setup based on WhatsApp provider
     const provider = channel.config.provider as string || "twilio";
 
-    if (provider === "twilio") {
+    if (provider === "meta") {
+      return setupMetaWhatsApp(channel);
+    } else if (provider === "twilio") {
       return setupTwilioWhatsApp(channel);
     } else if (provider === "zap") {
       return setupZapWhatsApp(channel);
+    } else if (provider === "zapi") {
+      return setupZAPIChannel(channel);
     } else {
       return {
         status: "error",
@@ -30,6 +35,64 @@ export async function setupChannel(channel: Channel): Promise<{ status: string; 
     return {
       status: "error",
       message: error instanceof Error ? error.message : "Unknown error setting up WhatsApp channel"
+    };
+  }
+}
+
+// Setup WhatsApp via Meta API (WhatsApp Business API)
+async function setupMetaWhatsApp(channel: Channel): Promise<{ status: string; message?: string }> {
+  try {
+    // Check Meta configuration
+    const accessToken = process.env.META_ACCESS_TOKEN || channel.config.accessToken;
+    const phoneNumberId = channel.config.phoneNumberId;
+    const businessAccountId = channel.config.businessAccountId;
+
+    if (!accessToken || !phoneNumberId) {
+      return {
+        status: "error",
+        message: "Missing Meta configuration (accessToken, phoneNumberId)"
+      };
+    }
+
+    // Set up webhook URL
+    const webhookUrl = process.env.BASE_URL 
+      ? `${process.env.BASE_URL}/api/webhooks/meta/${channel.id}` 
+      : `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}/api/webhooks/meta/${channel.id}`;
+
+    // Validate Meta API credentials by making a call
+    try {
+      const response = await axios.get(
+        `https://graph.facebook.com/v17.0/${phoneNumberId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`
+          }
+        }
+      );
+
+      if (response.status !== 200) {
+        return {
+          status: "error",
+          message: "Invalid Meta credentials"
+        };
+      }
+
+      return {
+        status: "success",
+        message: "Meta WhatsApp Business API configured successfully"
+      };
+    } catch (error) {
+      console.error("Error validating Meta API credentials:", error);
+      return {
+        status: "error",
+        message: "Failed to validate Meta API credentials"
+      };
+    }
+  } catch (error) {
+    console.error("Error setting up Meta WhatsApp channel:", error);
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "Unknown error setting up Meta WhatsApp"
     };
   }
 }
@@ -178,15 +241,24 @@ async function setupZapWhatsApp(channel: Channel): Promise<{ status: string; mes
 export async function sendWhatsAppMessage(
   channel: Channel,
   to: string,
-  content: string
+  content: string,
+  type: 'text' | 'image' | 'file' | 'voice' = 'text',
+  mediaUrl?: string,
+  fileName?: string
 ): Promise<{ status: string; message?: string; messageId?: string }> {
   try {
     const provider = channel.config.provider as string || "twilio";
     
-    if (provider === "twilio") {
+    if (provider === "meta") {
+      return sendMetaWhatsAppMessage(channel, to, content, type, mediaUrl);
+    } else if (provider === "twilio") {
       return sendTwilioWhatsAppMessage(channel, to, content);
     } else if (provider === "zap") {
       return sendZapWhatsAppMessage(channel, to, content);
+    } else if (provider === "zapi") {
+      // Importamos diretamente aqui para evitar referência circular
+      const { sendZAPIWhatsAppMessage } = require('./zapi');
+      return sendZAPIWhatsAppMessage(channel, to, content, type, mediaUrl, fileName);
     } else {
       return {
         status: "error",
@@ -198,6 +270,125 @@ export async function sendWhatsAppMessage(
     return {
       status: "error",
       message: error instanceof Error ? error.message : "Unknown error sending WhatsApp message"
+    };
+  }
+}
+
+// Send WhatsApp message via Meta API
+async function sendMetaWhatsAppMessage(
+  channel: Channel,
+  to: string,
+  content: string,
+  type: 'text' | 'image' | 'file' | 'voice' = 'text',
+  mediaUrl?: string
+): Promise<{ status: string; message?: string; messageId?: string }> {
+  try {
+    const accessToken = process.env.META_ACCESS_TOKEN || channel.config.accessToken as string;
+    const phoneNumberId = channel.config.phoneNumberId as string;
+    
+    if (!accessToken || !phoneNumberId) {
+      return {
+        status: "error",
+        message: "Missing Meta API configuration"
+      };
+    }
+    
+    // Formatar número de telefone se necessário (remover + e caracteres especiais)
+    const formattedPhone = to.replace(/\D/g, '');
+    
+    let requestData: any = {};
+    
+    // Preparar dados de acordo com o tipo de mensagem
+    switch (type) {
+      case 'image':
+        if (!mediaUrl) {
+          return { status: "error", message: "Media URL is required for image messages" };
+        }
+        requestData = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "image",
+          image: {
+            link: mediaUrl,
+            caption: content || undefined
+          }
+        };
+        break;
+        
+      case 'file':
+        if (!mediaUrl) {
+          return { status: "error", message: "Media URL is required for file messages" };
+        }
+        requestData = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "document",
+          document: {
+            link: mediaUrl,
+            caption: content || undefined
+          }
+        };
+        break;
+        
+      case 'voice':
+        if (!mediaUrl) {
+          return { status: "error", message: "Media URL is required for voice messages" };
+        }
+        requestData = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "audio",
+          audio: {
+            link: mediaUrl
+          }
+        };
+        break;
+        
+      case 'text':
+      default:
+        requestData = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "text",
+          text: {
+            body: content
+          }
+        };
+        break;
+    }
+    
+    // Enviar mensagem via API da Meta
+    const response = await axios.post(
+      `https://graph.facebook.com/v17.0/${phoneNumberId}/messages`,
+      requestData,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    if (response.data.messages && response.data.messages.length > 0) {
+      return {
+        status: "success",
+        messageId: response.data.messages[0].id
+      };
+    } else {
+      return {
+        status: "error",
+        message: "Failed to send message via Meta API"
+      };
+    }
+  } catch (error) {
+    console.error("Error sending Meta WhatsApp message:", error);
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "Unknown error sending Meta WhatsApp message"
     };
   }
 }

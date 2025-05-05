@@ -13,7 +13,10 @@ export async function setupChannel(channel: Channel): Promise<{ status: string; 
     }
 
     // Different setup based on WhatsApp provider
-    const provider = channel.config.provider as string || "twilio";
+    const config = channel.config as Record<string, any>;
+    const provider = config.provider || "twilio";
+
+    console.log(`Configurando canal WhatsApp (ID: ${channel.id}) com provedor: ${provider}`);
 
     if (provider === "twilio") {
       return setupTwilioWhatsApp(channel);
@@ -22,14 +25,14 @@ export async function setupChannel(channel: Channel): Promise<{ status: string; 
     } else {
       return {
         status: "error",
-        message: `Unsupported WhatsApp provider: ${provider}`
+        message: `Provedor WhatsApp não suportado: ${provider}`
       };
     }
   } catch (error) {
-    console.error("Error setting up WhatsApp channel:", error);
+    console.error("Erro ao configurar canal WhatsApp:", error);
     return {
       status: "error",
-      message: error instanceof Error ? error.message : "Unknown error setting up WhatsApp channel"
+      message: error instanceof Error ? error.message : "Erro desconhecido ao configurar canal WhatsApp"
     };
   }
 }
@@ -37,15 +40,22 @@ export async function setupChannel(channel: Channel): Promise<{ status: string; 
 // Setup WhatsApp via Twilio
 async function setupTwilioWhatsApp(channel: Channel): Promise<{ status: string; message?: string }> {
   try {
+    // Verificar variáveis de ambiente
+    console.log("Verificando credenciais do Twilio...");
+    console.log(`TWILIO_ACCOUNT_SID está definido: ${Boolean(process.env.TWILIO_ACCOUNT_SID)}`);
+    console.log(`TWILIO_AUTH_TOKEN está definido: ${Boolean(process.env.TWILIO_AUTH_TOKEN)}`);
+    console.log(`TWILIO_PHONE_NUMBER está definido: ${Boolean(process.env.TWILIO_PHONE_NUMBER)}`);
+    
     // Check Twilio configuration - prefer environment variables over channel config
-    const accountSid = process.env.TWILIO_ACCOUNT_SID || channel.config.accountSid;
-    const authToken = process.env.TWILIO_AUTH_TOKEN || channel.config.authToken;
-    const phoneNumber = process.env.TWILIO_PHONE_NUMBER || channel.config.phoneNumber;
+    const config = channel.config as Record<string, any>;
+    const accountSid = process.env.TWILIO_ACCOUNT_SID || config.accountSid;
+    const authToken = process.env.TWILIO_AUTH_TOKEN || config.authToken;
+    const phoneNumber = process.env.TWILIO_PHONE_NUMBER || config.phoneNumber;
 
     if (!accountSid || !authToken || !phoneNumber) {
       return {
         status: "error",
-        message: "Missing Twilio configuration (accountSid, authToken, phoneNumber)"
+        message: "Configuração do Twilio incompleta (accountSid, authToken, phoneNumber)"
       };
     }
 

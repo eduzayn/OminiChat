@@ -288,4 +288,219 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
       });
     }
   });
+
+  // Webhook específico para Twilio (WhatsApp Business)
+  app.post(`${apiPrefix}/webhooks/twilio/:channelId`, async (req: Request, res: Response) => {
+    try {
+      const channelId = parseInt(req.params.channelId);
+      
+      // Verificar se o canal existe
+      const channel = await db.query.channels.findFirst({
+        where: eq(channels.id, channelId)
+      });
+      
+      if (!channel || channel.type !== "whatsapp") {
+        return res.status(404).json({ message: "Canal WhatsApp não encontrado" });
+      }
+      
+      // Extrair os dados da mensagem recebida do Twilio
+      // Formato da mensagem do Twilio: https://www.twilio.com/docs/messaging/guides/webhook-request
+      const {
+        From: from,
+        Body: messageBody,
+        MessageSid: messageSid,
+        NumMedia: numMedia
+      } = req.body;
+      
+      if (!from || !messageBody) {
+        return res.status(400).json({ message: "Formato de mensagem inválido" });
+      }
+      
+      // Remover o prefixo 'whatsapp:' do número, se presente
+      const contactPhone = from.replace('whatsapp:', '');
+      
+      // Buscar contato pelo número de telefone
+      let contact = await db.query.contacts.findFirst({
+        where: eq(contacts.phone, contactPhone)
+      });
+      
+      // Se o contato não existir, criar um novo
+      if (!contact) {
+        const [newContact] = await db.insert(contacts)
+          .values({
+            name: `WhatsApp ${contactPhone}`,
+            phone: contactPhone,
+            source: "whatsapp",
+            status: "lead"
+          })
+          .returning();
+          
+        contact = newContact;
+      }
+      
+      // Preparar os anexos se houver mídias
+      const attachments = [];
+      const numMediaInt = parseInt(numMedia || '0');
+      
+      if (numMediaInt > 0) {
+        for (let i = 0; i < numMediaInt; i++) {
+          const mediaUrl = req.body[`MediaUrl${i}`];
+          const contentType = req.body[`MediaContentType${i}`];
+          
+          if (mediaUrl) {
+            attachments.push({
+              url: mediaUrl,
+              type: contentType || 'unknown',
+              name: `Media ${i+1}`
+            });
+          }
+        }
+      }
+      
+      // Buscar ou criar uma conversa para o contato e canal
+      let conversation = await db.query.conversations.findFirst({
+        where: and(
+          eq(conversations.contactId, contact.id),
+          eq(conversations.channelId, channelId),
+          eq(conversations.status, "open")
+        )
+      });
+      
+      if (!conversation) {
+        // Criar nova conversa se não existir uma aberta
+        const [newConversation] = await db.insert(conversations)
+          .values({
+            contactId: contact.id,
+            channelId,
+            status: "open",
+            unreadCount: 1,
+            lastMessageAt: new Date()
+          })
+          .returning();
+          
+        conversation = newConversation;
+      } else {
+        // Atualizar conversa existente
+        await db.update(conversations)
+          .set({ 
+            lastMessageAt: new Date(),
+            unreadCount: sql`${conversations.unreadCount} + 1` 
+          })
+          .where(eq(conversations.id, conversation.id));
+      }
+      
+      // Inserir a mensagem do cliente
+      const [newMessage] = await db.insert(messages)
+        .values({
+          conversationId: conversation.id,
+          contactId: contact.id,
+          content: messageBody,
+          isFromAgent: false,
+          status: "delivered",
+          metadata: { 
+            twilioMessageId: messageSid,
+            twilioFrom: from
+          },
+          attachments: attachments
+        })
+        .returning();
+      
+      // Criar objeto da mensagem com detalhes para enviar via WebSocket
+      const messageWithDetails = {
+        ...newMessage,
+        contact
+      };
+      
+      // Broadcast da nova mensagem
+      broadcastToClients({
+        type: "new_message",
+        data: messageWithDetails
+      });
+      
+      // Verificar se deve responder automaticamente
+      // Obter as mensagens anteriores para contexto
+      const previousMessages = await db.query.messages.findMany({
+        where: eq(messages.conversationId, conversation.id),
+        orderBy: [desc(messages.createdAt)],
+        limit: 10
+      });
+      
+      const conversationHistory = previousMessages
+        .reverse()
+        .map(msg => `${msg.isFromAgent ? "Atendente" : "Cliente"}: ${msg.content}`)
+        .join("\n");
+      
+      // Analisar se a mensagem deve receber resposta automática
+      const autoReplyResult = await shouldAutoReply(messageBody, conversationHistory);
+      
+      // Se deve responder automaticamente, enviar resposta
+      if (autoReplyResult.shouldReply && autoReplyResult.suggestedReply && autoReplyResult.confidence > 0.7) {
+        // Buscar um bot ou agente para atribuir a mensagem
+        const bot = await db.query.users.findFirst({
+          where: eq(users.username, "bot")
+        });
+        
+        // Se não tem bot, usar o primeiro agente disponível
+        const botId = bot?.id || 1; // Fallback para o primeiro usuário se não houver bot
+        
+        // Inserir a resposta automática
+        const [autoReplyMessage] = await db.insert(messages)
+          .values({
+            conversationId: conversation.id,
+            agentId: botId,
+            content: autoReplyResult.suggestedReply,
+            isFromAgent: true,
+            status: "sent",
+            metadata: { 
+              isAutoReply: true,
+              confidence: autoReplyResult.confidence 
+            }
+          })
+          .returning();
+          
+        // Buscar detalhes do bot/agente
+        const agent = await db.query.users.findFirst({
+          where: eq(users.id, botId)
+        });
+        
+        // Criar objeto da mensagem para broadcast
+        const autoReplyWithDetails = {
+          ...autoReplyMessage,
+          agent: agent 
+            ? { 
+                id: agent.id, 
+                name: agent.name, 
+                username: agent.username,
+                role: agent.role,
+                avatarUrl: agent.avatarUrl
+              } 
+            : undefined,
+          contact
+        };
+        
+        // Broadcast da resposta automática
+        broadcastToClients({
+          type: "new_message",
+          data: autoReplyWithDetails
+        });
+        
+        // Atribuir a conversa ao agente bot
+        if (bot && !conversation.assignedTo) {
+          await db.update(conversations)
+            .set({ assignedTo: botId })
+            .where(eq(conversations.id, conversation.id));
+        }
+      }
+      
+      // Para o Twilio, precisamos responder com TwiML ou um status 200 vazio
+      res.setHeader('Content-Type', 'text/xml');
+      return res.status(200).send('<Response></Response>');
+      
+    } catch (error) {
+      console.error("Erro ao processar webhook do Twilio:", error);
+      // Mesmo com erro, devemos retornar 200 para Twilio não tentar novamente
+      res.setHeader('Content-Type', 'text/xml');
+      return res.status(200).send('<Response></Response>');
+    }
+  });
 }

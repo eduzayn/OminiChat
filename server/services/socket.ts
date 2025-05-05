@@ -29,10 +29,14 @@ export function setupWebSocketServer(wss: WebSocketServer, db: any): void {
         
         // Handle ping messages to keep connection alive
         if (messageType === 'ping') {
-          // Return a pong message
+          console.log(`Recebido ping ${userId ? `do usuário ${userId}` : 'de cliente não autenticado'}`);
+          // Return a pong message with additional info
           ws.send(JSON.stringify({
             type: 'pong',
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            serverTime: new Date().toISOString(),
+            clients: clients.size,
+            clientId: userId || 'não autenticado'
           }));
           return;
         }

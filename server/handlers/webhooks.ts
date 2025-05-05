@@ -372,7 +372,7 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
         const attachment: any = {
           type: processedData.mediaType,
           url: processedData.mediaUrl,
-          fileName: processedData.fileName
+          fileName: processedData.fileName || `${processedData.mediaType}-${Date.now()}`
         };
         
         // Adicionar metadados adicionais para tipos específicos
@@ -382,21 +382,37 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
           }
         }
         
+        if (processedData.mediaType === 'document') {
+          attachment.mimeType = processedData.mimeType || 'application/octet-stream';
+        }
+        
+        if (processedData.mediaType === 'location' && processedData.location) {
+          attachment.latitude = processedData.location.latitude;
+          attachment.longitude = processedData.location.longitude;
+          attachment.address = processedData.location.address;
+        }
+        
         if (processedData.mediaType === 'video' && processedData.thumbnailUrl) {
           attachment.thumbnailUrl = processedData.thumbnailUrl;
         }
         
         attachments.push(attachment);
+        console.log('Anexo preparado:', attachment);
       }
       
       // Metadata avançado para a mensagem
       const messageMetadata: any = { 
         zapiMessageId: processedData.messageId,
-        timestamp: processedData.timestamp,
+        timestamp: processedData.timestamp || new Date().toISOString(),
         isMedia: processedData.isMedia,
         mediaType: processedData.mediaType,
         source: 'zapi'
       };
+      
+      // Se tiver informações de localização, adicionar ao metadata
+      if (processedData.location) {
+        messageMetadata.location = processedData.location;
+      }
       
       // Adicionar informações sobre mensagem respondida, se existirem
       if (processedData.isReply) {

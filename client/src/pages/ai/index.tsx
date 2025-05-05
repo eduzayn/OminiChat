@@ -39,7 +39,9 @@ import {
   Gauge, 
   BarChart, 
   Settings, 
-  MessageCircleMore
+  MessageCircleMore,
+  Cloud,
+  Trash2
 } from "lucide-react";
 
 // Importando componentes de layout
@@ -215,7 +217,7 @@ function AIAssistantPage() {
           </p>
           
           <Tabs defaultValue="demo" className="w-full">
-            <TabsList className="grid grid-cols-3 w-full max-w-2xl mb-6">
+            <TabsList className="grid grid-cols-4 w-full max-w-2xl mb-6">
               <TabsTrigger value="demo">
                 <MessageSquare className="mr-2 h-4 w-4" />
                 Demonstração
@@ -223,6 +225,10 @@ function AIAssistantPage() {
               <TabsTrigger value="settings">
                 <Settings className="mr-2 h-4 w-4" />
                 Configurações
+              </TabsTrigger>
+              <TabsTrigger value="training">
+                <Brain className="mr-2 h-4 w-4" />
+                Treinamento
               </TabsTrigger>
               <TabsTrigger value="metrics">
                 <BarChart className="mr-2 h-4 w-4" />
@@ -554,6 +560,225 @@ function AIAssistantPage() {
                       </Button>
                     </form>
                   </Form>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            
+            {/* Aba de Treinamento */}
+            <TabsContent value="training">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center">
+                    <Brain className="mr-2 h-5 w-5 text-primary" />
+                    Treinamento do Cérebro IA
+                  </CardTitle>
+                  <CardDescription>
+                    Alimente o cérebro da IA com diferentes tipos de conteúdo para melhorar sua capacidade de resposta.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-6">
+                    {/* Estatísticas de Base de Conhecimento */}
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <div className="text-2xl font-bold text-primary">42</div>
+                        <div className="text-xs text-gray-500 mt-1">Fontes de Conteúdo</div>
+                      </div>
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <div className="text-2xl font-bold text-primary">268</div>
+                        <div className="text-xs text-gray-500 mt-1">Documentos Processados</div>
+                      </div>
+                      <div className="bg-gray-50 p-4 rounded-lg">
+                        <div className="text-2xl font-bold text-primary">11.4K</div>
+                        <div className="text-xs text-gray-500 mt-1">Tokens de Conhecimento</div>
+                      </div>
+                    </div>
+                    
+                    {/* Formulário de Upload de Conhecimento */}
+                    <div className="border rounded-lg p-4">
+                      <h3 className="text-lg font-medium mb-4">Adicionar Conhecimento</h3>
+                      
+                      <Tabs defaultValue="url" className="w-full">
+                        <TabsList className="grid grid-cols-5 h-9 w-full">
+                          <TabsTrigger value="url" className="text-xs px-2">URL</TabsTrigger>
+                          <TabsTrigger value="youtube" className="text-xs px-2">YouTube</TabsTrigger>
+                          <TabsTrigger value="pdf" className="text-xs px-2">PDF</TabsTrigger>
+                          <TabsTrigger value="text" className="text-xs px-2">Texto</TabsTrigger>
+                          <TabsTrigger value="qa" className="text-xs px-2">Perguntas</TabsTrigger>
+                        </TabsList>
+                        
+                        {/* Conteúdo da aba URL */}
+                        <TabsContent value="url" className="mt-4">
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-[1fr,auto] gap-2">
+                              <Input placeholder="https://exemplo.com.br/artigo" />
+                              <Button size="sm">Adicionar</Button>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              Insira URLs de sites, blogs e artigos para processamento.
+                              O sistema extrairá o conteúdo textual e o adicionará à base de conhecimento.
+                            </div>
+                          </div>
+                        </TabsContent>
+                        
+                        {/* Conteúdo da aba YouTube */}
+                        <TabsContent value="youtube" className="mt-4">
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-[1fr,auto] gap-2">
+                              <Input placeholder="https://www.youtube.com/watch?v=exemplo" />
+                              <Button size="sm">Adicionar</Button>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              Insira URLs de vídeos do YouTube. O sistema extrairá a transcrição e o adicionará à base de conhecimento.
+                            </div>
+                          </div>
+                        </TabsContent>
+                        
+                        {/* Conteúdo da aba PDF */}
+                        <TabsContent value="pdf" className="mt-4">
+                          <div className="space-y-4">
+                            <div className="grid gap-2">
+                              <div className="border border-dashed rounded-lg p-8 text-center">
+                                <Cloud className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+                                <p className="text-sm font-medium">
+                                  Arraste e solte arquivos PDF aqui ou clique para selecionar
+                                </p>
+                                <input type="file" className="hidden" accept=".pdf" />
+                              </div>
+                              <Button size="sm">Fazer Upload</Button>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              Faça upload de documentos PDF para adicionar à base de conhecimento. Tamanho máximo: 10MB.
+                            </div>
+                          </div>
+                        </TabsContent>
+                        
+                        {/* Conteúdo da aba Texto */}
+                        <TabsContent value="text" className="mt-4">
+                          <div className="space-y-4">
+                            <div className="grid gap-2">
+                              <Textarea 
+                                placeholder="Digite ou cole o texto que deseja adicionar à base de conhecimento..."
+                                className="min-h-[150px]"
+                              />
+                              <div className="grid grid-cols-2 gap-2">
+                                <Input placeholder="Título do documento" />
+                                <Button>Adicionar Texto</Button>
+                              </div>
+                            </div>
+                          </div>
+                        </TabsContent>
+                        
+                        {/* Conteúdo da aba Perguntas e Respostas */}
+                        <TabsContent value="qa" className="mt-4">
+                          <div className="space-y-4">
+                            <div className="grid gap-3">
+                              <div>
+                                <label className="text-sm font-medium mb-1 block">Pergunta</label>
+                                <Textarea placeholder="Digite uma pergunta..." className="min-h-[80px]" />
+                              </div>
+                              <div>
+                                <label className="text-sm font-medium mb-1 block">Resposta</label>
+                                <Textarea placeholder="Digite a resposta ideal..." className="min-h-[120px]" />
+                              </div>
+                              <Button>Adicionar par de Pergunta/Resposta</Button>
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              Adicione pares de perguntas e respostas para treinar a IA em cenários específicos.
+                            </div>
+                          </div>
+                        </TabsContent>
+                      </Tabs>
+                    </div>
+                    
+                    {/* Lista de Fontes de Conhecimento */}
+                    <div>
+                      <h3 className="text-lg font-medium mb-4">Base de Conhecimento</h3>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[40%]">Fonte</TableHead>
+                            <TableHead>Tipo</TableHead>
+                            <TableHead>Adicionado</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          <TableRow>
+                            <TableCell className="font-medium">Manual do Produto X</TableCell>
+                            <TableCell>PDF</TableCell>
+                            <TableCell>01/05/2025</TableCell>
+                            <TableCell>
+                              <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">Processado</span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button variant="ghost" size="icon">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="font-medium">https://exemplo.com.br/faq</TableCell>
+                            <TableCell>URL</TableCell>
+                            <TableCell>01/05/2025</TableCell>
+                            <TableCell>
+                              <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">Processado</span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button variant="ghost" size="icon">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell className="font-medium">Vídeo: Tutorial do Sistema</TableCell>
+                            <TableCell>YouTube</TableCell>
+                            <TableCell>01/05/2025</TableCell>
+                            <TableCell>
+                              <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs">Processando</span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button variant="ghost" size="icon">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
+                    </div>
+                    
+                    {/* Configurações Avançadas de Treinamento */}
+                    <div className="border rounded-lg p-4">
+                      <h3 className="text-lg font-medium mb-4">Configurações de Treinamento</h3>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="text-sm font-medium">Atualização Automática</h4>
+                            <p className="text-xs text-gray-500">Atualiza fontes periodicamente</p>
+                          </div>
+                          <Switch />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="text-sm font-medium">Processamento Profundo</h4>
+                            <p className="text-xs text-gray-500">Análise mais detalhada (usa mais tokens)</p>
+                          </div>
+                          <Switch />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-medium mb-2">Peso do Conhecimento</h4>
+                          <div className="grid grid-cols-[1fr,80px] gap-4 items-center">
+                            <Slider defaultValue={[75]} max={100} step={1} />
+                            <span className="text-sm font-medium">75%</span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Define o quanto o conhecimento personalizado influencia nas respostas vs. conhecimento geral
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

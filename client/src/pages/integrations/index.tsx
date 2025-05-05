@@ -89,7 +89,7 @@ export default function IntegrationsPage() {
         description: "Aguarde enquanto testamos a conexão com o canal."
       });
       
-      const response = await apiRequest(`/api/channels/${channelId}/test`, {
+      const response = await apiRequest<any>(`/api/channels/${channelId}/test`, {
         method: 'POST'
       });
       

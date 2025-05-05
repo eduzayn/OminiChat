@@ -148,7 +148,7 @@ export function MetaIntegrationDialog({
       
       if (isNewChannel) {
         // Criar novo canal
-        response = await apiRequest('/api/channels', {
+        response = await apiRequest<any>('/api/channels', {
           method: 'POST',
           data: payload
         });
@@ -162,7 +162,7 @@ export function MetaIntegrationDialog({
         }
       } else {
         // Atualizar canal existente
-        response = await apiRequest(`/api/channels/${channel.id}`, {
+        response = await apiRequest<any>(`/api/channels/${channel.id}`, {
           method: 'PUT',
           data: payload
         });

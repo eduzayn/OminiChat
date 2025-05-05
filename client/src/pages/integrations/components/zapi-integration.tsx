@@ -216,7 +216,7 @@ export function ZAPIIntegrationDialog({
         }
       } else {
         // Atualizar canal existente
-        response = await apiRequest(`/api/channels/${channel.id}`, {
+        response = await apiRequest<any>(`/api/channels/${channel.id}`, {
           method: 'PUT',
           data: payload
         });

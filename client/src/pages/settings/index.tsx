@@ -1237,8 +1237,8 @@ function SettingsPage() {
                         className={`flex flex-col items-center justify-center p-4 rounded-md border ${channelForm.config.provider === "zapi" ? 'border-primary bg-primary/5' : 'border-gray-200'} hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors`}
                         onClick={() => handleChannelFormChange("config.provider", "zapi")}
                       >
-                        <div className="flex items-center justify-center w-10 h-10 bg-green-100 rounded-full mb-2">
-                          <Send className="w-5 h-5 text-green-600" />
+                        <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full mb-2">
+                          <MessageSquare className="w-5 h-5 text-blue-600" />
                         </div>
                         <span className="text-sm font-medium">Z-API</span>
                         <div className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full mt-2 flex items-center">

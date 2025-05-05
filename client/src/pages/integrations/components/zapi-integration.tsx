@@ -47,8 +47,7 @@ function WhatsAppQRCode({ channelId }: { channelId: number }) {
     setError(null);
     
     try {
-      const response = await fetch(`/api/channels/${channelId}/qrcode`);
-      const data = await response.json();
+      const data = await apiRequest<{qrcode?: string; status?: string; message?: string}>(`/api/channels/${channelId}/qrcode`);
       
       if (data.qrcode) {
         setQrCode(data.qrcode);
@@ -204,13 +203,10 @@ export function ZAPIIntegrationDialog({
       
       if (isNewChannel) {
         // Criar novo canal
-        response = await fetch('/api/channels', {
+        response = await apiRequest<{id: number}>('/api/channels', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        }).then(res => res.json());
+          data: payload
+        });
         
         if (response.id) {
           toast({
@@ -222,13 +218,10 @@ export function ZAPIIntegrationDialog({
         }
       } else {
         // Atualizar canal existente
-        response = await fetch(`/api/channels/${channel.id}`, {
+        response = await apiRequest<{id: number}>(`/api/channels/${channel.id}`, {
           method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          }, 
-          body: JSON.stringify(payload)
-        }).then(res => res.json());
+          data: payload
+        });
         
         if (response.id) {
           toast({

@@ -45,17 +45,29 @@ async function setupTwilioWhatsApp(channel: Channel): Promise<{ status: string; 
     console.log(`TWILIO_ACCOUNT_SID está definido: ${Boolean(process.env.TWILIO_ACCOUNT_SID)}`);
     console.log(`TWILIO_AUTH_TOKEN está definido: ${Boolean(process.env.TWILIO_AUTH_TOKEN)}`);
     console.log(`TWILIO_PHONE_NUMBER está definido: ${Boolean(process.env.TWILIO_PHONE_NUMBER)}`);
+    console.log(`TWILIO_API_KEY está definido: ${Boolean(process.env.TWILIO_API_KEY)}`);
+    console.log(`TWILIO_API_SECRET está definido: ${Boolean(process.env.TWILIO_API_SECRET)}`);
     
     // Check Twilio configuration - prefer environment variables over channel config
     const config = channel.config as Record<string, any>;
     const accountSid = process.env.TWILIO_ACCOUNT_SID || config.accountSid;
-    const authToken = process.env.TWILIO_AUTH_TOKEN || config.authToken;
     const phoneNumber = process.env.TWILIO_PHONE_NUMBER || config.phoneNumber;
+    const apiKey = process.env.TWILIO_API_KEY || config.apiKey;
+    const apiSecret = process.env.TWILIO_API_SECRET || config.apiSecret;
 
-    if (!accountSid || !authToken || !phoneNumber) {
+    // Precisamos de Account SID, número de telefone e (API Key + API Secret) ou Auth Token
+    if (!accountSid || !phoneNumber) {
       return {
         status: "error",
-        message: "Configuração do Twilio incompleta (accountSid, authToken, phoneNumber)"
+        message: "Configuração do Twilio incompleta: SID da conta e número de telefone são obrigatórios"
+      };
+    }
+    
+    // Verificar se temos credenciais de autenticação (API Key + Secret ou Auth Token)
+    if ((!apiKey || !apiSecret) && !process.env.TWILIO_AUTH_TOKEN) {
+      return {
+        status: "error",
+        message: "Configuração do Twilio incompleta: necessária API Key + Secret ou Auth Token"
       };
     }
 
@@ -66,36 +78,43 @@ async function setupTwilioWhatsApp(channel: Channel): Promise<{ status: string; 
 
     // Validate Twilio credentials by making a simple API call
     try {
+      // Usar API Key + Secret se estiver disponível, caso contrário usar accountSid + authToken
+      let authConfig;
+      if (apiKey && apiSecret) {
+        console.log("Usando API Key e Secret para autenticação com Twilio");
+        authConfig = {
+          username: apiKey,
+          password: apiSecret
+        };
+      } else {
+        console.log("Usando Account SID e Auth Token para autenticação com Twilio");
+        const authToken = process.env.TWILIO_AUTH_TOKEN || config.authToken;
+        authConfig = {
+          username: accountSid,
+          password: authToken
+        };
+      }
+
       const response = await axios.get(
         `https://api.twilio.com/2010-04-01/Accounts/${accountSid}.json`,
-        {
-          auth: {
-            username: accountSid,
-            password: authToken
-          }
-        }
+        { auth: authConfig }
       );
 
       if (response.status !== 200) {
         return {
           status: "error",
-          message: "Invalid Twilio credentials"
+          message: "Credenciais Twilio inválidas"
         };
       }
 
       // Configure webhook for WhatsApp messages via Twilio API
-      console.log(`Setting up webhook for Twilio WhatsApp: ${webhookUrl}`);
+      console.log(`Configurando webhook para Twilio WhatsApp: ${webhookUrl}`);
       
       // Para o WhatsApp Business API através do Twilio, configuramos o webhook na Twilio Console
       // Em vez de modificar o número diretamente, vamos verificar a conectividade
       const sandboxInfoResponse = await axios.get(
         `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messaging/Services.json`,
-        {
-          auth: {
-            username: accountSid,
-            password: authToken
-          }
-        }
+        { auth: authConfig }
       );
       
       console.log(`Twilio messaging services retrieved: ${sandboxInfoResponse.data.meta.page_size} services found`);
@@ -224,14 +243,26 @@ async function sendTwilioWhatsAppMessage(
   content: string
 ): Promise<{ status: string; message?: string; messageId?: string }> {
   try {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID || channel.config.accountSid;
-    const authToken = process.env.TWILIO_AUTH_TOKEN || channel.config.authToken;
-    const fromNumber = process.env.TWILIO_PHONE_NUMBER || channel.config.phoneNumber;
+    const config = channel.config as Record<string, any>;
+    const accountSid = process.env.TWILIO_ACCOUNT_SID || config.accountSid;
+    const fromNumber = process.env.TWILIO_PHONE_NUMBER || config.phoneNumber;
+    const apiKey = process.env.TWILIO_API_KEY || config.apiKey;
+    const apiSecret = process.env.TWILIO_API_SECRET || config.apiSecret;
+    const authToken = process.env.TWILIO_AUTH_TOKEN || config.authToken;
     
-    if (!accountSid || !authToken || !fromNumber) {
+    // Verificar se temos as informações essenciais
+    if (!accountSid || !fromNumber) {
       return {
         status: "error",
-        message: "Missing Twilio configuration"
+        message: "Configuração Twilio incompleta: accountSid e phoneNumber são obrigatórios"
+      };
+    }
+    
+    // Verificar se temos credenciais de autenticação (API Key + Secret ou authToken)
+    if ((!apiKey || !apiSecret) && !authToken) {
+      return {
+        status: "error",
+        message: "Credenciais Twilio incompletas: necessária API Key + Secret ou Auth Token"
       };
     }
     
@@ -248,6 +279,22 @@ async function sendTwilioWhatsAppMessage(
     
     console.log(`Enviando mensagem WhatsApp de ${whatsappFrom} para ${whatsappTo}`);
     
+    // Configurar autenticação - preferir API Key + Secret se disponível
+    let authConfig;
+    if (apiKey && apiSecret) {
+      console.log("Usando API Key e Secret para enviar mensagem");
+      authConfig = {
+        username: apiKey,
+        password: apiSecret
+      };
+    } else {
+      console.log("Usando Account SID e Auth Token para enviar mensagem");
+      authConfig = {
+        username: accountSid,
+        password: authToken
+      };
+    }
+    
     // Send the message
     const response = await axios.post(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
@@ -257,10 +304,7 @@ async function sendTwilioWhatsAppMessage(
         Body: content
       }),
       {
-        auth: {
-          username: accountSid,
-          password: authToken
-        }
+        auth: authConfig
       }
     );
     

@@ -78,19 +78,7 @@ function Router() {
       </Route>
       
       {/* 6. Módulo de Integrações */}
-      <Route path="/integrations">
-        {() => <PlaceholderPage 
-          moduleName="Integrações" 
-          description="O módulo de integrações administra e conecta sistemas externos ao ecossistema."
-          features={[
-            "WhatsApp (API não oficial ou oficial)",
-            "Meta (Messenger/Instagram via Graph API)",
-            "Asaas (financeiro e cobrança)",
-            "SMTP/IMAP (e-mail)",
-            "Webhooks"
-          ]}
-        />}
-      </Route>
+      <Route path="/integrations" component={React.lazy(() => import("@/pages/integrations"))} />
       
       {/* 7. Módulo de Suporte Interno */}
       <Route path="/team-chat">

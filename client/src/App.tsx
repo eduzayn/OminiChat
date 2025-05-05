@@ -145,11 +145,23 @@ function Router() {
 }
 
 function AppWithProviders() {
+  const AuthenticatedApp = () => {
+    const { user } = useAuth();
+    
+    // Renderizar notificações Z-API apenas quando o usuário estiver autenticado
+    return (
+      <>
+        <Router />
+        {user && <ZAPINotifications />}
+      </>
+    );
+  };
+
   return (
     <AuthProvider>
       <SocketProvider>
         <ConversationProvider>
-          <Router />
+          <AuthenticatedApp />
         </ConversationProvider>
       </SocketProvider>
     </AuthProvider>

@@ -461,7 +461,8 @@ export function processZAPIWebhook(body: any): {
       duration,
       isReply,
       replyToMessageId,
-      replyToMessage
+      replyToMessage,
+      source: 'zapi' // Identificador para facilitar o processamento
     };
   } catch (error) {
     console.error("Error processing Z-API webhook:", error);

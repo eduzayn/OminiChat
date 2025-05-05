@@ -1372,8 +1372,8 @@ function SettingsPage() {
                       </div>
                       
                       <div 
-                        className={`flex flex-col items-center justify-center p-4 rounded-md border ${channelForm.config.provider === "zap" ? 'border-primary bg-primary/5' : 'border-gray-200'} hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors`}
-                        onClick={() => handleChannelFormChange("config.provider", "zap")}
+                        className={`flex flex-col items-center justify-center p-4 rounded-md border ${channelForm.config.provider === "zapi" ? 'border-primary bg-primary/5' : 'border-gray-200'} hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors`}
+                        onClick={() => handleChannelFormChange("config.provider", "zapi")}
                       >
                         <div className="flex items-center justify-center w-10 h-10 bg-gray-100 rounded-full mb-2">
                           <QrCode className="w-5 h-5 text-gray-600" />

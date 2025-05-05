@@ -896,7 +896,7 @@ function SettingsPage() {
                     <div>
                       <CardTitle>Canais de Comunicação</CardTitle>
                       <CardDescription>
-                        Gerencie os canais de comunicação com seus clientes
+                        Gerencie o status de canais criados na página de Integrações
                       </CardDescription>
                     </div>
                     <div className="flex gap-2">
@@ -907,9 +907,9 @@ function SettingsPage() {
                           className="pl-8"
                         />
                       </div>
-                      <Button onClick={handleNewChannel}>
-                        <PlusCircle className="mr-2 h-4 w-4" />
-                        Novo Canal
+                      <Button variant="outline" onClick={() => window.location.href = '/integrations'}>
+                        <ArrowRight className="mr-2 h-4 w-4" />
+                        Ir para Integrações
                       </Button>
                     </div>
                   </CardHeader>
@@ -1006,7 +1006,8 @@ function SettingsPage() {
                       </div>
                     ) : (
                       <div className="py-8 text-center text-muted-foreground">
-                        Nenhum canal configurado. Clique em "Novo Canal" para adicionar.
+                        <p>Nenhum canal de comunicação configurado.</p>
+                        <p className="mt-2">Vá para a página de <Link to="/integrations" className="text-primary font-medium">Integrações</Link> para configurar novos canais.</p>
                       </div>
                     )}
                   </CardContent>

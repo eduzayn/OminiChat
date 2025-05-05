@@ -647,14 +647,33 @@ function AIAssistantPage() {
                         <TabsContent value="pdf" className="mt-4">
                           <div className="space-y-4">
                             <div className="grid gap-2">
-                              <div className="border border-dashed rounded-lg p-8 text-center">
-                                <Cloud className="mx-auto h-8 w-8 text-gray-400 mb-2" />
-                                <p className="text-sm font-medium">
-                                  Arraste e solte arquivos PDF aqui ou clique para selecionar
-                                </p>
-                                <input type="file" className="hidden" accept=".pdf" />
-                              </div>
-                              <Button size="sm">Fazer Upload</Button>
+                              <label htmlFor="pdf-upload" className="w-full cursor-pointer">
+                                <div className="border border-dashed rounded-lg p-8 text-center">
+                                  <Cloud className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+                                  <p className="text-sm font-medium">
+                                    Arraste e solte arquivos PDF aqui ou clique para selecionar
+                                  </p>
+                                  <input 
+                                    id="pdf-upload" 
+                                    type="file" 
+                                    className="hidden" 
+                                    accept=".pdf" 
+                                    onChange={(e) => {
+                                      // Aqui você pode adicionar a lógica para fazer o upload do arquivo
+                                      console.log("Arquivo selecionado:", e.target.files?.[0]?.name);
+                                    }}
+                                  />
+                                </div>
+                              </label>
+                              <Button 
+                                size="sm"
+                                onClick={() => {
+                                  // Simular clique no input file quando o botão for clicado
+                                  document.getElementById('pdf-upload')?.click();
+                                }}
+                              >
+                                Fazer Upload
+                              </Button>
                             </div>
                             <div className="text-xs text-gray-500">
                               Faça upload de documentos PDF para adicionar à base de conhecimento. Tamanho máximo: 10MB.

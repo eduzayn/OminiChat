@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Helmet } from "react-helmet";
+import { Link } from "wouter";
 import { useAuth } from "@/context/auth-context";
 import { useSocket } from "@/context/socket-context";
 import { Sidebar } from "@/components/sidebar";
@@ -81,6 +82,7 @@ import {
   RefreshCw,
   Send,
   MessageSquare,
+  ArrowRight
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -907,10 +909,12 @@ function SettingsPage() {
                           className="pl-8"
                         />
                       </div>
-                      <Button variant="outline" onClick={() => window.location.href = '/integrations'}>
-                        <ArrowRight className="mr-2 h-4 w-4" />
-                        Ir para Integrações
-                      </Button>
+                      <Link to="/integrations">
+                        <Button variant="outline">
+                          <ArrowRight className="mr-2 h-4 w-4" />
+                          Ir para Integrações
+                        </Button>
+                      </Link>
                     </div>
                   </CardHeader>
                   <CardContent>

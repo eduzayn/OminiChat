@@ -22,20 +22,42 @@ export function registerAIRoutes(app: Express, apiPrefix: string) {
   // Rota para configurações da IA
   app.post(`${apiPrefix}/ai/settings`, isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const settings = req.body;
+      const { apiKey } = req.body;
       
-      // Aqui poderíamos salvar as configurações no banco de dados
-      // Por enquanto apenas retornamos sucesso
+      if (!apiKey || typeof apiKey !== 'string' || !apiKey.startsWith('sk-')) {
+        return res.status(400).json({
+          message: "A chave API da OpenAI deve começar com 'sk-'",
+        });
+      }
+      
+      // Atualizar a variável de ambiente em tempo real
+      process.env.OPENAI_API_KEY = apiKey;
+      
+      // Atualizar a instância do OpenAI com a nova chave
+      try {
+        const { updateOpenAIInstance } = await import("../services/ai");
+        updateOpenAIInstance(apiKey);
+      } catch (error) {
+        console.error("Erro ao atualizar instância do OpenAI:", error);
+      }
+      
+      // Idealmente, em um ambiente de produção, armazenaríamos essa chave em um
+      // sistema de gerenciamento de segredos seguro ou em uma tabela específica
+      // do banco de dados com criptografia
+      
+      console.log("Chave API da OpenAI atualizada com sucesso");
+      
+      // Notificar outros clientes via WebSocket que configurações de IA foram atualizadas
+      // Isso poderia ser implementado para manter todos os clientes sincronizados
       
       return res.status(200).json({ 
-        message: "Configurações salvas com sucesso",
-        settings 
+        message: "Chave API da OpenAI atualizada com sucesso"
       });
       
     } catch (error) {
       console.error("Erro ao salvar configurações de IA:", error);
       return res.status(500).json({
-        message: "Erro ao salvar configurações de IA",
+        message: "Erro ao atualizar chave API da OpenAI",
         error: error instanceof Error ? error.message : "Erro desconhecido"
       });
     }

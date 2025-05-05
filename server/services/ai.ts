@@ -1,7 +1,13 @@
 import OpenAI from "openai";
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+let openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Função para atualizar a instância do OpenAI com uma nova chave API
+export function updateOpenAIInstance(apiKey: string): void {
+  openai = new OpenAI({ apiKey });
+  console.log("Instância OpenAI atualizada com nova chave API");
+}
 
 /**
  * Gera uma resposta usando o modelo GPT-4o da OpenAI

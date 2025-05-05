@@ -20,8 +20,6 @@ export async function setupChannel(channel: Channel): Promise<{ status: string; 
       return setupMetaWhatsApp(channel);
     } else if (provider === "twilio") {
       return setupTwilioWhatsApp(channel);
-    } else if (provider === "zap") {
-      return setupZapWhatsApp(channel);
     } else if (provider === "zapi") {
       return setupZAPIChannel(channel);
     } else {
@@ -253,8 +251,6 @@ export async function sendWhatsAppMessage(
       return sendMetaWhatsAppMessage(channel, to, content, type, mediaUrl);
     } else if (provider === "twilio") {
       return sendTwilioWhatsAppMessage(channel, to, content);
-    } else if (provider === "zap") {
-      return sendZapWhatsAppMessage(channel, to, content);
     } else if (provider === "zapi") {
       // Importamos diretamente aqui para evitar referência circular
       const { sendZAPIWhatsAppMessage } = require('./zapi');

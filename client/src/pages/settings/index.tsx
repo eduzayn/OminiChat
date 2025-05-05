@@ -103,18 +103,16 @@ function SettingsPage() {
   const messageTemplatesQuery = useQuery({
     queryKey: ['/api/message-templates'],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/message-templates');
-      const data = await response.json();
-      return data || [];
+      const response = await apiRequest('/api/message-templates');
+      return response || [];
     }
   });
   
   const channelsQuery = useQuery({
     queryKey: ['/api/channels'],
     queryFn: async () => {
-      const response = await apiRequest('GET', '/api/channels');
-      const data = await response.json();
-      return data || [];
+      const response = await apiRequest('/api/channels');
+      return response || [];
     }
   });
   
@@ -657,16 +655,9 @@ function SettingsPage() {
                               </TableCell>
                               <TableCell className="capitalize">{channel.type}</TableCell>
                               <TableCell>
-                                <div className="flex flex-col">
-                                  <Badge variant={channel.isActive ? "success" : "secondary"}>
-                                    {channel.isActive ? "Ativo" : "Inativo"}
-                                  </Badge>
-                                  {channel.config?.setupError && (
-                                    <div className="text-xs text-destructive mt-1">
-                                      Erro: {channel.config.setupError}
-                                    </div>
-                                  )}
-                                </div>
+                                <Badge variant={channel.isActive ? "success" : "secondary"}>
+                                  {channel.isActive ? "Ativo" : "Inativo"}
+                                </Badge>
                               </TableCell>
                               <TableCell className="text-right">
                                 <DropdownMenu>

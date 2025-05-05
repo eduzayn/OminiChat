@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { Express } from "express";
 import { db } from "@db";
 import { opportunities, users, contacts, insertOpportunitySchema } from "@shared/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod";
 import { validateRequest } from "../utils/validation";
 
@@ -62,7 +62,7 @@ export function registerOpportunityRoutes(app: Express, apiPrefix: string) {
       });
       
       // Contar total de resultados para paginação
-      const countResult = await db.select({ count: sql`count(*)` }).from(opportunities);
+      const countResult = await db.select({ count: db.sql`count(*)` }).from(opportunities);
       const totalCount = Number(countResult[0].count);
       
       return res.status(200).json({

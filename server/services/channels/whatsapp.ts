@@ -13,10 +13,7 @@ export async function setupChannel(channel: Channel): Promise<{ status: string; 
     }
 
     // Different setup based on WhatsApp provider
-    const config = channel.config as Record<string, any> || {};
-    const provider = config?.provider || "twilio";
-
-    console.log(`Configurando canal WhatsApp (ID: ${channel.id}) com provedor: ${provider}`);
+    const provider = channel.config.provider as string || "twilio";
 
     if (provider === "twilio") {
       return setupTwilioWhatsApp(channel);
@@ -25,14 +22,14 @@ export async function setupChannel(channel: Channel): Promise<{ status: string; 
     } else {
       return {
         status: "error",
-        message: `Provedor WhatsApp não suportado: ${provider}`
+        message: `Unsupported WhatsApp provider: ${provider}`
       };
     }
   } catch (error) {
-    console.error("Erro ao configurar canal WhatsApp:", error);
+    console.error("Error setting up WhatsApp channel:", error);
     return {
       status: "error",
-      message: error instanceof Error ? error.message : "Erro desconhecido ao configurar canal WhatsApp"
+      message: error instanceof Error ? error.message : "Unknown error setting up WhatsApp channel"
     };
   }
 }
@@ -40,44 +37,15 @@ export async function setupChannel(channel: Channel): Promise<{ status: string; 
 // Setup WhatsApp via Twilio
 async function setupTwilioWhatsApp(channel: Channel): Promise<{ status: string; message?: string }> {
   try {
-    // Verificar variáveis de ambiente
-    console.log("Verificando credenciais do Twilio...");
-    console.log(`TWILIO_ACCOUNT_SID está definido: ${Boolean(process.env.TWILIO_ACCOUNT_SID)}`);
-    console.log(`TWILIO_AUTH_TOKEN está definido: ${Boolean(process.env.TWILIO_AUTH_TOKEN)}`);
-    console.log(`TWILIO_PHONE_NUMBER está definido: ${Boolean(process.env.TWILIO_PHONE_NUMBER)}`);
-    console.log(`SANDBOX_WHATSAPP_NUMBER está definido: ${Boolean(process.env.SANDBOX_WHATSAPP_NUMBER)}`);
-    console.log(`TWILIO_API_KEY está definido: ${Boolean(process.env.TWILIO_API_KEY)}`);
-    console.log(`TWILIO_API_SECRET está definido: ${Boolean(process.env.TWILIO_API_SECRET)}`);
-    
-    // Check Twilio configuration - prefer environment variables over channel config
-    const config = channel.config as Record<string, any>;
-    const accountSid = process.env.TWILIO_ACCOUNT_SID || config?.accountSid;
-    
-    // Prefer Sandbox number for WhatsApp if available
-    let phoneNumber = process.env.SANDBOX_WHATSAPP_NUMBER || process.env.TWILIO_PHONE_NUMBER || config?.phoneNumber;
-    
-    // Garante que o número de telefone esteja no formato esperado para WhatsApp
-    if (phoneNumber && !phoneNumber.startsWith('whatsapp:')) {
-      phoneNumber = `whatsapp:+${phoneNumber.replace(/^\+/, '')}`;
-    }
-    
-    const apiKey = process.env.TWILIO_API_KEY || config?.apiKey;
-    const apiSecret = process.env.TWILIO_API_SECRET;
-    const authToken = process.env.TWILIO_AUTH_TOKEN || config?.authToken;
+    // Check Twilio configuration
+    const accountSid = process.env.TWILIO_ACCOUNT_SID || channel.config.accountSid;
+    const authToken = process.env.TWILIO_AUTH_TOKEN || channel.config.authToken;
+    const phoneNumber = channel.config.phoneNumber;
 
-    // Precisamos de Account SID, número de telefone, e algum método de autenticação
-    if (!accountSid || !phoneNumber) {
+    if (!accountSid || !authToken || !phoneNumber) {
       return {
         status: "error",
-        message: "Configuração do Twilio incompleta: SID da conta e número de telefone são obrigatórios"
-      };
-    }
-    
-    // Verificar se temos credenciais de autenticação (API Key ou Auth Token)
-    if (!apiKey && !authToken) {
-      return {
-        status: "error",
-        message: "Configuração do Twilio incompleta: necessária API Key ou Auth Token"
+        message: "Missing Twilio configuration (accountSid, authToken, phoneNumber)"
       };
     }
 
@@ -88,48 +56,37 @@ async function setupTwilioWhatsApp(channel: Channel): Promise<{ status: string; 
 
     // Validate Twilio credentials by making a simple API call
     try {
-      // Usar API Key se estiver disponível, caso contrário usar accountSid + authToken
-      let authConfig;
-      if (apiKey) {
-        console.log("Usando API Key para autenticação com Twilio");
-        authConfig = {
-          username: apiKey,
-          password: authToken
-        };
-      } else {
-        console.log("Usando Account SID e Auth Token para autenticação com Twilio");
-        authConfig = {
-          username: accountSid,
-          password: authToken
-        };
-      }
-
       const response = await axios.get(
         `https://api.twilio.com/2010-04-01/Accounts/${accountSid}.json`,
-        { auth: authConfig }
+        {
+          auth: {
+            username: accountSid,
+            password: authToken
+          }
+        }
       );
 
       if (response.status !== 200) {
         return {
           status: "error",
-          message: "Credenciais Twilio inválidas"
+          message: "Invalid Twilio credentials"
         };
       }
 
-      // Configure webhook for WhatsApp messages via Twilio API
-      console.log(`Configurando webhook para Twilio WhatsApp: ${webhookUrl}`);
-      
-      // Para o WhatsApp Business API através do Twilio, configuramos o webhook na Twilio Console
-      // Em vez de modificar o número diretamente, vamos verificar a conectividade
-      const sandboxInfoResponse = await axios.get(
-        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messaging/Services.json`,
-        { auth: authConfig }
+      // Configure the WhatsApp number to use our webhook
+      await axios.post(
+        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/IncomingPhoneNumbers/${phoneNumber}.json`,
+        `SmsUrl=${webhookUrl}`,
+        {
+          auth: {
+            username: accountSid,
+            password: authToken
+          },
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        }
       );
-      
-      console.log(`Twilio messaging services retrieved: ${sandboxInfoResponse.data.meta.page_size} services found`);
-      
-      // No mundo real, instrua o usuário a configurar o webhook na Twilio Console manualmente
-      // ou utilize a API de Messaging Services para configurar o webhook
 
       return {
         status: "success",
@@ -158,9 +115,8 @@ async function setupZapWhatsApp(channel: Channel): Promise<{ status: string; mes
     // This would typically involve calling the Zap API to start a session
     
     // Use environment variables for Zap API credentials
-    const config = channel.config as Record<string, any> || {};
-    const zapApiKey = process.env.ZAP_API_KEY || config?.apiKey;
-    const zapApiUrl = process.env.ZAP_API_URL || config?.apiUrl || "https://api.zap.com";
+    const zapApiKey = process.env.ZAP_API_KEY || channel.config.apiKey;
+    const zapApiUrl = process.env.ZAP_API_URL || channel.config.apiUrl || "https://api.zap.com";
     
     if (!zapApiKey) {
       return {
@@ -225,8 +181,7 @@ export async function sendWhatsAppMessage(
   content: string
 ): Promise<{ status: string; message?: string; messageId?: string }> {
   try {
-    const config = channel.config as Record<string, any> || {};
-    const provider = config?.provider || "twilio";
+    const provider = channel.config.provider as string || "twilio";
     
     if (provider === "twilio") {
       return sendTwilioWhatsAppMessage(channel, to, content);
@@ -254,75 +209,34 @@ async function sendTwilioWhatsAppMessage(
   content: string
 ): Promise<{ status: string; message?: string; messageId?: string }> {
   try {
-    const config = channel.config as Record<string, any>;
-    const accountSid = process.env.TWILIO_ACCOUNT_SID || config?.accountSid;
-    // Prefer Sandbox number for WhatsApp if available
-    let fromNumber = process.env.SANDBOX_WHATSAPP_NUMBER || process.env.TWILIO_PHONE_NUMBER || config?.phoneNumber;
-    const apiKey = process.env.TWILIO_API_KEY || config?.apiKey;
-    const apiSecret = process.env.TWILIO_API_SECRET;
-    const authToken = process.env.TWILIO_AUTH_TOKEN || config?.authToken;
+    const accountSid = process.env.TWILIO_ACCOUNT_SID || channel.config.accountSid;
+    const authToken = process.env.TWILIO_AUTH_TOKEN || channel.config.authToken;
+    const fromNumber = channel.config.phoneNumber;
     
-    // Verificar se temos as informações essenciais
-    if (!accountSid || !fromNumber) {
+    if (!accountSid || !authToken || !fromNumber) {
       return {
         status: "error",
-        message: "Configuração Twilio incompleta: accountSid e phoneNumber são obrigatórios"
-      };
-    }
-    
-    // Verificar se temos credenciais de autenticação (API Key ou authToken)
-    if (!apiKey && !authToken) {
-      return {
-        status: "error",
-        message: "Credenciais Twilio incompletas: necessária API Key ou Auth Token"
+        message: "Missing Twilio configuration"
       };
     }
     
     // Format the 'to' number to WhatsApp format if needed
-    // De acordo com a documentação do Twilio: https://www.twilio.com/docs/whatsapp/quickstart
-    // Para usar WhatsApp com Twilio, o formato do número deve ser whatsapp:+1234567890
-    const whatsappTo = to.startsWith("whatsapp:") ? to : `whatsapp:+${to.replace(/^\+/, '')}`;
-    
-    // O sandbox do Twilio utiliza um número específico com prefixo whatsapp:
-    // Se o número já tiver o prefixo, usamos como está, caso contrário adicionamos
-    if (!fromNumber.startsWith("whatsapp:")) {
-      fromNumber = `whatsapp:+${fromNumber.replace(/^\+/, '')}`;
-    }
-    
-    console.log(`Enviando mensagem WhatsApp de ${fromNumber} para ${whatsappTo}`);
-    
-    // Configurar autenticação - preferir API Key se disponível
-    let authConfig;
-    if (apiKey && apiSecret) {
-      console.log("Usando API Key e Secret para enviar mensagem");
-      authConfig = {
-        username: apiKey,
-        password: apiSecret
-      };
-    } else if (apiKey && authToken) {
-      console.log("Usando API Key e Auth Token para enviar mensagem");
-      authConfig = {
-        username: apiKey,
-        password: authToken
-      };
-    } else {
-      console.log("Usando Account SID e Auth Token para enviar mensagem");
-      authConfig = {
-        username: accountSid,
-        password: authToken
-      };
-    }
+    const whatsappTo = to.startsWith("whatsapp:") ? to : `whatsapp:${to}`;
+    const whatsappFrom = fromNumber.startsWith("whatsapp:") ? fromNumber : `whatsapp:${fromNumber}`;
     
     // Send the message
     const response = await axios.post(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
       new URLSearchParams({
-        From: fromNumber, // Já está no formato correto (whatsapp:+XXXX)
+        From: whatsappFrom,
         To: whatsappTo,
         Body: content
       }),
       {
-        auth: authConfig
+        auth: {
+          username: accountSid,
+          password: authToken
+        }
       }
     );
     
@@ -339,34 +253,6 @@ async function sendTwilioWhatsAppMessage(
     }
   } catch (error) {
     console.error("Error sending Twilio WhatsApp message:", error);
-    
-    // Tratamento específico para erros comuns do Twilio
-    if (axios.isAxiosError(error)) {
-      const twilioError = error.response?.data;
-      const errorCode = twilioError?.code;
-      const errorMessage = twilioError?.message;
-      
-      if (errorMessage?.includes("could not find a Channel with the specified From address")) {
-        return {
-          status: "error",
-          message: "O número que você está usando não está configurado para WhatsApp no Twilio. " +
-                  "Você deve usar o número do Sandbox do WhatsApp fornecido pelo Twilio no formato: whatsapp:+14155238886"
-        };
-      } else if (errorCode === 21608) {
-        return {
-          status: "error",
-          message: "O WhatsApp não está configurado para este número de telefone. " +
-                  "Verifique se você ativou o WhatsApp para este número no console do Twilio."
-        };
-      } else if (errorCode === 63018) {
-        return {
-          status: "error",
-          message: "O destinatário não aceitou o template pre-aprovado do sandbox do WhatsApp. " +
-                  "O usuário precisa enviar a mensagem JOIN para o seu número do Sandbox primeiro."
-        };
-      }
-    }
-    
     return {
       status: "error",
       message: error instanceof Error ? error.message : "Unknown error sending Twilio WhatsApp message"
@@ -381,10 +267,9 @@ async function sendZapWhatsAppMessage(
   content: string
 ): Promise<{ status: string; message?: string; messageId?: string }> {
   try {
-    const config = channel.config as Record<string, any>;
-    const zapApiKey = process.env.ZAP_API_KEY || config?.apiKey;
-    const zapApiUrl = process.env.ZAP_API_URL || config?.apiUrl || "https://api.zap.com";
-    const sessionId = config?.sessionId;
+    const zapApiKey = process.env.ZAP_API_KEY || channel.config.apiKey;
+    const zapApiUrl = process.env.ZAP_API_URL || channel.config.apiUrl || "https://api.zap.com";
+    const sessionId = channel.config.sessionId;
     
     if (!zapApiKey || !sessionId) {
       return {

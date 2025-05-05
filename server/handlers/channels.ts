@@ -79,21 +79,6 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
         });
       }
       
-      // Verificar se já existe um canal com mesmo nome e tipo
-      const existingChannel = await db.query.channels.findFirst({
-        where: and(
-          eq(channels.name, req.body.name),
-          eq(channels.type, req.body.type)
-        )
-      });
-      
-      if (existingChannel) {
-        return res.status(409).json({
-          message: "Canal com este nome e tipo já existe",
-          channel: existingChannel
-        });
-      }
-      
       // Prepare channel data
       const channelData: InsertChannel = {
         name: req.body.name,

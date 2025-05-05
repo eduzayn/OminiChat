@@ -282,16 +282,17 @@ export async function sendZAPIWhatsAppMessage(
   extraOptions?: any
 ): Promise<{ status: string; message?: string; messageId?: string }> {
   try {
-    if (!channel.config || typeof channel.config !== 'object') {
+    const config = channel.config as ChannelConfig;
+    
+    if (!config || !config.instanceId || !config.token) {
       return {
         status: "error",
-        message: "Missing channel configuration"
+        message: "Missing Z-API credentials (instanceId, token)"
       };
     }
     
-    const config = channel.config as Record<string, any>;
-    const instanceId = config.instanceId as string;
-    const token = config.token as string;
+    const instanceId = config.instanceId;
+    const token = config.token;
     
     if (!instanceId || !token) {
       return {

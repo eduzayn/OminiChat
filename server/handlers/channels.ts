@@ -4,7 +4,8 @@ import {
   channels, 
   insertChannelSchema,
   InsertChannel,
-  conversations
+  conversations,
+  ChannelConfig
 } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -81,7 +82,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       }
       
       // Prepare channel data
-      const channelData: InsertChannel = {
+      const channelData = {
         name: req.body.name,
         type: req.body.type,
         isActive: req.body.isActive !== undefined ? req.body.isActive : true,
@@ -170,7 +171,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       }
       
       // Prepare update data
-      const updateData: Partial<InsertChannel> = {};
+      const updateData: any = {};
       
       if (req.body.name !== undefined) updateData.name = req.body.name;
       if (req.body.isActive !== undefined) updateData.isActive = req.body.isActive;
@@ -266,11 +267,18 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
         return res.status(400).json({ message: "QR Code is only available for WhatsApp channels" });
       }
       
-      const config = channel.config as any;
+      const config = channel.config as ChannelConfig;
       
       // Check if this is a channel that supports QR code (Z-API or custom provider with QR Code)
-      if (config.provider === "zap") {
+      if (config.provider === "zapi") {
         // Get QR Code from Z-API
+        if (!config.instanceId || !config.token) {
+          return res.status(400).json({
+            success: false,
+            message: "Credenciais Z-API incompletas. Verifique instanceId e token."
+          });
+        }
+        
         const zapiClient = new ZAPIClient(config.instanceId, config.token);
         const qrCodeResponse = await zapiClient.getQRCode();
         
@@ -334,8 +342,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
           });
         }
         
-        const config = channel.config as Record<string, any>;
-        const provider = config.provider as string;
+        const config = channel.config as ChannelConfig;
+        const provider = config.provider;
         
         if (provider === 'zapi') {
           try {
@@ -428,7 +436,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
           eq(conversations.status, "open")
         ));
       
-      if (activeConversationsCount[0].count > 0) {
+      const conversationCount = Number(activeConversationsCount[0].count);
+      if (conversationCount > 0) {
         return res.status(400).json({ 
           message: "Cannot delete channel with active conversations", 
           activeConversations: activeConversationsCount[0].count 

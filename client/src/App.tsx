@@ -22,6 +22,9 @@ import { ZAPINotifications } from "@/components/zapi-notifications";
 // Página de placeholder para módulos em desenvolvimento
 import PlaceholderPage from "@/pages/placeholder";
 
+// Importações Lazy Loading
+const IntegrationsPage = React.lazy(() => import("@/pages/integrations"));
+
 function Router() {
   const [location, setLocation] = useLocation();
   const { user, loading } = useAuth();
@@ -78,7 +81,17 @@ function Router() {
       </Route>
       
       {/* 6. Módulo de Integrações */}
-      <Route path="/integrations" component={React.lazy(() => import("@/pages/integrations"))} />
+      <Route path="/integrations">
+        {() => (
+          <Suspense fallback={
+            <div className="flex items-center justify-center min-h-screen">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+            </div>
+          }>
+            <IntegrationsPage />
+          </Suspense>
+        )}
+      </Route>
       
       {/* 7. Módulo de Suporte Interno */}
       <Route path="/team-chat">

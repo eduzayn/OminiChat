@@ -1,7 +1,50 @@
 import { createContext, useContext, useEffect, ReactNode, useState, useCallback, useRef } from "react";
 import { useAuth } from "./auth-context";
-import { addSocketListener, sendSocketMessage } from "@/lib/socket";
 import { useToast } from "@/hooks/use-toast";
+
+// Funções para interagir com WebSocket
+function sendSocketMessage(socket: WebSocket, type: string, data: any): boolean {
+  if (socket.readyState !== WebSocket.OPEN) {
+    console.warn(`WebSocket não está pronto para enviar mensagens (estado: ${socket.readyState})`);
+    return false;
+  }
+  
+  try {
+    socket.send(JSON.stringify({ 
+      type, 
+      data,
+      timestamp: new Date().toISOString() 
+    }));
+    return true;
+  } catch (error) {
+    console.error("Erro ao enviar mensagem WebSocket:", error);
+    return false;
+  }
+}
+
+function addSocketListener(
+  socket: WebSocket,
+  messageType: string,
+  callback: (data: any) => void
+): () => void {
+  const handler = (event: MessageEvent) => {
+    try {
+      const message = JSON.parse(event.data);
+      if (message.type === messageType) {
+        callback(message.data);
+      }
+    } catch (error) {
+      console.error("Erro ao processar mensagem WebSocket:", error);
+    }
+  };
+  
+  socket.addEventListener("message", handler);
+  
+  // Retornar função para remover o listener
+  return () => {
+    socket.removeEventListener("message", handler);
+  };
+}
 
 interface SocketContextType {
   socket: WebSocket | null;

@@ -105,10 +105,10 @@ export function Sidebar() {
         
         {/* 4. Módulo Multi-Tenant */}
         <NavLink 
-          href="/organization" 
+          href="/organizations" 
           icon={<Building2 />} 
-          label="Organização" 
-          active={location.startsWith("/organization")} 
+          label="Organizações" 
+          active={location.startsWith("/organizations")} 
         />
         
         {/* 5. Módulo de Autenticação e Permissões */}

@@ -60,18 +60,7 @@ function Router() {
       <Route path="/contacts" component={ContactsPage} />
       
       {/* 4. Módulo Multi-Tenant */}
-      <Route path="/organization">
-        {() => <PlaceholderPage 
-          moduleName="Organização" 
-          description="O módulo de gestão organizacional permite o uso do sistema por múltiplas empresas com isolamento seguro."
-          features={[
-            "Isolamento por schema no PostgreSQL",
-            "Configurações por tenant (logotipo, cores, permissões)",
-            "Painéis administrativos independentes",
-            "Controle de usuários, contratos e planos"
-          ]}
-        />}
-      </Route>
+      <Route path="/organizations" component={OrganizationsPage} />
       
       {/* 5. Módulo de Autenticação e Permissões */}
       <Route path="/security">

@@ -405,10 +405,10 @@ function SettingsPage() {
       
       setIsNewChannelDialogOpen(false);
       
-      // Verificar se é um canal WhatsApp via QR Code (zap) e exibir QR Code
+      // Verificar se é um canal WhatsApp via QR Code (zapi) e exibir QR Code
       if (savedChannel && 
           channelForm.type === "whatsapp" && 
-          channelForm.config.provider === "zap") {
+          channelForm.config.provider === "zapi") {
         handleOpenQrCodeDialog(savedChannel);
       }
       
@@ -672,7 +672,7 @@ function SettingsPage() {
               </div>
             </>
           );
-        } else if (channelForm.config.provider === "zap") {
+        } else if (channelForm.config.provider === "zapi") {
           // Implementação para exibição do QR Code
           return (
             <>

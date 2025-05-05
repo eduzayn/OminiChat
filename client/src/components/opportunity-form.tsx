@@ -154,7 +154,7 @@ export function OpportunityForm({ isOpen, onClose, onSubmit, contacts }: Opportu
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {contacts.length > 0 ? (
+                        {contacts && contacts.length > 0 ? (
                           contacts.map((contact) => (
                             <SelectItem key={contact.id} value={contact.id.toString()}>
                               {contact.name}

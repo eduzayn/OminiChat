@@ -27,6 +27,27 @@ export function useOpportunities() {
   // Query para buscar oportunidades com paginação e filtros
   const { data, isLoading, error } = useQuery({
     queryKey: ['/api/opportunities', filters],
+    queryFn: async () => {
+      const queryParams = new URLSearchParams();
+      
+      if (filters.page) queryParams.append('page', filters.page.toString());
+      if (filters.limit) queryParams.append('limit', filters.limit.toString());
+      if (filters.status) queryParams.append('status', filters.status);
+      if (filters.stage) queryParams.append('stage', filters.stage);
+      if (filters.contactId) queryParams.append('contactId', filters.contactId);
+      
+      const url = `/api/opportunities?${queryParams.toString()}`;
+      
+      const response = await fetch(url, {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Falha ao buscar oportunidades');
+      }
+      
+      return response.json();
+    },
     enabled: !!user,
     staleTime: 1000 * 60 * 5, // 5 minutos
   });
@@ -39,6 +60,7 @@ export function useOpportunities() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           ...opportunityData,
           contactId: parseInt(opportunityData.contactId),

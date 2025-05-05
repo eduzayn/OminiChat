@@ -277,15 +277,40 @@ function CRMDashboard() {
                 </TabsContent>
                 
                 <TabsContent value="pipeline" className="mt-6">
-                  <div className="relative">
-                    <div className="border rounded-lg p-6 text-center">
-                      <FilterIcon className="mx-auto h-12 w-12 text-neutral-300 mb-3" />
-                      <h3 className="text-lg font-medium">Conteúdo do Pipeline</h3>
-                      <p className="text-neutral-500 mb-4">
-                        Esta funcionalidade será implementada em breve. Aqui você poderá visualizar e gerenciar seu funil de vendas completo.
-                      </p>
-                    </div>
+                  <div className="flex justify-between mb-4">
+                    <h3 className="text-lg font-medium">Pipeline de Vendas</h3>
+                    <Button asChild>
+                      <Link href="/crm/pipeline">
+                        Ver Pipeline Completo
+                      </Link>
+                    </Button>
                   </div>
+                  <Card>
+                    <CardContent className="p-4">
+                      <ul className="space-y-4 py-2">
+                        {dealStages.map((stage) => (
+                          <li key={stage.id}>
+                            <div className="flex justify-between items-center mb-1">
+                              <div className="flex items-center gap-2">
+                                <div className={`h-3 w-3 rounded-full ${stage.color}`}></div>
+                                <span className="text-sm font-medium">{stage.name}</span>
+                              </div>
+                              <span className="text-sm text-neutral-500">
+                                {stage.count} negócios • {(stage.value / totalPipelineValue * 100).toFixed(1)}%
+                              </span>
+                            </div>
+                            <div className="flex items-center">
+                              <div className={`h-2 ${stage.color} rounded-l-full`} style={{ width: `${stage.value / totalPipelineValue * 100}%` }}></div>
+                              <div className="h-2 bg-neutral-100 flex-grow rounded-r-full"></div>
+                            </div>
+                            <div className="mt-1 text-xs text-neutral-500">
+                              {stage.value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </CardContent>
+                  </Card>
                 </TabsContent>
                 
                 <TabsContent value="leads" className="mt-6">

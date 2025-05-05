@@ -89,9 +89,7 @@ export default function IntegrationsPage() {
         description: "Aguarde enquanto testamos a conexão com o canal."
       });
       
-      const response = await apiRequest<{success?: boolean; message?: string; statusCode?: number}>(`/api/channels/${channelId}/test`, {
-        method: 'POST'
-      });
+      const response = await apiRequest<{success?: boolean; message?: string; statusCode?: number}>("POST", `/api/channels/${channelId}/test`);
       
       console.log('Resposta do teste de conexão:', response);
       

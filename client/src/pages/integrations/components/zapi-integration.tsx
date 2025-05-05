@@ -47,7 +47,7 @@ function WhatsAppQRCode({ channelId }: { channelId: number }) {
     setError(null);
     
     try {
-      const data = await apiRequest<{qrcode?: string; status?: string; message?: string}>(`/api/channels/${channelId}/qrcode`);
+      const data = await apiRequest<{qrcode?: string; status?: string; message?: string}>("GET", `/api/channels/${channelId}/qrcode`);
       
       if (data.qrcode) {
         setQrCode(data.qrcode);

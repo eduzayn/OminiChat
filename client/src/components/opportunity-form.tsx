@@ -116,13 +116,6 @@ export function OpportunityForm({ isOpen, onClose, onSubmit, contacts }: Opportu
           <DialogDescription>
             Preencha os dados para adicionar uma nova oportunidade ao seu pipeline.
           </DialogDescription>
-          <Button
-            onClick={onClose}
-            variant="ghost"
-            className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100"
-          >
-            <X className="h-4 w-4" />
-          </Button>
         </DialogHeader>
 
         <Form {...form}>

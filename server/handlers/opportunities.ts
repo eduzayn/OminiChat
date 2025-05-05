@@ -62,7 +62,8 @@ export function registerOpportunityRoutes(app: Express, apiPrefix: string) {
       });
       
       // Contar total de resultados para paginação
-      const totalCount = await db.query.opportunities.count();
+      const countResult = await db.select({ count: db.sql`count(*)` }).from(opportunities);
+      const totalCount = Number(countResult[0].count);
       
       return res.status(200).json({
         data: result,

@@ -115,6 +115,11 @@ function SettingsPage() {
   const [channelSetupStep, setChannelSetupStep] = useState<"select-type" | "configure" | "preview">("select-type");
   const [selectedChannelType, setSelectedChannelType] = useState<string>("");
   
+  // Estados para o QR Code do WhatsApp
+  const [qrCodeData, setQrCodeData] = useState<string>("");
+  const [qrCodeLoading, setQrCodeLoading] = useState(false);
+  const [selectedWhatsAppChannel, setSelectedWhatsAppChannel] = useState<any>(null);
+  
   // Consultas para buscar dados
   const messageTemplatesQuery = useQuery({
     queryKey: ['/api/message-templates'],
@@ -312,30 +317,85 @@ function SettingsPage() {
     }
   };
   
+  // Função para buscar QR Code do WhatsApp
+  const handleGetWhatsAppQrCode = async (channelId: number) => {
+    setQrCodeLoading(true);
+    setQrCodeData("");
+    
+    try {
+      const response = await fetch(`/api/channels/${channelId}/qrcode`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success && data.qrCode) {
+        setQrCodeData(data.qrCode);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Erro ao obter QR Code",
+          description: data.message || "Não foi possível obter o QR Code para este canal",
+          duration: 5000
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao buscar QR Code:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro de conexão",
+        description: "Não foi possível conectar ao servidor para obter o QR Code",
+        duration: 5000
+      });
+    } finally {
+      setQrCodeLoading(false);
+    }
+  };
+
+  // Função para abrir o modal de QR Code
+  const handleOpenQrCodeDialog = (channel: any) => {
+    setSelectedWhatsAppChannel(channel);
+    setQrCodeData("");
+    setQrCodeLoading(false);
+    handleGetWhatsAppQrCode(channel.id);
+    setQrCodeDialogOpen(true);
+  };
+
   const handleSaveChannel = async () => {
     try {
+      let savedChannel;
+      
       if (editingChannel) {
         // Atualizar canal existente
-        await fetch(`/api/channels/${editingChannel.id}`, {
+        const response = await fetch(`/api/channels/${editingChannel.id}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(channelForm)
         });
+        
+        savedChannel = await response.json();
+        
         toast({
           description: "Canal atualizado com sucesso",
           duration: 3000
         });
       } else {
         // Criar novo canal
-        await fetch('/api/channels', {
+        const response = await fetch('/api/channels', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(channelForm)
         });
+        
+        savedChannel = await response.json();
+        
         toast({
           description: "Canal criado com sucesso",
           duration: 3000
@@ -343,6 +403,14 @@ function SettingsPage() {
       }
       
       setIsNewChannelDialogOpen(false);
+      
+      // Verificar se é um canal WhatsApp via QR Code (zap) e exibir QR Code
+      if (savedChannel && 
+          channelForm.type === "whatsapp" && 
+          channelForm.config.provider === "zap") {
+        handleOpenQrCodeDialog(savedChannel);
+      }
+      
       channelsQuery.refetch();
     } catch (error) {
       console.error("Erro ao salvar canal:", error);
@@ -603,10 +671,44 @@ function SettingsPage() {
               </div>
             </>
           );
+        } else if (channelForm.config.provider === "zap") {
+          // Implementação para exibição do QR Code
+          return (
+            <>
+              <div className="bg-blue-50 p-4 rounded-md border border-blue-200 mb-4">
+                <div className="flex gap-3">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                      <QrCode className="w-4 h-4 text-blue-600" />
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-blue-800">WhatsApp via QR Code</h4>
+                    <p className="text-sm text-blue-700">
+                      Após salvar este canal, você poderá escanear o QR Code para conectar seu WhatsApp.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="whatsappName">Nome do WhatsApp</Label>
+                <Input 
+                  id="whatsappName" 
+                  value={channelForm.name || ""} 
+                  onChange={(e) => handleChannelFormChange("name", e.target.value)}
+                  placeholder="Ex: WhatsApp Atendimento"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Nome para identificação deste canal WhatsApp
+                </p>
+              </div>
+            </>
+          );
         } else {
           return (
             <div className="py-4 text-center text-gray-500">
-              A configuração para WhatsApp via QR Code será exibida após a criação do canal.
+              Selecione um provedor de WhatsApp para configurar este canal.
             </div>
           );
         }
@@ -1403,6 +1505,62 @@ function SettingsPage() {
             }}>
               Salvar
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Dialog para exibir QR Code do WhatsApp */}
+      <Dialog open={qrCodeDialogOpen} onOpenChange={setQrCodeDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Conectar WhatsApp</DialogTitle>
+            <DialogDescription>
+              Escaneie este QR Code com seu WhatsApp para conectar-se ao sistema.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center py-4">
+            {qrCodeLoading ? (
+              <div className="flex flex-col items-center py-8">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+                <p className="text-sm text-muted-foreground">Carregando QR Code...</p>
+              </div>
+            ) : qrCodeData ? (
+              <div className="flex flex-col items-center gap-4">
+                <div className="border rounded-md p-4 bg-white">
+                  <img 
+                    src={`data:image/png;base64,${qrCodeData}`} 
+                    alt="QR Code para conectar WhatsApp" 
+                    className="w-64 h-64"
+                  />
+                </div>
+                <div className="text-sm text-muted-foreground max-w-md text-center">
+                  <p>1. Abra o WhatsApp no seu telefone</p>
+                  <p>2. Toque em Menu ou Configurações e selecione WhatsApp Web</p>
+                  <p>3. Aponte seu telefone para esta tela para capturar o código</p>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>Não foi possível carregar o QR Code.</p>
+                <Button 
+                  variant="outline" 
+                  onClick={() => selectedWhatsAppChannel && handleGetWhatsAppQrCode(selectedWhatsAppChannel.id)}
+                  className="mt-4"
+                >
+                  Tentar novamente
+                </Button>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setQrCodeDialogOpen(false)}>
+              Fechar
+            </Button>
+            {qrCodeData && (
+              <Button onClick={() => selectedWhatsAppChannel && handleGetWhatsAppQrCode(selectedWhatsAppChannel.id)}>
+                Atualizar QR Code
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

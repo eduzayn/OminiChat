@@ -203,10 +203,7 @@ export function ZAPIIntegrationDialog({
       
       if (isNewChannel) {
         // Criar novo canal
-        response = await apiRequest<{id: number}>('/api/channels', {
-          method: 'POST',
-          data: payload
-        });
+        response = await apiRequest<{id: number}>("POST", "/api/channels", payload);
         
         if (response.id) {
           toast({
@@ -218,10 +215,7 @@ export function ZAPIIntegrationDialog({
         }
       } else {
         // Atualizar canal existente
-        response = await apiRequest<{id: number}>(`/api/channels/${channel.id}`, {
-          method: 'PUT',
-          data: payload
-        });
+        response = await apiRequest<{id: number}>("PUT", `/api/channels/${channel.id}`, payload);
         
         if (response.id) {
           toast({

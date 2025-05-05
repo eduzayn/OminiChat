@@ -3,13 +3,15 @@ import { db } from "@db";
 import { 
   channels, 
   insertChannelSchema,
-  InsertChannel
+  InsertChannel,
+  conversations
 } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
 import { setupChannel } from "../services/channels/whatsapp";
 import { setupInstagramChannel } from "../services/channels/instagram";
 import { setupFacebookChannel } from "../services/channels/facebook";
+import { broadcastToClients } from "../services/socket";
 
 // Middleware to check if user is authenticated
 function isAuthenticated(req: any, res: any, next: any) {
@@ -22,7 +24,7 @@ function isAuthenticated(req: any, res: any, next: any) {
 
 // Middleware to check if user is admin
 function isAdmin(req: any, res: any, next: any) {
-  if (!req.session || !req.session.userRole !== "admin") {
+  if (!req.session || req.session.userRole !== "admin") {
     return res.status(403).json({ message: "Forbidden: Admin access required" });
   }
   
@@ -110,27 +112,40 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       
       if (setupResult && setupResult.status === "error") {
         // If setup failed, update the channel with error info
+        const updatedConfig = {
+          ...(newChannel.config as Record<string, any>),
+          setupError: setupResult.message
+        };
+        
         await db
           .update(channels)
           .set({ 
             isActive: false,
-            config: {
-              ...newChannel.config,
-              setupError: setupResult.message
-            }
+            config: updatedConfig
           })
           .where(eq(channels.id, newChannel.id));
           
-        return res.status(201).json({
+        const responseChannel = {
           ...newChannel,
           isActive: false,
-          config: {
-            ...newChannel.config,
-            setupError: setupResult.message
-          },
+          config: updatedConfig,
           setupError: setupResult.message
+        };
+        
+        // Notify clients about new channel (even with error)
+        broadcastToClients({
+          type: 'channel_created',
+          data: responseChannel
         });
+        
+        return res.status(201).json(responseChannel);
       }
+      
+      // Notify clients about new channel
+      broadcastToClients({
+        type: 'channel_created',
+        data: newChannel
+      });
       
       return res.status(201).json(newChannel);
       
@@ -190,24 +205,40 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
         
         if (setupResult && setupResult.status === "error") {
           // If setup failed, update the channel with error info
+          const updatedConfig = {
+            ...(updatedChannel.config as Record<string, any>),
+            setupError: setupResult.message
+          };
+          
           const [finalChannel] = await db
             .update(channels)
             .set({ 
               isActive: false,
-              config: {
-                ...updatedChannel.config,
-                setupError: setupResult.message
-              }
+              config: updatedConfig
             })
             .where(eq(channels.id, channelId))
             .returning();
             
-          return res.json({
+          const responseChannel = {
             ...finalChannel,
             setupError: setupResult.message
+          };
+          
+          // Notify clients about the updated channel
+          broadcastToClients({
+            type: 'channel_updated',
+            data: responseChannel
           });
+          
+          return res.json(responseChannel);
         }
       }
+      
+      // Notify clients about the updated channel
+      broadcastToClients({
+        type: 'channel_updated',
+        data: updatedChannel
+      });
       
       return res.json(updatedChannel);
       
@@ -250,6 +281,16 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       await db
         .delete(channels)
         .where(eq(channels.id, channelId));
+      
+      // Notify clients about the deleted channel
+      broadcastToClients({
+        type: 'channel_deleted',
+        data: { 
+          id: channelId,
+          name: channel.name,
+          type: channel.type
+        }
+      });
       
       return res.status(204).end();
       

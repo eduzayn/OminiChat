@@ -47,16 +47,17 @@ function WhatsAppQRCode({ channelId }: { channelId: number }) {
     setError(null);
     
     try {
-      const response = await apiRequest<any>(`/api/channels/${channelId}/qrcode`);
+      const response = await fetch(`/api/channels/${channelId}/qrcode`);
+      const data = await response.json();
       
-      if (response.qrcode) {
-        setQrCode(response.qrcode);
-        setStatus(response.status || 'waiting');
-      } else if (response.status === 'connected') {
+      if (data.qrcode) {
+        setQrCode(data.qrcode);
+        setStatus(data.status || 'waiting');
+      } else if (data.status === 'connected') {
         setStatus('connected');
         setQrCode(null);
       } else {
-        setError(response.message || 'Não foi possível gerar o QR Code');
+        setError(data.message || 'Não foi possível gerar o QR Code');
       }
     } catch (err) {
       setError('Erro ao obter o QR Code. Tente novamente.');
@@ -193,18 +194,23 @@ export function ZAPIIntegrationDialog({
       const payload = {
         name: `WhatsApp (${values.phone})`,
         type: 'whatsapp',
-        provider: 'zapi',
-        config: values
+        config: {
+          ...values,
+          provider: 'zapi'
+        }
       };
       
       let response;
       
       if (isNewChannel) {
         // Criar novo canal
-        response = await apiRequest<any>('/api/channels', {
+        response = await fetch('/api/channels', {
           method: 'POST',
-          data: payload
-        });
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        }).then(res => res.json());
         
         if (response.id) {
           toast({
@@ -216,10 +222,13 @@ export function ZAPIIntegrationDialog({
         }
       } else {
         // Atualizar canal existente
-        response = await apiRequest<any>(`/api/channels/${channel.id}`, {
+        response = await fetch(`/api/channels/${channel.id}`, {
           method: 'PUT',
-          data: payload
-        });
+          headers: {
+            'Content-Type': 'application/json'
+          }, 
+          body: JSON.stringify(payload)
+        }).then(res => res.json());
         
         if (response.id) {
           toast({

@@ -140,18 +140,23 @@ export function MetaIntegrationDialog({
       const payload = {
         name,
         type: channelType,
-        provider: 'meta',
-        config: values
+        config: {
+          ...values,
+          provider: 'meta'
+        }
       };
       
       let response;
       
       if (isNewChannel) {
         // Criar novo canal
-        response = await apiRequest<any>('/api/channels', {
+        response = await fetch('/api/channels', {
           method: 'POST',
-          data: payload
-        });
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        }).then(res => res.json());
         
         if (response.id) {
           toast({
@@ -162,10 +167,13 @@ export function MetaIntegrationDialog({
         }
       } else {
         // Atualizar canal existente
-        response = await apiRequest<any>(`/api/channels/${channel.id}`, {
+        response = await fetch(`/api/channels/${channel.id}`, {
           method: 'PUT',
-          data: payload
-        });
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        }).then(res => res.json());
         
         if (response.id) {
           toast({

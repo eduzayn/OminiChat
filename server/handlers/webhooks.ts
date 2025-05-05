@@ -430,6 +430,12 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
         data: messageWithDetails
       });
       
+      // Verificar se a mensagem veio do Z-API e enviar notificação específica
+      if (messageMetadata && messageMetadata.source === 'zapi') {
+        console.log('Enviando notificação Z-API específica');
+        sendZAPINotification(messageWithDetails, channel, contact);
+      }
+      
       // Verificar se deve responder automaticamente
       // Obter histórico da conversa para contexto
       const previousMessages = await db.query.messages.findMany({

@@ -47,16 +47,32 @@ function WhatsAppQRCode({ channelId }: { channelId: number }) {
     setError(null);
     
     try {
-      const data = await apiRequest<{qrcode?: string; status?: string; message?: string}>("GET", `/api/channels/${channelId}/qrcode`);
+      const data = await apiRequest<{
+        qrcode?: string; 
+        qrCode?: string; 
+        status?: string; 
+        message?: string; 
+        success?: boolean; 
+        connected?: boolean
+      }>("GET", `/api/channels/${channelId}/qrcode`);
       
-      if (data.qrcode) {
-        setQrCode(data.qrcode);
-        setStatus(data.status || 'waiting');
-      } else if (data.status === 'connected') {
+      console.log("Resposta da API de QR Code:", data);
+      
+      // Verificar se o canal já está conectado
+      if (data.connected || data.status === 'connected') {
         setStatus('connected');
         setQrCode(null);
+        return;
+      }
+      
+      // Verificar se temos um QR Code (pode estar em data.qrcode ou data.qrCode)
+      const qrcodeData = data.qrcode || data.qrCode;
+      
+      if (qrcodeData) {
+        setQrCode(qrcodeData);
+        setStatus(data.status || 'waiting');
       } else {
-        setError(data.message || 'Não foi possível gerar o QR Code');
+        setError(data.message || 'Não foi possível gerar o QR Code. Verifique as credenciais da Z-API.');
       }
     } catch (err) {
       setError('Erro ao obter o QR Code. Tente novamente.');

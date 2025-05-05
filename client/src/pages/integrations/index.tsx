@@ -137,13 +137,13 @@ export default function IntegrationsPage() {
 
   // Função para filtrar canais por provedor
   const getChannelsByProvider = (provider: string) => {
-    if (!channels || channels.length === 0) return [];
+    if (!channels || !Array.isArray(channels) || channels.length === 0) return [];
     return channels.filter((channel: any) => channel.provider === provider);
   };
 
   // Função para agrupar canais Meta por tipo
   const getMetaChannelsByType = (type: string) => {
-    if (!channels || channels.length === 0) return [];
+    if (!channels || !Array.isArray(channels) || channels.length === 0) return [];
     return channels.filter((channel: any) => channel.provider === 'meta' && channel.type === type);
   };
 

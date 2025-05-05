@@ -279,26 +279,61 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
           });
         }
         
-        const zapiClient = new ZAPIClient(config.instanceId, config.token);
+        console.log(`Criando cliente Z-API para instância ${config.instanceId}`);
+        const zapiClient = new ZAPIClient(config.instanceId as string, config.token as string);
+        
+        // Verificar primeiro o status da instância
+        const statusResponse = await zapiClient.getStatus();
+        console.log("Status da instância Z-API:", statusResponse);
+        
+        if (statusResponse.connected) {
+          console.log("Instância já está conectada, não é necessário QR Code");
+          return res.json({ 
+            success: true, 
+            status: "connected",
+            message: "WhatsApp já está conectado",
+            connected: true
+          });
+        }
+        
+        // Obter QR Code apenas se não estiver conectado
+        console.log("Solicitando QR Code para a Z-API");
         const qrCodeResponse = await zapiClient.getQRCode();
+        console.log("Resposta do QR Code Z-API:", qrCodeResponse);
         
         if (qrCodeResponse.error) {
-          console.error("Error getting QR Code from Z-API:", qrCodeResponse.error);
-          return res.status(500).json({ success: false, message: qrCodeResponse.error });
+          console.error("Erro ao obter QR Code da Z-API:", qrCodeResponse.error);
+          return res.status(500).json({ 
+            success: false, 
+            message: `Erro ao obter QR Code: ${qrCodeResponse.error}` 
+          });
         }
         
         if (!qrCodeResponse.qrcode) {
-          console.log("No QR Code available - channel might be already connected.");
+          console.log("QR Code não disponível - verificando status alternativo");
+          
+          // Se não tem QR code mas também não tem erro, verificar se está conectado
+          if (qrCodeResponse.connected) {
+            return res.json({ 
+              success: true, 
+              status: "connected",
+              message: "WhatsApp já está conectado",
+              connected: true
+            });
+          }
+          
           return res.status(404).json({ 
             success: false, 
-            message: "QR Code not available. Device might be already connected." 
+            message: "QR Code não disponível. Verifique o status da instância Z-API." 
           });
         }
         
         return res.json({ 
           success: true, 
-          qrCode: qrCodeResponse.qrcode,
-          connected: qrCodeResponse.connected || false
+          status: "pending",
+          qrcode: qrCodeResponse.qrcode,
+          connected: false,
+          message: "Escaneie o QR Code para conectar o WhatsApp"
         });
       } else {
         return res.status(400).json({ 

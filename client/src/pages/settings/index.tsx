@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Helmet } from "react-helmet";
 import { useAuth } from "@/context/auth-context";
+import { useSocket } from "@/context/socket-context";
 import { Sidebar } from "@/components/sidebar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -67,6 +68,7 @@ import { apiRequest } from "@/lib/queryClient";
 function SettingsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { addListener } = useSocket();
   const [activeTab, setActiveTab] = useState("message-templates");
   
   // Estados para formulários de respostas rápidas
@@ -103,6 +105,34 @@ function SettingsPage() {
       return response || [];
     }
   });
+  
+  // Conectar-se aos eventos de WebSocket para atualizações de canais em tempo real
+  useEffect(() => {
+    // Manipulador para novos canais
+    const removeChannelCreatedListener = addListener('channel_created', (data) => {
+      console.log("Novo canal criado via WebSocket:", data);
+      channelsQuery.refetch();
+    });
+    
+    // Manipulador para canais atualizados
+    const removeChannelUpdatedListener = addListener('channel_updated', (data) => {
+      console.log("Canal atualizado via WebSocket:", data);
+      channelsQuery.refetch();
+    });
+    
+    // Manipulador para canais excluídos
+    const removeChannelDeletedListener = addListener('channel_deleted', (data) => {
+      console.log("Canal excluído via WebSocket:", data);
+      channelsQuery.refetch();
+    });
+    
+    // Limpar listeners quando o componente for desmontado
+    return () => {
+      removeChannelCreatedListener();
+      removeChannelUpdatedListener();
+      removeChannelDeletedListener();
+    };
+  }, [addListener, channelsQuery]);
   
   // Manipuladores para respostas rápidas
   const handleNewTemplate = () => {

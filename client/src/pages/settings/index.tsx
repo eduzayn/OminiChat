@@ -109,6 +109,10 @@ function SettingsPage() {
     config: {}
   });
   
+  // Estado para controlar o fluxo de criação de canal em etapas
+  const [channelSetupStep, setChannelSetupStep] = useState<"select-type" | "configure" | "preview">("select-type");
+  const [selectedChannelType, setSelectedChannelType] = useState<string>("");
+  
   // Consultas para buscar dados
   const messageTemplatesQuery = useQuery({
     queryKey: ['/api/message-templates'],
@@ -248,6 +252,8 @@ function SettingsPage() {
       type: "whatsapp",
       config: {}
     });
+    setSelectedChannelType("");
+    setChannelSetupStep("select-type");
     setEditingChannel(null);
     setIsNewChannelDialogOpen(true);
   };
@@ -258,8 +264,32 @@ function SettingsPage() {
       type: channel.type,
       config: channel.config || {}
     });
+    setSelectedChannelType(channel.type);
+    setChannelSetupStep("configure");
     setEditingChannel(channel);
     setIsNewChannelDialogOpen(true);
+  };
+  
+  const handleSelectChannelType = (type: string) => {
+    setSelectedChannelType(type);
+    setChannelForm(prev => ({
+      ...prev,
+      type,
+      name: prev.name || getDefaultChannelName(type)
+    }));
+    setChannelSetupStep("configure");
+  };
+  
+  const getDefaultChannelName = (type: string) => {
+    switch (type) {
+      case "whatsapp": return "WhatsApp Atendimento";
+      case "facebook": return "Facebook Messenger";
+      case "instagram": return "Instagram Direct";
+      case "sms": return "SMS Marketing";
+      case "email": return "Email Suporte";
+      case "web": return "Chat do Site";
+      default: return "Novo Canal";
+    }
   };
   
   const handleChannelFormChange = (field: string, value: any) => {
@@ -947,53 +977,198 @@ function SettingsPage() {
       
       {/* Dialog para criar/editar canal */}
       <Dialog open={isNewChannelDialogOpen} onOpenChange={setIsNewChannelDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>{editingChannel ? "Editar Canal" : "Novo Canal"}</DialogTitle>
-            <DialogDescription>
-              Configure os detalhes do canal de comunicação
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Nome do Canal</Label>
-              <Input 
-                id="name" 
-                value={channelForm.name}
-                onChange={(e) => setChannelForm({ ...channelForm, name: e.target.value })}
-                placeholder="Ex: WhatsApp Suporte"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="type">Tipo de Canal</Label>
-              <Select 
-                value={channelForm.type} 
-                onValueChange={(value) => setChannelForm({ ...channelForm, type: value })}
+        <DialogContent className={`${channelSetupStep === "select-type" ? "sm:max-w-[650px]" : "sm:max-w-[500px]"}`}>
+          <DialogHeader className="flex flex-row items-center">
+            {channelSetupStep !== "select-type" && (
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="mr-2 h-8 w-8" 
+                onClick={() => setChannelSetupStep("select-type")}
               >
-                <SelectTrigger id="type">
-                  <SelectValue placeholder="Selecione o tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                  <SelectItem value="facebook">Facebook Messenger</SelectItem>
-                  <SelectItem value="instagram">Instagram Direct</SelectItem>
-                  <SelectItem value="sms">SMS</SelectItem>
-                  <SelectItem value="email">Email</SelectItem>
-                  <SelectItem value="web">Web Chat</SelectItem>
-                </SelectContent>
-              </Select>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+            )}
+            <div>
+              <DialogTitle>
+                {editingChannel 
+                  ? "Editar Canal" 
+                  : channelSetupStep === "select-type" 
+                    ? "Conectar novo canal" 
+                    : `Conectar canal de ${
+                        selectedChannelType === "whatsapp" ? "WhatsApp" : 
+                        selectedChannelType === "facebook" ? "Facebook" : 
+                        selectedChannelType === "instagram" ? "Instagram" : 
+                        selectedChannelType === "email" ? "E-mail" : 
+                        selectedChannelType === "sms" ? "SMS" : 
+                        "Web"
+                      }`
+                }
+              </DialogTitle>
+              <DialogDescription>
+                {channelSetupStep === "select-type" 
+                  ? "Escolha um canal de comunicação para integrar ao OmniConnect" 
+                  : `Configure os detalhes do canal de ${
+                      selectedChannelType === "whatsapp" ? "WhatsApp" : 
+                      selectedChannelType === "facebook" ? "Facebook" : 
+                      selectedChannelType === "instagram" ? "Instagram" : 
+                      selectedChannelType === "email" ? "E-mail" : 
+                      selectedChannelType === "sms" ? "SMS" : 
+                      "Web"
+                    }`
+                }
+              </DialogDescription>
             </div>
-            
-            {/* Campos específicos para cada tipo de canal */}
-            {renderChannelConfigFields()}
-          </div>
+          </DialogHeader>
+
+          {channelSetupStep === "select-type" ? (
+            <div className="grid grid-cols-3 gap-3 py-4">
+              <div 
+                className="flex flex-col items-center justify-center p-6 rounded-md border border-gray-200 hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors"
+                onClick={() => handleSelectChannelType("whatsapp")}
+              >
+                <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-full mb-3">
+                  <MessageCircle className="w-6 h-6 text-green-600" />
+                </div>
+                <span className="text-sm font-medium">WhatsApp</span>
+              </div>
+              
+              <div 
+                className="flex flex-col items-center justify-center p-6 rounded-md border border-gray-200 hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors"
+                onClick={() => handleSelectChannelType("facebook")}
+              >
+                <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-full mb-3">
+                  <Facebook className="w-6 h-6 text-blue-600" />
+                </div>
+                <span className="text-sm font-medium">Facebook</span>
+              </div>
+              
+              <div 
+                className="flex flex-col items-center justify-center p-6 rounded-md border border-gray-200 hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors"
+                onClick={() => handleSelectChannelType("instagram")}
+              >
+                <div className="flex items-center justify-center w-12 h-12 bg-pink-100 rounded-full mb-3">
+                  <Instagram className="w-6 h-6 text-pink-600" />
+                </div>
+                <span className="text-sm font-medium">Instagram</span>
+              </div>
+              
+              <div 
+                className="flex flex-col items-center justify-center p-6 rounded-md border border-gray-200 hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors"
+                onClick={() => handleSelectChannelType("email")}
+              >
+                <div className="flex items-center justify-center w-12 h-12 bg-yellow-100 rounded-full mb-3">
+                  <Mail className="w-6 h-6 text-yellow-600" />
+                </div>
+                <span className="text-sm font-medium">E-mail</span>
+              </div>
+              
+              <div 
+                className="flex flex-col items-center justify-center p-6 rounded-md border border-gray-200 hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors"
+                onClick={() => handleSelectChannelType("sms")}
+              >
+                <div className="flex items-center justify-center w-12 h-12 bg-purple-100 rounded-full mb-3">
+                  <Phone className="w-6 h-6 text-purple-600" />
+                </div>
+                <span className="text-sm font-medium">SMS</span>
+              </div>
+              
+              <div 
+                className="flex flex-col items-center justify-center p-6 rounded-md border border-gray-200 hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors"
+                onClick={() => handleSelectChannelType("web")}
+              >
+                <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mb-3">
+                  <Globe className="w-6 h-6 text-gray-600" />
+                </div>
+                <span className="text-sm font-medium">Web Chat</span>
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Nome do Canal</Label>
+                <Input 
+                  id="name" 
+                  value={channelForm.name}
+                  onChange={(e) => setChannelForm({ ...channelForm, name: e.target.value })}
+                  placeholder={`Ex: ${getDefaultChannelName(selectedChannelType)}`}
+                />
+              </div>
+              
+              {selectedChannelType === "whatsapp" && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Escolha o tipo de canal que deseja conectar</Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div 
+                        className={`flex flex-col items-center justify-center p-4 rounded-md border ${channelForm.config.provider === "twilio" ? 'border-primary bg-primary/5' : 'border-gray-200'} hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors`}
+                        onClick={() => handleChannelFormChange("config.provider", "twilio")}
+                      >
+                        <div className="flex items-center justify-center w-10 h-10 bg-green-100 rounded-full mb-2">
+                          <Smartphone className="w-5 h-5 text-green-600" />
+                        </div>
+                        <span className="text-sm font-medium">WhatsApp Cloud API</span>
+                        <div className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full mt-2 flex items-center">
+                          <Check className="w-3 h-3 mr-1" /> Oficial
+                        </div>
+                      </div>
+                      
+                      <div 
+                        className={`flex flex-col items-center justify-center p-4 rounded-md border ${channelForm.config.provider === "zap" ? 'border-primary bg-primary/5' : 'border-gray-200'} hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors`}
+                        onClick={() => handleChannelFormChange("config.provider", "zap")}
+                      >
+                        <div className="flex items-center justify-center w-10 h-10 bg-gray-100 rounded-full mb-2">
+                          <QrCode className="w-5 h-5 text-gray-600" />
+                        </div>
+                        <span className="text-sm font-medium">WhatsApp App</span>
+                        <span className="text-xs text-muted-foreground mt-1">(QR Code)</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {renderChannelConfigFields()}
+                </div>
+              )}
+              
+              {(selectedChannelType === "facebook" || selectedChannelType === "instagram") && renderChannelConfigFields()}
+              {selectedChannelType === "sms" && renderChannelConfigFields()}
+              
+              {selectedChannelType === "email" && (
+                <div className="space-y-2">
+                  <Label htmlFor="emailAddress">Endereço de Email</Label>
+                  <Input 
+                    id="emailAddress" 
+                    type="email"
+                    value={channelForm.config.emailAddress || ""} 
+                    onChange={(e) => handleChannelFormChange("config.emailAddress", e.target.value)}
+                    placeholder="atendimento@seudominio.com"
+                  />
+                </div>
+              )}
+              
+              {selectedChannelType === "web" && (
+                <div className="space-y-2">
+                  <Label htmlFor="webDomain">Domínio do Site</Label>
+                  <Input 
+                    id="webDomain" 
+                    value={channelForm.config.webDomain || ""} 
+                    onChange={(e) => handleChannelFormChange("config.webDomain", e.target.value)}
+                    placeholder="www.seusite.com.br"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsNewChannelDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button type="submit" onClick={handleSaveChannel}>
-              Salvar
-            </Button>
+            {channelSetupStep !== "select-type" && (
+              <Button type="submit" onClick={handleSaveChannel}>
+                Salvar
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

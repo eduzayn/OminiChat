@@ -1013,7 +1013,7 @@ function SettingsPage() {
       
       {/* Dialog para criar/editar canal */}
       <Dialog open={isNewChannelDialogOpen} onOpenChange={setIsNewChannelDialogOpen}>
-        <DialogContent className={`${channelSetupStep === "select-type" ? "sm:max-w-[650px]" : "sm:max-w-[500px]"}`}>
+        <DialogContent className={`${channelSetupStep === "select-type" ? "sm:max-w-[750px]" : "sm:max-w-[600px]"}`}>
           <DialogHeader className="flex flex-row items-center">
             {channelSetupStep !== "select-type" && (
               <Button 
@@ -1058,65 +1058,71 @@ function SettingsPage() {
           </DialogHeader>
 
           {channelSetupStep === "select-type" ? (
-            <div className="grid grid-cols-3 gap-3 py-4">
+            <div className="grid grid-cols-3 gap-5 py-6">
               <div 
-                className="flex flex-col items-center justify-center p-6 rounded-md border border-gray-200 hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors"
+                className="flex flex-col items-center justify-center p-8 rounded-md border border-gray-200 hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors"
                 onClick={() => handleSelectChannelType("whatsapp")}
               >
-                <div className="flex items-center justify-center w-12 h-12 bg-green-100 rounded-full mb-3">
-                  <MessageCircle className="w-6 h-6 text-green-600" />
+                <div className="flex items-center justify-center w-14 h-14 bg-green-100 rounded-full mb-4">
+                  <MessageCircle className="w-7 h-7 text-green-600" />
                 </div>
-                <span className="text-sm font-medium">WhatsApp</span>
+                <span className="text-base font-medium">WhatsApp</span>
+                <span className="text-xs text-muted-foreground mt-1">WhatsApp Business</span>
               </div>
               
               <div 
-                className="flex flex-col items-center justify-center p-6 rounded-md border border-gray-200 hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors"
+                className="flex flex-col items-center justify-center p-8 rounded-md border border-gray-200 hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors"
                 onClick={() => handleSelectChannelType("facebook")}
               >
-                <div className="flex items-center justify-center w-12 h-12 bg-blue-100 rounded-full mb-3">
-                  <Facebook className="w-6 h-6 text-blue-600" />
+                <div className="flex items-center justify-center w-14 h-14 bg-blue-100 rounded-full mb-4">
+                  <Facebook className="w-7 h-7 text-blue-600" />
                 </div>
-                <span className="text-sm font-medium">Facebook</span>
+                <span className="text-base font-medium">Facebook</span>
+                <span className="text-xs text-muted-foreground mt-1">Messenger</span>
               </div>
               
               <div 
-                className="flex flex-col items-center justify-center p-6 rounded-md border border-gray-200 hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors"
+                className="flex flex-col items-center justify-center p-8 rounded-md border border-gray-200 hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors"
                 onClick={() => handleSelectChannelType("instagram")}
               >
-                <div className="flex items-center justify-center w-12 h-12 bg-pink-100 rounded-full mb-3">
-                  <Instagram className="w-6 h-6 text-pink-600" />
+                <div className="flex items-center justify-center w-14 h-14 bg-pink-100 rounded-full mb-4">
+                  <Instagram className="w-7 h-7 text-pink-600" />
                 </div>
-                <span className="text-sm font-medium">Instagram</span>
+                <span className="text-base font-medium">Instagram</span>
+                <span className="text-xs text-muted-foreground mt-1">Direct Messages</span>
               </div>
               
               <div 
-                className="flex flex-col items-center justify-center p-6 rounded-md border border-gray-200 hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors"
+                className="flex flex-col items-center justify-center p-8 rounded-md border border-gray-200 hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors"
                 onClick={() => handleSelectChannelType("email")}
               >
-                <div className="flex items-center justify-center w-12 h-12 bg-yellow-100 rounded-full mb-3">
-                  <Mail className="w-6 h-6 text-yellow-600" />
+                <div className="flex items-center justify-center w-14 h-14 bg-yellow-100 rounded-full mb-4">
+                  <Mail className="w-7 h-7 text-yellow-600" />
                 </div>
-                <span className="text-sm font-medium">E-mail</span>
+                <span className="text-base font-medium">E-mail</span>
+                <span className="text-xs text-muted-foreground mt-1">Comunicação via email</span>
               </div>
               
               <div 
-                className="flex flex-col items-center justify-center p-6 rounded-md border border-gray-200 hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors"
+                className="flex flex-col items-center justify-center p-8 rounded-md border border-gray-200 hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors"
                 onClick={() => handleSelectChannelType("sms")}
               >
-                <div className="flex items-center justify-center w-12 h-12 bg-purple-100 rounded-full mb-3">
-                  <Phone className="w-6 h-6 text-purple-600" />
+                <div className="flex items-center justify-center w-14 h-14 bg-purple-100 rounded-full mb-4">
+                  <Phone className="w-7 h-7 text-purple-600" />
                 </div>
-                <span className="text-sm font-medium">SMS</span>
+                <span className="text-base font-medium">SMS</span>
+                <span className="text-xs text-muted-foreground mt-1">Mensagens de texto</span>
               </div>
               
               <div 
-                className="flex flex-col items-center justify-center p-6 rounded-md border border-gray-200 hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors"
+                className="flex flex-col items-center justify-center p-8 rounded-md border border-gray-200 hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors"
                 onClick={() => handleSelectChannelType("web")}
               >
-                <div className="flex items-center justify-center w-12 h-12 bg-gray-100 rounded-full mb-3">
-                  <Globe className="w-6 h-6 text-gray-600" />
+                <div className="flex items-center justify-center w-14 h-14 bg-gray-100 rounded-full mb-4">
+                  <Globe className="w-7 h-7 text-gray-600" />
                 </div>
-                <span className="text-sm font-medium">Web Chat</span>
+                <span className="text-base font-medium">Web Chat</span>
+                <span className="text-xs text-muted-foreground mt-1">Chat para seu site</span>
               </div>
             </div>
           ) : (

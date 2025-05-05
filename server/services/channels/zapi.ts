@@ -86,6 +86,7 @@ export class ZAPIClient {
 
   // Send text message
   async sendTextMessage(phone: string, message: string): Promise<ZAPIResponse> {
+    console.log(`Sending Z-API text message to ${phone}`);
     return this.makeRequest('POST', '/send-text', {
       phone,
       message
@@ -94,6 +95,7 @@ export class ZAPIClient {
 
   // Send image message
   async sendImageMessage(phone: string, image: string, caption?: string): Promise<ZAPIResponse> {
+    console.log(`Sending Z-API image to ${phone}`);
     return this.makeRequest('POST', '/send-image', {
       phone,
       image, // URL or base64
@@ -103,18 +105,51 @@ export class ZAPIClient {
 
   // Send file message
   async sendFileMessage(phone: string, file: string, fileName?: string): Promise<ZAPIResponse> {
+    console.log(`Sending Z-API file to ${phone} (${fileName || 'unnamed'})`);
     return this.makeRequest('POST', '/send-file', {
       phone,
       file, // URL or base64
-      fileName
+      fileName: fileName || `file_${Date.now()}`
     });
   }
 
   // Send voice message
   async sendVoiceMessage(phone: string, audioUrl: string): Promise<ZAPIResponse> {
+    console.log(`Sending Z-API voice message to ${phone}`);
     return this.makeRequest('POST', '/send-audio', {
       phone,
       audio: audioUrl
+    });
+  }
+  
+  // Send location message
+  async sendLocationMessage(phone: string, latitude: number, longitude: number, title?: string): Promise<ZAPIResponse> {
+    console.log(`Sending Z-API location to ${phone}`);
+    return this.makeRequest('POST', '/send-location', {
+      phone,
+      latitude,
+      longitude,
+      title: title || 'Localização'
+    });
+  }
+  
+  // Send link preview
+  async sendLinkPreview(phone: string, url: string, text?: string): Promise<ZAPIResponse> {
+    console.log(`Sending Z-API link preview to ${phone}`);
+    return this.makeRequest('POST', '/send-link', {
+      phone,
+      url,
+      text: text || url
+    });
+  }
+  
+  // Send contact card
+  async sendContactCard(phone: string, contactName: string, contactNumber: string): Promise<ZAPIResponse> {
+    console.log(`Sending Z-API contact card to ${phone}`);
+    return this.makeRequest('POST', '/send-contact', {
+      phone,
+      contactName,
+      contactPhone: contactNumber
     });
   }
 
@@ -225,9 +260,10 @@ export async function sendZAPIWhatsAppMessage(
   channel: Channel,
   phone: string,
   content: string,
-  type: 'text' | 'image' | 'file' | 'voice' = 'text',
+  type: 'text' | 'image' | 'file' | 'voice' | 'location' | 'link' | 'contact' = 'text',
   mediaUrl?: string,
-  fileName?: string
+  fileName?: string,
+  extraOptions?: any
 ): Promise<{ status: string; message?: string; messageId?: string }> {
   try {
     const instanceId = channel.config.instanceId as string;
@@ -246,6 +282,9 @@ export async function sendZAPIWhatsAppMessage(
     // Create Z-API client
     const client = new ZAPIClient(instanceId, token);
     
+    // Log sending attempt
+    console.log(`Sending Z-API WhatsApp message to ${formattedPhone}, type: ${type}, content length: ${content?.length || 0}`);
+    
     let response: ZAPIResponse;
     
     switch (type) {
@@ -255,18 +294,51 @@ export async function sendZAPIWhatsAppMessage(
         }
         response = await client.sendImageMessage(formattedPhone, mediaUrl, content);
         break;
+        
       case 'file':
         if (!mediaUrl) {
           return { status: "error", message: "Media URL is required for file messages" };
         }
         response = await client.sendFileMessage(formattedPhone, mediaUrl, fileName);
         break;
+        
       case 'voice':
         if (!mediaUrl) {
           return { status: "error", message: "Media URL is required for voice messages" };
         }
         response = await client.sendVoiceMessage(formattedPhone, mediaUrl);
         break;
+        
+      case 'location':
+        if (!extraOptions?.latitude || !extraOptions?.longitude) {
+          return { status: "error", message: "Latitude and longitude are required for location messages" };
+        }
+        response = await client.sendLocationMessage(
+          formattedPhone, 
+          extraOptions.latitude, 
+          extraOptions.longitude, 
+          extraOptions.title || content
+        );
+        break;
+        
+      case 'link':
+        if (!mediaUrl) {
+          return { status: "error", message: "URL is required for link preview messages" };
+        }
+        response = await client.sendLinkPreview(formattedPhone, mediaUrl, content);
+        break;
+        
+      case 'contact':
+        if (!extraOptions?.contactName || !extraOptions?.contactNumber) {
+          return { status: "error", message: "Contact name and number are required for contact card messages" };
+        }
+        response = await client.sendContactCard(
+          formattedPhone, 
+          extraOptions.contactName, 
+          extraOptions.contactNumber
+        );
+        break;
+        
       case 'text':
       default:
         response = await client.sendTextMessage(formattedPhone, content);
@@ -274,12 +346,14 @@ export async function sendZAPIWhatsAppMessage(
     }
     
     if (response.error) {
+      console.error(`Error sending Z-API WhatsApp message: ${response.error}`);
       return {
         status: "error",
         message: `Error sending message: ${response.error}`
       };
     }
     
+    console.log(`Z-API WhatsApp message sent successfully to ${formattedPhone}, response:`, response);
     return {
       status: "success",
       messageId: response.messageId || response.id,
@@ -305,25 +379,89 @@ export function processZAPIWebhook(body: any): {
   mediaType?: string;
   mediaUrl?: string;
   fileName?: string;
+  thumbnailUrl?: string;
+  duration?: number;
+  isReply?: boolean;
+  replyToMessageId?: string;
+  replyToMessage?: string;
 } | null {
   try {
-    if (!body || !body.phone || (!body.text && !body.type)) {
-      console.error("Invalid Z-API webhook payload:", body);
+    // Logging the webhook for debugging
+    console.log("Received Z-API webhook:", JSON.stringify(body, null, 2));
+    
+    // Validação básica do payload
+    if (!body || !body.phone) {
+      console.error("Invalid Z-API webhook payload (missing phone):", body);
       return null;
     }
     
-    const isMedia = body.type && ['image', 'video', 'audio', 'document', 'sticker'].includes(body.type);
+    // Detectar o tipo de mensagem
+    let messageType = "text";
+    let messageContent = "";
+    let mediaUrl = undefined;
+    let fileName = undefined;
+    let thumbnailUrl = undefined;
+    let duration = undefined;
+    let isMedia = false;
     
+    // Verificar se é uma mensagem de mídia
+    if (body.type && ['image', 'video', 'audio', 'document', 'sticker', 'ptt'].includes(body.type)) {
+      isMedia = true;
+      messageType = body.type;
+      messageContent = body.caption || (body.text || `[${body.type}]`);
+      mediaUrl = body.file || body.fileUrl || body.url;
+      fileName = body.fileName || body.caption || `${body.type}_${Date.now()}`;
+      
+      // Informações específicas para vídeos
+      if (body.type === 'video') {
+        thumbnailUrl = body.thumbnail || body.thumbUrl;
+        duration = body.duration || 0;
+      }
+      
+      // Informações específicas para áudios
+      if (body.type === 'audio' || body.type === 'ptt') {
+        duration = body.duration || 0;
+      }
+    } else if (body.type === 'location') {
+      // Mensagem de localização
+      messageType = 'location';
+      messageContent = body.title || 'Localização compartilhada';
+      mediaUrl = `https://maps.google.com/maps?q=${body.latitude},${body.longitude}&z=14`;
+    } else if (body.type === 'contact') {
+      // Mensagem de contato
+      messageType = 'contact';
+      messageContent = `Contato: ${body.contactName || 'Sem nome'}`;
+    } else {
+      // Mensagem de texto simples
+      messageContent = body.text || body.body || '';
+    }
+    
+    // Verificar se é uma resposta a outra mensagem
+    const isReply = !!body.quotedMsg;
+    let replyToMessageId = undefined;
+    let replyToMessage = undefined;
+    
+    if (isReply && body.quotedMsg) {
+      replyToMessageId = body.quotedMsg.id;
+      replyToMessage = body.quotedMsg.text || body.quotedMsg.caption || '[Mídia]';
+    }
+    
+    // Retornar objeto processado
     return {
-      phone: body.phone.replace(/\D/g, ''),
-      message: body.text || body.caption || (isMedia ? `[${body.type}]` : ''),
-      messageId: body.id,
-      name: body.senderName,
-      timestamp: body.timestamp,
+      phone: body.phone.replace(/\D/g, ''), // Remover caracteres não numéricos
+      message: messageContent,
+      messageId: body.id || `zapi_${Date.now()}`,
+      name: body.senderName || body.contactName || body.author,
+      timestamp: body.timestamp || body.messageDate || Date.now(),
       isMedia,
-      mediaType: isMedia ? body.type : undefined,
-      mediaUrl: isMedia ? body.file : undefined,
-      fileName: body.type === 'document' ? body.fileName : undefined
+      mediaType: isMedia ? messageType : undefined,
+      mediaUrl,
+      fileName,
+      thumbnailUrl,
+      duration,
+      isReply,
+      replyToMessageId,
+      replyToMessage
     };
   } catch (error) {
     console.error("Error processing Z-API webhook:", error);

@@ -369,11 +369,40 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
       const attachments = [];
       
       if (processedData.isMedia && processedData.mediaUrl) {
-        attachments.push({
+        const attachment: any = {
           type: processedData.mediaType,
           url: processedData.mediaUrl,
           fileName: processedData.fileName
-        });
+        };
+        
+        // Adicionar metadados adicionais para tipos específicos
+        if (processedData.mediaType === 'video' || processedData.mediaType === 'audio' || processedData.mediaType === 'ptt') {
+          if (processedData.duration) {
+            attachment.duration = processedData.duration;
+          }
+        }
+        
+        if (processedData.mediaType === 'video' && processedData.thumbnailUrl) {
+          attachment.thumbnailUrl = processedData.thumbnailUrl;
+        }
+        
+        attachments.push(attachment);
+      }
+      
+      // Metadata avançado para a mensagem
+      const messageMetadata: any = { 
+        zapiMessageId: processedData.messageId,
+        timestamp: processedData.timestamp,
+        isMedia: processedData.isMedia,
+        mediaType: processedData.mediaType,
+        source: 'zapi'
+      };
+      
+      // Adicionar informações sobre mensagem respondida, se existirem
+      if (processedData.isReply) {
+        messageMetadata.isReply = true;
+        messageMetadata.replyToMessageId = processedData.replyToMessageId;
+        messageMetadata.replyToMessage = processedData.replyToMessage;
       }
       
       // Inserir a mensagem
@@ -384,12 +413,7 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
           content: processedData.message,
           isFromAgent: false,
           status: "delivered",
-          metadata: { 
-            zapiMessageId: processedData.messageId,
-            timestamp: processedData.timestamp,
-            isMedia: processedData.isMedia,
-            mediaType: processedData.mediaType
-          },
+          metadata: messageMetadata,
           attachments
         })
         .returning();

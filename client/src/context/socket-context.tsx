@@ -39,7 +39,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     if (!user) return;
 
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = window.location.host || window.location.hostname;
+    const host = window.location.host;
     
     if (!host) {
       console.error("Não foi possível estabelecer conexão WebSocket: host indefinido");

@@ -25,6 +25,18 @@ export function setupWebSocketServer(wss: WebSocketServer, db: any): void {
         const messageType = data.type;
         const messageData = data.data || {};
         
+        console.log(`WebSocket message received: ${messageType}`);
+        
+        // Handle ping messages to keep connection alive
+        if (messageType === 'ping') {
+          // Return a pong message
+          ws.send(JSON.stringify({
+            type: 'pong',
+            timestamp: Date.now()
+          }));
+          return;
+        }
+        
         // Handle authentication
         if (messageType === 'authenticate') {
           const msgUserId = messageData.userId || null;

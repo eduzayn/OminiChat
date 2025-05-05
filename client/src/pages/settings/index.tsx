@@ -79,6 +79,8 @@ import {
   X,
   Settings2,
   RefreshCw,
+  Send,
+  MessageSquare,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -504,6 +506,66 @@ function SettingsPage() {
                 />
                 <p className="text-xs text-muted-foreground">
                   ID da WhatsApp Business Account, caso possua uma.
+                </p>
+              </div>
+            </>
+          );
+        } else if (channelForm.config.provider === "zapi") {
+          return (
+            <>
+              <div className="bg-blue-50 p-4 rounded-md border border-blue-200 mb-4">
+                <div className="flex gap-3">
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                      <MessageSquare className="w-4 h-4 text-blue-600" />
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-blue-800">Z-API: Integração Robusta com WhatsApp</h4>
+                    <p className="text-sm text-blue-700">
+                      A Z-API oferece recursos avançados como suporte a múltiplos formatos de mídia, QR Code, obtenção de conversas e mensagens anteriores.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="instanceId">ID da Instância Z-API</Label>
+                <Input 
+                  id="instanceId" 
+                  value={channelForm.config.instanceId || ""} 
+                  onChange={(e) => handleChannelFormChange("config.instanceId", e.target.value)}
+                  placeholder="Ex: 1A2B3C4D5E6F7G8H9I0J"
+                />
+                <p className="text-xs text-muted-foreground">
+                  ID da sua instância na Z-API (encontrado no painel da Z-API)
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="token">Token Z-API</Label>
+                <Input 
+                  id="token" 
+                  type="password"
+                  value={channelForm.config.token || ""} 
+                  onChange={(e) => handleChannelFormChange("config.token", e.target.value)}
+                  placeholder="Token da sua instância Z-API"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Token de autorização da sua instância na Z-API
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="phone">Número de Telefone (opcional)</Label>
+                <Input 
+                  id="phone" 
+                  value={channelForm.config.phone || ""} 
+                  onChange={(e) => handleChannelFormChange("config.phone", e.target.value)}
+                  placeholder="+5511999999999"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Número de telefone no formato internacional (Ex: +5511999999999)
                 </p>
               </div>
             </>
@@ -1168,6 +1230,19 @@ function SettingsPage() {
                         <span className="text-sm font-medium">Meta API</span>
                         <div className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full mt-2 flex items-center">
                           <Check className="w-3 h-3 mr-1" /> Oficial
+                        </div>
+                      </div>
+                      
+                      <div 
+                        className={`flex flex-col items-center justify-center p-4 rounded-md border ${channelForm.config.provider === "zapi" ? 'border-primary bg-primary/5' : 'border-gray-200'} hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors`}
+                        onClick={() => handleChannelFormChange("config.provider", "zapi")}
+                      >
+                        <div className="flex items-center justify-center w-10 h-10 bg-green-100 rounded-full mb-2">
+                          <Send className="w-5 h-5 text-green-600" />
+                        </div>
+                        <span className="text-sm font-medium">Z-API</span>
+                        <div className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full mt-2 flex items-center">
+                          <Check className="w-3 h-3 mr-1" /> Recomendado
                         </div>
                       </div>
                       

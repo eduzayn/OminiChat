@@ -12,6 +12,7 @@ import PipelineView from "@/pages/crm/pipeline";
 import LeadsManagement from "@/pages/crm/leads";
 import SettingsPage from "@/pages/settings/index";
 import AIAssistantPage from "@/pages/ai/index";
+import OrganizationsPage from "@/pages/organizations";
 import { useAuth } from "./context/auth-context";
 import { AuthProvider } from "./context/auth-context";
 import { SocketProvider } from "./context/socket-context";

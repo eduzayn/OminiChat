@@ -41,7 +41,7 @@ export function registerOrganizationRoutes(app: Express, apiPrefix: string) {
   app.get(`${apiPrefix}/organizations/:id`, isAuthenticated, async (req: Request, res: Response) => {
     try {
       const organizationId = parseInt(req.params.id);
-      const userId = parseInt(req.session.userId);
+      const userId = req.session.userId ? parseInt(req.session.userId) : 0;
       
       // Verificar permissão - usuário precisa ser admin ou pertencer à organização
       if (req.session.userRole !== 'admin') {
@@ -129,7 +129,7 @@ export function registerOrganizationRoutes(app: Express, apiPrefix: string) {
   app.put(`${apiPrefix}/organizations/:id`, isAuthenticated, async (req: Request, res: Response) => {
     try {
       const organizationId = parseInt(req.params.id);
-      const userId = parseInt(req.session.userId);
+      const userId = req.session.userId ? parseInt(req.session.userId) : 0;
       
       // Verificar permissão - usuário precisa ser admin ou owner da organização
       if (req.session.userRole !== 'admin') {
@@ -177,7 +177,7 @@ export function registerOrganizationRoutes(app: Express, apiPrefix: string) {
   app.post(`${apiPrefix}/organizations/:id/users`, isAuthenticated, async (req: Request, res: Response) => {
     try {
       const organizationId = parseInt(req.params.id);
-      const userId = parseInt(req.session.userId);
+      const userId = req.session.userId ? parseInt(req.session.userId) : 0;
       
       // Verificar permissão - usuário precisa ser admin ou owner/admin da organização
       if (req.session.userRole !== 'admin') {
@@ -237,7 +237,7 @@ export function registerOrganizationRoutes(app: Express, apiPrefix: string) {
     try {
       const organizationId = parseInt(req.params.orgId);
       const userIdToRemove = parseInt(req.params.userId);
-      const userId = parseInt(req.session.userId);
+      const userId = req.session.userId ? parseInt(req.session.userId) : 0;
       
       // Verificar permissão - usuário precisa ser admin ou owner/admin da organização
       if (req.session.userRole !== 'admin') {
@@ -285,7 +285,7 @@ export function registerOrganizationRoutes(app: Express, apiPrefix: string) {
     try {
       const organizationId = parseInt(req.params.orgId);
       const userIdToUpdate = parseInt(req.params.userId);
-      const userId = parseInt(req.session.userId);
+      const userId = req.session.userId ? parseInt(req.session.userId) : 0;
       const { role, active } = req.body;
       
       // Verificar permissão - usuário precisa ser admin ou owner/admin da organização
@@ -346,7 +346,7 @@ export function registerOrganizationRoutes(app: Express, apiPrefix: string) {
   // Listar organizações do usuário atual
   app.get(`${apiPrefix}/my-organizations`, isAuthenticated, async (req: Request, res: Response) => {
     try {
-      const userId = parseInt(req.session.userId);
+      const userId = req.session.userId ? parseInt(req.session.userId) : 0;
       
       // Para admin, retornar todas as organizações
       if (req.session.userRole === 'admin') {

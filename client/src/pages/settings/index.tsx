@@ -54,6 +54,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 
 import {
   PlusCircle,
@@ -69,6 +70,15 @@ import {
   Globe,
   Eye,
   EyeOff,
+  ChevronLeft,
+  Search,
+  AlertCircle,
+  QrCode,
+  Smartphone,
+  Check,
+  X,
+  Settings2,
+  RefreshCw,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -366,15 +376,47 @@ function SettingsPage() {
   const getChannelIcon = (type: string) => {
     switch (type) {
       case "whatsapp":
-        return <MessageCircle className="w-5 h-5 text-green-600" />;
+        return (
+          <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-full">
+            <MessageCircle className="w-5 h-5 text-green-600" />
+          </div>
+        );
       case "facebook":
-        return <Facebook className="w-5 h-5 text-blue-600" />;
+        return (
+          <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
+            <Facebook className="w-5 h-5 text-blue-600" />
+          </div>
+        );
       case "instagram":
-        return <Instagram className="w-5 h-5 text-pink-600" />;
+        return (
+          <div className="flex items-center justify-center w-8 h-8 bg-pink-100 rounded-full">
+            <Instagram className="w-5 h-5 text-pink-600" />
+          </div>
+        );
       case "sms":
-        return <Phone className="w-5 h-5 text-gray-600" />;
+        return (
+          <div className="flex items-center justify-center w-8 h-8 bg-purple-100 rounded-full">
+            <Phone className="w-5 h-5 text-purple-600" />
+          </div>
+        );
+      case "email":
+        return (
+          <div className="flex items-center justify-center w-8 h-8 bg-yellow-100 rounded-full">
+            <Mail className="w-5 h-5 text-yellow-600" />
+          </div>
+        );
+      case "web":
+        return (
+          <div className="flex items-center justify-center w-8 h-8 bg-gray-100 rounded-full">
+            <Globe className="w-5 h-5 text-gray-600" />
+          </div>
+        );
       default:
-        return <MessagesSquare className="w-5 h-5 text-gray-600" />;
+        return (
+          <div className="flex items-center justify-center w-8 h-8 bg-gray-100 rounded-full">
+            <MessagesSquare className="w-5 h-5 text-gray-600" />
+          </div>
+        );
     }
   };
   
@@ -626,40 +668,57 @@ function SettingsPage() {
                         Gerencie os canais de comunicação com seus clientes
                       </CardDescription>
                     </div>
-                    <Button onClick={handleNewChannel}>
-                      <PlusCircle className="mr-2 h-4 w-4" />
-                      Novo Canal
-                    </Button>
+                    <div className="flex gap-2">
+                      <div className="relative w-60">
+                        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Pesquisar canais..."
+                          className="pl-8"
+                        />
+                      </div>
+                      <Button onClick={handleNewChannel}>
+                        <PlusCircle className="mr-2 h-4 w-4" />
+                        Novo Canal
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     {channelsQuery.isLoading ? (
                       <div className="py-8 text-center">Carregando canais...</div>
                     ) : channelsQuery.data && channelsQuery.data.length > 0 ? (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Canal</TableHead>
-                            <TableHead>Tipo</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Ações</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
+                      <div className="rounded-md border">
+                        <div className="grid gap-4">
                           {channelsQuery.data.map((channel) => (
-                            <TableRow key={channel.id}>
-                              <TableCell className="font-medium">
-                                <div className="flex items-center gap-2">
-                                  {getChannelIcon(channel.type)}
-                                  <span>{channel.name}</span>
+                            <div key={channel.id} className="flex items-center justify-between border-b p-4 last:border-0">
+                              <div className="flex items-center gap-4">
+                                {getChannelIcon(channel.type)}
+                                <div>
+                                  <div className="font-medium">{channel.name}</div>
+                                  <div className="text-sm text-muted-foreground capitalize">
+                                    {channel.type === "facebook" ? "Página do Facebook" : 
+                                     channel.type === "instagram" ? "Instagram Direct" : 
+                                     channel.type === "whatsapp" ? channel.config && channel.config.phoneNumber || "WhatsApp" :
+                                     channel.type === "email" ? "E-mail" : 
+                                     channel.type === "sms" ? "SMS" : 
+                                     "Canal Web"}
+                                  </div>
                                 </div>
-                              </TableCell>
-                              <TableCell className="capitalize">{channel.type}</TableCell>
-                              <TableCell>
-                                <Badge variant={channel.isActive ? "success" : "secondary"}>
-                                  {channel.isActive ? "Ativo" : "Inativo"}
-                                </Badge>
-                              </TableCell>
-                              <TableCell className="text-right">
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {/* Status indicator */}
+                                {channel.isActive ? (
+                                  <div className="flex items-center">
+                                    <Badge className="bg-green-100 text-green-800 hover:bg-green-100 border-0">
+                                      <Check className="mr-1 h-3 w-3" /> Ativo
+                                    </Badge>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center">
+                                    <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-0">
+                                      <AlertCircle className="mr-1 h-3 w-3" /> Necessário Reiniciar Canal
+                                    </Badge>
+                                  </div>
+                                )}
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
                                     <Button variant="ghost" className="h-8 w-8 p-0">
@@ -672,21 +731,22 @@ function SettingsPage() {
                                       <Edit className="mr-2 h-4 w-4" />
                                       <span>Editar</span>
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem 
-                                      onClick={() => handleToggleChannelStatus(channel.id, channel.isActive)}
-                                    >
-                                      {channel.isActive ? (
-                                        <>
-                                          <EyeOff className="mr-2 h-4 w-4" />
-                                          <span>Desativar</span>
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Eye className="mr-2 h-4 w-4" />
-                                          <span>Ativar</span>
-                                        </>
-                                      )}
-                                    </DropdownMenuItem>
+                                    {!channel.isActive && (
+                                      <DropdownMenuItem 
+                                        onClick={() => handleToggleChannelStatus(channel.id, channel.isActive)}
+                                      >
+                                        <RefreshCw className="mr-2 h-4 w-4" />
+                                        <span>Reiniciar Canal</span>
+                                      </DropdownMenuItem>
+                                    )}
+                                    {channel.isActive && (
+                                      <DropdownMenuItem 
+                                        onClick={() => handleToggleChannelStatus(channel.id, channel.isActive)}
+                                      >
+                                        <EyeOff className="mr-2 h-4 w-4" />
+                                        <span>Desativar</span>
+                                      </DropdownMenuItem>
+                                    )}
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem 
                                       onClick={() => handleDeleteChannel(channel.id)}
@@ -697,11 +757,11 @@ function SettingsPage() {
                                     </DropdownMenuItem>
                                   </DropdownMenuContent>
                                 </DropdownMenu>
-                              </TableCell>
-                            </TableRow>
+                              </div>
+                            </div>
                           ))}
-                        </TableBody>
-                      </Table>
+                        </div>
+                      </div>
                     ) : (
                       <div className="py-8 text-center text-muted-foreground">
                         Nenhum canal configurado. Clique em "Novo Canal" para adicionar.

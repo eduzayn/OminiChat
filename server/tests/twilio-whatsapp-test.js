@@ -13,7 +13,8 @@ const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const apiKey = process.env.TWILIO_API_KEY;
 const apiSecret = process.env.TWILIO_API_SECRET || process.env.TWILIO_AUTH_TOKEN;
-const phoneNumber = process.env.TWILIO_PHONE_NUMBER;
+// Aqui usamos o número do Sandbox ao invés do número normal do Twilio
+const phoneNumber = process.env.SANDBOX_WHATSAPP_NUMBER || process.env.TWILIO_PHONE_NUMBER;
 
 console.log('Iniciando teste da API WhatsApp do Twilio');
 console.log('-----------------------------------------');

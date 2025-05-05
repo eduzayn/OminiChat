@@ -314,15 +314,35 @@ function CRMDashboard() {
                 </TabsContent>
                 
                 <TabsContent value="leads" className="mt-6">
-                  <div className="relative">
-                    <div className="border rounded-lg p-6 text-center">
-                      <Users className="mx-auto h-12 w-12 text-neutral-300 mb-3" />
-                      <h3 className="text-lg font-medium">Gestão de Leads</h3>
-                      <p className="text-neutral-500 mb-4">
-                        Esta funcionalidade será implementada em breve. Aqui você poderá capturar e gerenciar todos os seus leads.
-                      </p>
-                    </div>
+                  <div className="flex justify-between mb-4">
+                    <h3 className="text-lg font-medium">Gestão de Leads</h3>
+                    <Button asChild>
+                      <Link href="/crm/leads">
+                        Ver Leads
+                      </Link>
+                    </Button>
                   </div>
+                  <Card>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h4 className="font-medium">Leads Recentes</h4>
+                          <p className="text-sm text-neutral-500">Últimos 5 leads cadastrados</p>
+                        </div>
+                        <Badge variant="outline" className="px-3">
+                          {/* Pode ser substituído por dados dinâmicos */}
+                          Total: 12 leads
+                        </Badge>
+                      </div>
+                      <Separator className="mb-4" />
+                      <div className="space-y-4">
+                        <div className="text-center py-6 text-neutral-500">
+                          <Users className="mx-auto h-6 w-6 text-neutral-300 mb-2" />
+                          <p className="text-sm">Visualize todos os leads na página completa</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </TabsContent>
                 
                 <TabsContent value="contatos" className="mt-6">

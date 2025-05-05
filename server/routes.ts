@@ -11,6 +11,7 @@ import { registerAIRoutes } from "./handlers/ai";
 import { registerMessageTemplateRoutes } from "./handlers/message-templates";
 import { registerWebhookRoutes } from "./handlers/webhooks";
 import { registerOpportunityRoutes } from "./handlers/opportunities";
+import { registerOrganizationRoutes } from "./handlers/organizations";
 import { setupWebSocketServer } from "./services/socket";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -30,6 +31,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerMessageTemplateRoutes(app, apiPrefix);
   registerWebhookRoutes(app, apiPrefix);
   registerOpportunityRoutes(app, apiPrefix);
+  registerOrganizationRoutes(app, apiPrefix);
   
   // Create WebSocket server
   const wss = new WebSocketServer({ 

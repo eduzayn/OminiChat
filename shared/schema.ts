@@ -1,7 +1,46 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, decimal } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, decimal, uuid } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
+
+// Organizations (Tenants) Table
+export const organizations = pgTable("organizations", {
+  id: serial("id").primaryKey(),
+  uuid: uuid("uuid").defaultRandom().notNull().unique(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  schema: text("schema").notNull().unique(),
+  active: boolean("active").default(true),
+  logo: text("logo"),
+  primaryColor: text("primary_color").default("#1E40AF"), // brand color
+  planType: text("plan_type").default("basic"), // basic, professional, enterprise
+  supportEmail: text("support_email"),
+  settings: jsonb("settings"), // JSON with tenant-specific settings
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertOrganizationSchema = createInsertSchema(organizations, {
+  name: (schema) => schema.min(2, "Nome da organização deve ter no mínimo 2 caracteres"),
+  slug: (schema) => schema.min(2, "Slug deve ter no mínimo 2 caracteres"),
+  schema: (schema) => schema.min(2, "Schema deve ter no mínimo 2 caracteres"),
+  supportEmail: (schema) => schema.email("Email deve ser válido").optional(),
+});
+
+// Organization Users (mapping between users and organizations)
+export const organizationUsers = pgTable("organization_users", {
+  id: serial("id").primaryKey(),
+  organizationId: integer("organization_id").notNull().references(() => organizations.id),
+  userId: integer("user_id").notNull().references(() => users.id),
+  role: text("role").notNull().default("member"), // owner, admin, member
+  active: boolean("active").default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertOrganizationUserSchema = createInsertSchema(organizationUsers, {
+  role: (schema) => z.enum(["owner", "admin", "member"]),
+});
 
 // Opportunities Table
 export const opportunities = pgTable("opportunities", {
@@ -279,6 +318,22 @@ export const messageTemplatesRelations = relations(messageTemplates, ({ one }) =
   }),
 }));
 
+// Organization relations
+export const organizationsRelations = relations(organizations, ({ many }) => ({
+  users: many(organizationUsers),
+}));
+
+export const organizationUsersRelations = relations(organizationUsers, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [organizationUsers.organizationId],
+    references: [organizations.id],
+  }),
+  user: one(users, {
+    fields: [organizationUsers.userId],
+    references: [users.id],
+  }),
+}));
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -324,3 +379,12 @@ export type Opportunity = typeof opportunities.$inferSelect & {
   user: User;
 };
 export type InsertOpportunity = z.infer<typeof insertOpportunitySchema>;
+
+export type Organization = typeof organizations.$inferSelect;
+export type InsertOrganization = z.infer<typeof insertOrganizationSchema>;
+
+export type OrganizationUser = typeof organizationUsers.$inferSelect & {
+  organization: Organization;
+  user: User;
+};
+export type InsertOrganizationUser = z.infer<typeof insertOrganizationUserSchema>;

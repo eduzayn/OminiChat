@@ -17,6 +17,7 @@ import { useAuth } from "./context/auth-context";
 import { AuthProvider } from "./context/auth-context";
 import { SocketProvider } from "./context/socket-context";
 import { ConversationProvider } from "./context/conversation-context";
+import { ZAPINotifications } from "@/components/zapi-notifications";
 
 // Página de placeholder para módulos em desenvolvimento
 import PlaceholderPage from "@/pages/placeholder";

@@ -57,7 +57,7 @@ interface OpportunityFormProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: OpportunityFormValues) => Promise<void>;
-  contacts: Contact[];
+  contacts: Contact[] | undefined;
 }
 
 export function OpportunityForm({ isOpen, onClose, onSubmit, contacts }: OpportunityFormProps) {

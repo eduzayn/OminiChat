@@ -13,6 +13,7 @@ interface ZAPIResponse {
   chatId?: string;
   messages?: any[];
   chats?: any[];
+  source?: string;
 }
 
 // Z-API Wrapper class
@@ -384,6 +385,7 @@ export function processZAPIWebhook(body: any): {
   isReply?: boolean;
   replyToMessageId?: string;
   replyToMessage?: string;
+  source?: string;
 } | null {
   try {
     // Logging the webhook for debugging

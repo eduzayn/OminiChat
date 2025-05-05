@@ -38,18 +38,6 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const connectWebSocket = useCallback(() => {
     if (!user) return;
 
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = window.location.host;
-    
-    if (!host) {
-      console.error("Não foi possível estabelecer conexão WebSocket: host indefinido");
-      return;
-    }
-    
-    // URL do WebSocket
-    const wsUrl = `${protocol}//${host}/ws`;
-    console.log("Conectando ao WebSocket em:", wsUrl);
-    
     // Limpar timeout anterior se existir
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
@@ -57,6 +45,20 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     }
     
     try {
+      // Determinar o protocolo baseado no protocolo atual da página
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      
+      // Garantir que temos um host válido
+      const host = window.location.host;
+      if (!host || host.includes('undefined')) {
+        throw new Error("Host inválido ou indefinido detectado");
+      }
+      
+      // Construir URL WebSocket com caminho específico
+      const wsUrl = `${protocol}//${host}/ws`;
+      console.log("Conectando ao WebSocket em:", wsUrl);
+      
+      // Criar o WebSocket com validação
       const ws = new WebSocket(wsUrl);
       
       ws.onopen = () => {

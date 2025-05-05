@@ -3,75 +3,89 @@
  * @returns {WebSocket} A instância de WebSocket criada
  */
 export function createWebSocket(): WebSocket {
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  // Construir a URL do WebSocket corretamente
-  const wsUrl = `${protocol}//${window.location.host}/ws`;
-  
-  // Criar o socket
-  const socket = new WebSocket(wsUrl);
-  
-  // Configurar os handlers de eventos básicos
-  socket.onopen = (event) => {
-    console.log("Conexão WebSocket estabelecida");
-    // Inicializar contagem de ping/pongs
-    (socket as any).pingPongActive = true;
-    (socket as any).missedPings = 0;
-  };
-  
-  socket.onclose = (event) => {
-    // Código 1000 = fechamento normal, qualquer outro é potencialmente um erro
-    if (event.code !== 1000) {
-      console.log(`Conexão WebSocket fechada com código: ${event.code}, razão: ${event.reason}`);
-    } else {
-      console.log("Conexão WebSocket fechada normalmente");
+  try {
+    // Determinar o protocolo baseado no protocolo atual da página
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    
+    // Garantir que temos um host válido
+    const host = window.location.host;
+    if (!host || host.includes('undefined')) {
+      throw new Error("Host inválido ou indefinido detectado");
     }
     
-    // Desativar o ping/pong
-    (socket as any).pingPongActive = false;
-  };
-  
-  socket.onerror = (error) => {
-    console.error("Erro na conexão WebSocket:", error);
-  };
-  
-  // Adicionar suporte a ping/pong para detecção de conexão perdida
-  socket.addEventListener('message', (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      // Resetar contador de pings perdidos quando qualquer mensagem válida é recebida
-      if (data && typeof data === 'object') {
-        (socket as any).missedPings = 0;
+    // Construir URL WebSocket com caminho específico
+    const wsUrl = `${protocol}//${host}/ws`;
+    console.log("Conectando ao WebSocket em:", wsUrl);
+    
+    // Criar o socket com validação
+    const socket = new WebSocket(wsUrl);
+    
+    // Configurar os handlers de eventos básicos
+    socket.onopen = (event) => {
+      console.log("Conexão WebSocket estabelecida");
+      // Inicializar contagem de ping/pongs
+      (socket as any).pingPongActive = true;
+      (socket as any).missedPings = 0;
+    };
+    
+    socket.onclose = (event) => {
+      // Código 1000 = fechamento normal, qualquer outro é potencialmente um erro
+      if (event.code !== 1000) {
+        console.log(`Conexão WebSocket fechada com código: ${event.code}, razão: ${event.reason}`);
+      } else {
+        console.log("Conexão WebSocket fechada normalmente");
       }
-    } catch (e) {
-      // Possivelmente uma mensagem que não é JSON (como um ping)
-    }
-  });
-  
-  // Criar um ping interno para verificar a saúde da conexão
-  const pingInterval = setInterval(() => {
-    if (socket.readyState === WebSocket.OPEN && (socket as any).pingPongActive) {
-      // Enviar um ping através de uma mensagem JSON para compatibilidade
+      
+      // Desativar o ping/pong
+      (socket as any).pingPongActive = false;
+    };
+    
+    socket.onerror = (error) => {
+      console.error("Erro na conexão WebSocket:", error);
+    };
+    
+    // Adicionar suporte a ping/pong para detecção de conexão perdida
+    socket.addEventListener('message', (event) => {
       try {
-        socket.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
-        (socket as any).missedPings++;
-        
-        // Se mais de 3 pings forem perdidos, a conexão provavelmente está morta
-        if ((socket as any).missedPings > 3) {
-          console.warn("Conexão WebSocket parece estar morta - vários pings perdidos");
-          socket.close(4000, "Conexão inativa detectada");
-          clearInterval(pingInterval);
+        const data = JSON.parse(event.data);
+        // Resetar contador de pings perdidos quando qualquer mensagem válida é recebida
+        if (data && typeof data === 'object') {
+          (socket as any).missedPings = 0;
         }
       } catch (e) {
-        console.error("Erro ao enviar ping:", e);
+        // Possivelmente uma mensagem que não é JSON (como um ping)
+      }
+    });
+    
+    // Criar um ping interno para verificar a saúde da conexão
+    const pingInterval = setInterval(() => {
+      if (socket.readyState === WebSocket.OPEN && (socket as any).pingPongActive) {
+        // Enviar um ping através de uma mensagem JSON para compatibilidade
+        try {
+          socket.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+          (socket as any).missedPings++;
+          
+          // Se mais de 3 pings forem perdidos, a conexão provavelmente está morta
+          if ((socket as any).missedPings > 3) {
+            console.warn("Conexão WebSocket parece estar morta - vários pings perdidos");
+            socket.close(4000, "Conexão inativa detectada");
+            clearInterval(pingInterval);
+          }
+        } catch (e) {
+          console.error("Erro ao enviar ping:", e);
+          clearInterval(pingInterval);
+        }
+      } else if (!((socket as any).pingPongActive)) {
+        // Limpeza - parar o intervalo se a conexão foi fechada
         clearInterval(pingInterval);
       }
-    } else if (!((socket as any).pingPongActive)) {
-      // Limpeza - parar o intervalo se a conexão foi fechada
-      clearInterval(pingInterval);
-    }
-  }, 25000); // Ping a cada 25 segundos
-  
-  return socket;
+    }, 25000); // Ping a cada 25 segundos
+    
+    return socket;
+  } catch (error) {
+    console.error("Erro ao criar WebSocket:", error);
+    throw error; // Re-lançar o erro para ser tratado pelo chamador
+  }
 }
 
 /**

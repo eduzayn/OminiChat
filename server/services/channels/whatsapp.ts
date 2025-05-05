@@ -45,14 +45,18 @@ async function setupTwilioWhatsApp(channel: Channel): Promise<{ status: string; 
     console.log(`TWILIO_ACCOUNT_SID está definido: ${Boolean(process.env.TWILIO_ACCOUNT_SID)}`);
     console.log(`TWILIO_AUTH_TOKEN está definido: ${Boolean(process.env.TWILIO_AUTH_TOKEN)}`);
     console.log(`TWILIO_PHONE_NUMBER está definido: ${Boolean(process.env.TWILIO_PHONE_NUMBER)}`);
+    console.log(`SANDBOX_WHATSAPP_NUMBER está definido: ${Boolean(process.env.SANDBOX_WHATSAPP_NUMBER)}`);
     console.log(`TWILIO_API_KEY está definido: ${Boolean(process.env.TWILIO_API_KEY)}`);
-    console.log(`TWILIO_API_KEY está definido: ${Boolean(process.env.TWILIO_API_KEY)}`);
+    console.log(`TWILIO_API_SECRET está definido: ${Boolean(process.env.TWILIO_API_SECRET)}`);
     
     // Check Twilio configuration - prefer environment variables over channel config
     const config = channel.config as Record<string, any>;
     const accountSid = process.env.TWILIO_ACCOUNT_SID || config?.accountSid;
+    
+    // Prefer Sandbox number for WhatsApp if available
+    let phoneNumber = process.env.SANDBOX_WHATSAPP_NUMBER || process.env.TWILIO_PHONE_NUMBER || config?.phoneNumber;
+    
     // Garante que o número de telefone esteja no formato esperado para WhatsApp
-    let phoneNumber = process.env.TWILIO_PHONE_NUMBER || config?.phoneNumber;
     if (phoneNumber && !phoneNumber.startsWith('whatsapp:')) {
       phoneNumber = `whatsapp:+${phoneNumber.replace(/^\+/, '')}`;
     }
@@ -252,7 +256,8 @@ async function sendTwilioWhatsAppMessage(
   try {
     const config = channel.config as Record<string, any>;
     const accountSid = process.env.TWILIO_ACCOUNT_SID || config?.accountSid;
-    let fromNumber = process.env.TWILIO_PHONE_NUMBER || config?.phoneNumber;
+    // Prefer Sandbox number for WhatsApp if available
+    let fromNumber = process.env.SANDBOX_WHATSAPP_NUMBER || process.env.TWILIO_PHONE_NUMBER || config?.phoneNumber;
     const apiKey = process.env.TWILIO_API_KEY || config?.apiKey;
     const apiSecret = process.env.TWILIO_API_SECRET;
     const authToken = process.env.TWILIO_AUTH_TOKEN || config?.authToken;
@@ -334,6 +339,34 @@ async function sendTwilioWhatsAppMessage(
     }
   } catch (error) {
     console.error("Error sending Twilio WhatsApp message:", error);
+    
+    // Tratamento específico para erros comuns do Twilio
+    if (axios.isAxiosError(error)) {
+      const twilioError = error.response?.data;
+      const errorCode = twilioError?.code;
+      const errorMessage = twilioError?.message;
+      
+      if (errorMessage?.includes("could not find a Channel with the specified From address")) {
+        return {
+          status: "error",
+          message: "O número que você está usando não está configurado para WhatsApp no Twilio. " +
+                  "Você deve usar o número do Sandbox do WhatsApp fornecido pelo Twilio no formato: whatsapp:+14155238886"
+        };
+      } else if (errorCode === 21608) {
+        return {
+          status: "error",
+          message: "O WhatsApp não está configurado para este número de telefone. " +
+                  "Verifique se você ativou o WhatsApp para este número no console do Twilio."
+        };
+      } else if (errorCode === 63018) {
+        return {
+          status: "error",
+          message: "O destinatário não aceitou o template pre-aprovado do sandbox do WhatsApp. " +
+                  "O usuário precisa enviar a mensagem JOIN para o seu número do Sandbox primeiro."
+        };
+      }
+    }
+    
     return {
       status: "error",
       message: error instanceof Error ? error.message : "Unknown error sending Twilio WhatsApp message"

@@ -8,43 +8,69 @@ async function throwIfResNotOk(res: Response) {
 }
 
 export async function apiRequest<T = any>(
-  url: string,
-  options?: {
-    method?: string;
-    data?: unknown;
-  }
+  method: string,
+  path: string,
+  data?: unknown  
 ): Promise<T> {
-  const method = options?.method || 'GET';
-  const data = options?.data;
+  // Verificar e normalizar o caminho da API
+  const url = path.startsWith('/') ? path : `/${path}`;
   
-  const res = await fetch(url, {
-    method,
-    headers: data ? { "Content-Type": "application/json" } : {},
-    body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
-  });
-
-  await throwIfResNotOk(res);
-  
-  // Verificar o content-type para fazer o parse adequado
-  const contentType = res.headers.get('content-type');
-  if (contentType && contentType.includes('application/json')) {
-    try {
-      return await res.json();
-    } catch (error) {
-      console.error('Erro ao fazer parse do JSON:', error);
-      // Em caso de falha, retorna objeto vazio com sucesso:false como fallback seguro
-      return { success: false, message: 'Erro ao processar resposta do servidor' } as unknown as T;
+  try {
+    const options: RequestInit = {
+      method,
+      headers: data ? { "Content-Type": "application/json" } : {},
+      body: data ? JSON.stringify(data) : undefined,
+      credentials: "include",
+    };
+    
+    console.log(`Realizando ${method} para ${url}`);
+    
+    const res = await fetch(url, options);
+    
+    // Verificar o content-type para fazer o parse adequado
+    const contentType = res.headers.get('content-type');
+    
+    if (!res.ok) {
+      // Se a resposta tiver um código de erro
+      let errorMessage = `Erro ${res.status}: ${res.statusText}`;
+      
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.message || errorMessage;
+          throw new Error(errorMessage);
+        } catch (parseError) {
+          throw new Error(errorMessage);
+        }
+      } else {
+        const errorText = await res.text();
+        throw new Error(errorMessage + (errorText ? ` - ${errorText}` : ''));
+      }
     }
-  } else {
-    // Se a resposta não for JSON, retorna um objeto com a resposta em texto
-    const text = await res.text();
-    console.log('Resposta não-JSON recebida:', text);
-    return { 
-      success: res.ok,
-      statusCode: res.status,
-      message: res.ok ? 'Operação realizada com sucesso' : 'Erro na operação' 
-    } as unknown as T;
+    
+    // Para respostas bem-sucedidas
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        return await res.json() as T;
+      } catch (error) {
+        console.error('Erro ao fazer parse do JSON:', error);
+        // Em caso de falha, retorna objeto vazio com sucesso:false como fallback seguro
+        return { success: false, message: 'Erro ao processar resposta JSON do servidor' } as unknown as T;
+      }
+    } else {
+      // Se a resposta não for JSON, retorna um objeto com a resposta em texto
+      const text = await res.text();
+      console.log('Resposta não-JSON recebida (provavelmente texto plano):', text.substring(0, 100));
+      return { 
+        success: true,
+        statusCode: res.status,
+        message: 'Operação realizada com sucesso',
+        text: text
+      } as unknown as T;
+    }
+  } catch (error) {
+    console.error(`Erro na requisição ${method} para ${url}:`, error);
+    throw error;
   }
 }
 

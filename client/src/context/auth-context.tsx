@@ -13,7 +13,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
 }
 
@@ -27,16 +27,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response = await fetch("/api/auth/me", {
-          credentials: "include",
-        });
-
-        if (response.ok) {
-          const userData = await response.json();
+        // Usar apiRequest para consistência
+        const userData = await apiRequest<User | null>("GET", "/api/auth/me");
+        
+        if (userData && userData.id) {
           setUser(userData);
         }
       } catch (error) {
         console.error("Auth check error:", error);
+        // Em caso de erro de autenticação, apenas deixar o usuário como null
       } finally {
         setLoading(false);
       }
@@ -47,13 +46,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (username: string, password: string) => {
     try {
-      const response = await apiRequest("POST", "/api/auth/login", {
+      // Aqui a função apiRequest já retorna o JSON analisado
+      const userData = await apiRequest<User>("POST", "/api/auth/login", {
         username,
         password,
       });
-
-      const userData = await response.json();
-      setUser(userData);
+      
+      if (userData && userData.id) {
+        setUser(userData);
+        return userData;
+      } else {
+        throw new Error("Não foi possível obter dados do usuário");
+      }
     } catch (error) {
       console.error("Login error:", error);
       throw error;

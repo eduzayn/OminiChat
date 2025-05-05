@@ -6,7 +6,7 @@
  * - https://www.twilio.com/docs/whatsapp/quickstart
  */
 
-const axios = require('axios');
+import axios from 'axios';
 
 // Obter as variáveis de ambiente
 const accountSid = process.env.TWILIO_ACCOUNT_SID;

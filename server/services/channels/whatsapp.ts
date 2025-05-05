@@ -13,8 +13,8 @@ export async function setupChannel(channel: Channel): Promise<{ status: string; 
     }
 
     // Different setup based on WhatsApp provider
-    const config = channel.config as Record<string, any>;
-    const provider = config.provider || "twilio";
+    const config = channel.config as Record<string, any> || {};
+    const provider = config?.provider || "twilio";
 
     console.log(`Configurando canal WhatsApp (ID: ${channel.id}) com provedor: ${provider}`);
 
@@ -50,10 +50,16 @@ async function setupTwilioWhatsApp(channel: Channel): Promise<{ status: string; 
     
     // Check Twilio configuration - prefer environment variables over channel config
     const config = channel.config as Record<string, any>;
-    const accountSid = process.env.TWILIO_ACCOUNT_SID || config.accountSid;
-    const phoneNumber = process.env.TWILIO_PHONE_NUMBER || config.phoneNumber;
-    const apiKey = process.env.TWILIO_API_KEY || config.apiKey;
-    const authToken = process.env.TWILIO_AUTH_TOKEN || config.authToken;
+    const accountSid = process.env.TWILIO_ACCOUNT_SID || config?.accountSid;
+    // Garante que o número de telefone esteja no formato esperado para WhatsApp
+    let phoneNumber = process.env.TWILIO_PHONE_NUMBER || config?.phoneNumber;
+    if (phoneNumber && !phoneNumber.startsWith('whatsapp:')) {
+      phoneNumber = `whatsapp:+${phoneNumber.replace(/^\+/, '')}`;
+    }
+    
+    const apiKey = process.env.TWILIO_API_KEY || config?.apiKey;
+    const apiSecret = process.env.TWILIO_API_SECRET;
+    const authToken = process.env.TWILIO_AUTH_TOKEN || config?.authToken;
 
     // Precisamos de Account SID, número de telefone, e algum método de autenticação
     if (!accountSid || !phoneNumber) {
@@ -148,8 +154,9 @@ async function setupZapWhatsApp(channel: Channel): Promise<{ status: string; mes
     // This would typically involve calling the Zap API to start a session
     
     // Use environment variables for Zap API credentials
-    const zapApiKey = process.env.ZAP_API_KEY || channel.config.apiKey;
-    const zapApiUrl = process.env.ZAP_API_URL || channel.config.apiUrl || "https://api.zap.com";
+    const config = channel.config as Record<string, any> || {};
+    const zapApiKey = process.env.ZAP_API_KEY || config?.apiKey;
+    const zapApiUrl = process.env.ZAP_API_URL || config?.apiUrl || "https://api.zap.com";
     
     if (!zapApiKey) {
       return {
@@ -214,7 +221,8 @@ export async function sendWhatsAppMessage(
   content: string
 ): Promise<{ status: string; message?: string; messageId?: string }> {
   try {
-    const provider = channel.config.provider as string || "twilio";
+    const config = channel.config as Record<string, any> || {};
+    const provider = config?.provider || "twilio";
     
     if (provider === "twilio") {
       return sendTwilioWhatsAppMessage(channel, to, content);
@@ -243,11 +251,11 @@ async function sendTwilioWhatsAppMessage(
 ): Promise<{ status: string; message?: string; messageId?: string }> {
   try {
     const config = channel.config as Record<string, any>;
-    const accountSid = process.env.TWILIO_ACCOUNT_SID || config.accountSid;
-    const fromNumber = process.env.TWILIO_PHONE_NUMBER || config.phoneNumber;
-    const apiKey = process.env.TWILIO_API_KEY || config.apiKey;
-
-    const authToken = process.env.TWILIO_AUTH_TOKEN || config.authToken;
+    const accountSid = process.env.TWILIO_ACCOUNT_SID || config?.accountSid;
+    let fromNumber = process.env.TWILIO_PHONE_NUMBER || config?.phoneNumber;
+    const apiKey = process.env.TWILIO_API_KEY || config?.apiKey;
+    const apiSecret = process.env.TWILIO_API_SECRET;
+    const authToken = process.env.TWILIO_AUTH_TOKEN || config?.authToken;
     
     // Verificar se temos as informações essenciais
     if (!accountSid || !fromNumber) {
@@ -271,17 +279,23 @@ async function sendTwilioWhatsAppMessage(
     const whatsappTo = to.startsWith("whatsapp:") ? to : `whatsapp:+${to.replace(/^\+/, '')}`;
     
     // O sandbox do Twilio utiliza um número específico com prefixo whatsapp:
-    // Se o número já tiver o prefixo, usamos como está
-    const whatsappFrom = fromNumber.startsWith("whatsapp:") ? 
-      fromNumber : 
-      `whatsapp:+${fromNumber.replace(/^\+/, '')}`;
+    // Se o número já tiver o prefixo, usamos como está, caso contrário adicionamos
+    if (!fromNumber.startsWith("whatsapp:")) {
+      fromNumber = `whatsapp:+${fromNumber.replace(/^\+/, '')}`;
+    }
     
-    console.log(`Enviando mensagem WhatsApp de ${whatsappFrom} para ${whatsappTo}`);
+    console.log(`Enviando mensagem WhatsApp de ${fromNumber} para ${whatsappTo}`);
     
     // Configurar autenticação - preferir API Key se disponível
     let authConfig;
-    if (apiKey) {
-      console.log("Usando API Key para enviar mensagem");
+    if (apiKey && apiSecret) {
+      console.log("Usando API Key e Secret para enviar mensagem");
+      authConfig = {
+        username: apiKey,
+        password: apiSecret
+      };
+    } else if (apiKey && authToken) {
+      console.log("Usando API Key e Auth Token para enviar mensagem");
       authConfig = {
         username: apiKey,
         password: authToken
@@ -298,7 +312,7 @@ async function sendTwilioWhatsAppMessage(
     const response = await axios.post(
       `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
       new URLSearchParams({
-        From: whatsappFrom,
+        From: fromNumber, // Já está no formato correto (whatsapp:+XXXX)
         To: whatsappTo,
         Body: content
       }),
@@ -334,9 +348,10 @@ async function sendZapWhatsAppMessage(
   content: string
 ): Promise<{ status: string; message?: string; messageId?: string }> {
   try {
-    const zapApiKey = process.env.ZAP_API_KEY || channel.config.apiKey;
-    const zapApiUrl = process.env.ZAP_API_URL || channel.config.apiUrl || "https://api.zap.com";
-    const sessionId = channel.config.sessionId;
+    const config = channel.config as Record<string, any>;
+    const zapApiKey = process.env.ZAP_API_KEY || config?.apiKey;
+    const zapApiUrl = process.env.ZAP_API_URL || config?.apiUrl || "https://api.zap.com";
+    const sessionId = config?.sessionId;
     
     if (!zapApiKey || !sessionId) {
       return {

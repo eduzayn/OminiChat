@@ -175,7 +175,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         // O evento onclose será disparado automaticamente após um erro
       };
       
-      // Listener para welcome message do servidor e pongs
+      // Listener para welcome message do servidor, pongs e outros eventos de sistema
       ws.addEventListener("message", (event) => {
         try {
           const data = JSON.parse(event.data);
@@ -183,8 +183,27 @@ export function SocketProvider({ children }: { children: ReactNode }) {
           if (data.type === "welcome") {
             console.log("Servidor WebSocket:", data.message);
           }
+          else if (data.type === "ping") {
+            console.log('Ping recebido do servidor:', data);
+            
+            // Responder imediatamente com um pong
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                type: 'pong',
+                timestamp: Date.now(),
+                originalTimestamp: data.timestamp
+              }));
+            }
+          }
           else if (data.type === "pong") {
-            console.log('Pong recebido do servidor');
+            console.log('Pong recebido do servidor:', data);
+            
+            // Calcular latência com o timestamp original (se disponível)
+            if (data.originalTimestamp) {
+              const latency = Date.now() - data.originalTimestamp;
+              console.log(`Latência WebSocket: ${latency}ms`);
+            }
+            
             // Limpar o timeout do pong, pois recebemos resposta
             if (pongTimeoutRef) {
               clearTimeout(pongTimeoutRef);
@@ -192,12 +211,25 @@ export function SocketProvider({ children }: { children: ReactNode }) {
             }
           }
           else if (data.type === "authentication_success") {
-            console.log('Autenticação WebSocket bem-sucedida');
+            console.log('Autenticação WebSocket bem-sucedida', data);
             toast({
-              title: "Conexão ao sistema de mensagens",
+              title: "Conexão estabelecida",
               description: "Você está conectado e receberá notificações em tempo real",
               duration: 3000
             });
+          }
+          else if (data.type === "authentication_error") {
+            console.error('Erro de autenticação WebSocket:', data);
+            toast({
+              title: "Erro de conexão",
+              description: "Houve um problema com a conexão em tempo real",
+              variant: "destructive",
+              duration: 5000
+            });
+          }
+          else if (data.type === "connection_stats") {
+            // Atualizar estatísticas de conexão (clientes ativos, etc)
+            console.log('Estatísticas de conexão:', data);
           }
         } catch (e) {
           console.error("Erro ao processar mensagem do servidor:", e);

@@ -7,6 +7,9 @@ import * as schema from '@shared/schema';
 // Store connected clients by user ID
 const clients: Map<number, WebSocket> = new Map();
 
+// Store user roles for statistics
+const clientRoles: Map<number, string> = new Map();
+
 // Define o tipo específico do banco de dados
 type DrizzleDB = ReturnType<typeof drizzle<typeof schema>>;
 
@@ -52,6 +55,7 @@ export function setupWebSocketServer(wss: WebSocketServer, db: any): void {
             
             // Registrar esse cliente
             clients.set(userId, ws);
+            clientRoles.set(userId, userRole); // Armazenar o papel do usuário
             console.log(`User ${userId} (${userRole}) authenticated`);
             
             // Send confirmation to client
@@ -219,18 +223,64 @@ export function setupWebSocketServer(wss: WebSocketServer, db: any): void {
     }));
   });
   
-  // Keep clients alive with ping/pong
-  const interval = setInterval(() => {
+  // Inicializar o estado de cada conexão WebSocket
+  wss.clients.forEach((ws: WebSocket) => {
+    (ws as any).isAlive = true;
+  });
+  
+  // Monitoramento avançado de clientes e keep-alive com ping/pong
+  const pingInterval = setInterval(() => {
+    console.log(`Realizando ping em ${wss.clients.size} clientes WebSocket`);
+    
     wss.clients.forEach((ws: WebSocket) => {
+      // Verificar se o cliente está aberto antes de enviar ping
       if (ws.readyState === WebSocket.OPEN) {
+        // Marcar o cliente como não responsivo até que responda ao ping
+        (ws as any).isAlive = false;
+        
+        // Enviar ping (protocolo WebSocket nativo)
         ws.ping();
+        
+        // Enviar ping como mensagem JSON também (alternativa para alguns clientes que não respondem ao ping nativo)
+        try {
+          ws.send(JSON.stringify({
+            type: 'ping',
+            timestamp: Date.now(),
+            serverTime: new Date().toISOString()
+          }));
+        } catch (error: unknown) {
+          console.error('Erro ao enviar ping como mensagem:', error);
+        }
       }
     });
-  }, 30000);
+  }, 30000); // Ping a cada 30 segundos
+  
+  // Verificar clientes não responsivos e remover
+  const terminateInterval = setInterval(() => {
+    wss.clients.forEach((ws: WebSocket) => {
+      // Se o cliente não respondeu ao último ping, desconectar
+      if ((ws as any).isAlive === false && ws.readyState === WebSocket.OPEN) {
+        console.log('Terminando conexão de cliente não responsivo');
+        ws.terminate();
+        return;
+      }
+    });
+  }, 45000); // Verificar a cada 45 segundos (após ciclo de ping)
+  
+  // Configurar callback de pong para marcar clientes como responsivos
+  wss.on('connection', (ws: WebSocket) => {
+    // Adicionar listener de pong para cada conexão individual
+    ws.on('pong', () => {
+      // Quando um pong é recebido, marcar o cliente como vivo
+      (ws as any).isAlive = true;
+      console.log('Pong recebido de cliente WebSocket');
+    });
+  });
   
   // Clean up on server close
   wss.on('close', () => {
-    clearInterval(interval);
+    clearInterval(pingInterval);
+    clearInterval(terminateInterval);
     clients.clear();
   });
   
@@ -297,4 +347,38 @@ export function getActiveClientsCount(): number {
 export function isUserConnected(userId: number): boolean {
   const client = clients.get(userId);
   return client !== undefined && client.readyState === WebSocket.OPEN;
+}
+
+// Send connection statistics to all clients
+export function broadcastConnectionStats(): void {
+  // Coletar estatísticas sobre clientes conectados
+  let authenticatedClients = 0;
+  let adminClients = 0;
+  let userClients = 0;
+  
+  // Verificar clientes com diferentes papéis
+  clientRoles.forEach((role, userId) => {
+    if (clients.has(userId) && clients.get(userId)?.readyState === WebSocket.OPEN) {
+      authenticatedClients++;
+      
+      if (role === 'admin') {
+        adminClients++;
+      } else {
+        userClients++;
+      }
+    }
+  });
+  
+  // Broadcast das estatísticas
+  broadcastToClients({
+    type: 'connection_stats',
+    data: {
+      total: clients.size,
+      authenticated: authenticatedClients,
+      admins: adminClients,
+      users: userClients,
+      anonymous: clients.size - authenticatedClients,
+      timestamp: new Date().toISOString()
+    }
+  });
 }

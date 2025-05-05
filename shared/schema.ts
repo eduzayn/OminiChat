@@ -1,7 +1,29 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, decimal } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
+
+// Opportunities Table
+export const opportunities = pgTable("opportunities", {
+  id: serial("id").primaryKey(),
+  contactId: integer("contact_id").notNull().references(() => contacts.id),
+  userId: integer("user_id").notNull().references(() => users.id),
+  title: text("title").notNull(),
+  value: decimal("value", { precision: 10, scale: 2 }).notNull(),
+  stage: text("stage").notNull().default("prospecting"), // prospecting, qualification, proposal, negotiation, closing
+  status: text("status").notNull().default("open"), // open, won, lost
+  description: text("description"),
+  expectedCloseDate: timestamp("expected_close_date"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const insertOpportunitySchema = createInsertSchema(opportunities, {
+  title: (schema) => schema.min(2, "Title must be at least 2 characters"),
+  value: (schema) => schema.refine(val => Number(val) > 0, "Value must be positive"),
+  stage: (schema) => z.enum(["prospecting", "qualification", "proposal", "negotiation", "closing"]),
+  status: (schema) => z.enum(["open", "won", "lost"]),
+});
 
 // Users Table
 export const users = pgTable("users", {
@@ -157,11 +179,23 @@ export const insertMessageTemplateSchema = createInsertSchema(messageTemplates, 
 });
 
 // Define Relations
+export const opportunitiesRelations = relations(opportunities, ({ one }) => ({
+  contact: one(contacts, {
+    fields: [opportunities.contactId],
+    references: [contacts.id],
+  }),
+  user: one(users, {
+    fields: [opportunities.userId],
+    references: [users.id],
+  }),
+}));
+
 export const usersRelations = relations(users, ({ many }) => ({
   assignedConversations: many(conversations),
   messages: many(messages),
   notes: many(notes),
   messageTemplates: many(messageTemplates),
+  opportunities: many(opportunities),
 }));
 
 export const contactsRelations = relations(contacts, ({ many }) => ({
@@ -170,6 +204,7 @@ export const contactsRelations = relations(contacts, ({ many }) => ({
   activities: many(activities),
   notes: many(notes),
   payments: many(payments),
+  opportunities: many(opportunities),
 }));
 
 export const channelsRelations = relations(channels, ({ many }) => ({
@@ -283,3 +318,9 @@ export type MessageTemplate = typeof messageTemplates.$inferSelect & {
   createdByUser?: User;
 };
 export type InsertMessageTemplate = z.infer<typeof insertMessageTemplateSchema>;
+
+export type Opportunity = typeof opportunities.$inferSelect & {
+  contact: Contact;
+  user: User;
+};
+export type InsertOpportunity = z.infer<typeof insertOpportunitySchema>;

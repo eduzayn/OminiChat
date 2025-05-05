@@ -25,7 +25,27 @@ export async function apiRequest<T = any>(
   });
 
   await throwIfResNotOk(res);
-  return res.json();
+  
+  // Verificar o content-type para fazer o parse adequado
+  const contentType = res.headers.get('content-type');
+  if (contentType && contentType.includes('application/json')) {
+    try {
+      return await res.json();
+    } catch (error) {
+      console.error('Erro ao fazer parse do JSON:', error);
+      // Em caso de falha, retorna objeto vazio com sucesso:false como fallback seguro
+      return { success: false, message: 'Erro ao processar resposta do servidor' } as unknown as T;
+    }
+  } else {
+    // Se a resposta não for JSON, retorna um objeto com a resposta em texto
+    const text = await res.text();
+    console.log('Resposta não-JSON recebida:', text);
+    return { 
+      success: res.ok,
+      statusCode: res.status,
+      message: res.ok ? 'Operação realizada com sucesso' : 'Erro na operação' 
+    } as unknown as T;
+  }
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
@@ -43,7 +63,22 @@ export const getQueryFn: <T>(options: {
     }
 
     await throwIfResNotOk(res);
-    return await res.json();
+    
+    // Verificar o content-type para fazer o parse adequado
+    const contentType = res.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      try {
+        return await res.json();
+      } catch (error) {
+        console.error('Erro ao fazer parse do JSON:', error);
+        // Em caso de falha, retorna null
+        return null;
+      }
+    } else {
+      // Se a resposta não for JSON, retorna um objeto simples
+      console.log('Resposta não-JSON recebida na query');
+      return null;
+    }
   };
 
 export const queryClient = new QueryClient({

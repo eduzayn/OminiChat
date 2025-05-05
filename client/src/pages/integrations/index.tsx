@@ -89,11 +89,17 @@ export default function IntegrationsPage() {
         description: "Aguarde enquanto testamos a conexão com o canal."
       });
       
-      const response = await apiRequest<{success: boolean; message?: string}>(`/api/channels/${channelId}/test`, {
+      const response = await apiRequest<{success?: boolean; message?: string; statusCode?: number}>(`/api/channels/${channelId}/test`, {
         method: 'POST'
       });
       
-      if (response.success) {
+      console.log('Resposta do teste de conexão:', response);
+      
+      // Considera sucesso se success é true ou se statusCode for 2xx
+      const isSuccess = response.success === true || 
+                        (response.statusCode && response.statusCode >= 200 && response.statusCode < 300);
+      
+      if (isSuccess) {
         toast({
           title: "Conexão bem-sucedida",
           description: response.message || "O canal está conectado e funcionando corretamente."

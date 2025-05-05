@@ -41,9 +41,22 @@ function Login() {
     setError("");
 
     try {
+      console.log("Iniciando login com:", data.username);
       await login(data.username, data.password);
+      console.log("Login realizado com sucesso");
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Login failed");
+      console.error("Erro no formulário de login:", error);
+      
+      // Mensagem de erro mais amigável
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        setError("Não foi possível realizar o login. Tente novamente.");
+      }
+
+      // Manter usuário e senha para facilitar uma nova tentativa
+      form.setValue("password", "");
+      form.setFocus("password");
     } finally {
       setIsLoading(false);
     }
@@ -135,7 +148,7 @@ function Login() {
 
             <div className="mt-6 text-center">
               <p className="text-sm text-neutral-500">
-                Demo accounts: admin/admin or agent/agent
+                Contas de demonstração: <strong>admin/admin</strong> ou <strong>agent/agent</strong>
               </p>
             </div>
           </div>

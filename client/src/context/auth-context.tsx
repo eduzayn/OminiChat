@@ -46,20 +46,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (username: string, password: string) => {
     try {
+      console.log("Tentando login para usuário:", username);
+      
       // Aqui a função apiRequest já retorna o JSON analisado
       const userData = await apiRequest<User>("POST", "/api/auth/login", {
         username,
         password,
       });
       
+      console.log("Resposta de login recebida:", userData);
+      
       if (userData && userData.id) {
         setUser(userData);
         return userData;
       } else {
-        throw new Error("Não foi possível obter dados do usuário");
+        throw new Error("Não foi possível obter dados do usuário. Verifique usuário e senha.");
       }
     } catch (error) {
       console.error("Login error:", error);
+      // Melhorar a mensagem de erro para o usuário
+      if (error instanceof Error) {
+        if (error.message.includes("401")) {
+          throw new Error("Usuário ou senha incorretos. Tente novamente.");
+        } else if (error.message.includes("500")) {
+          throw new Error("Erro no servidor. Tente novamente mais tarde.");
+        } else if (error.message.includes("Network")) {
+          throw new Error("Erro de conexão. Verifique sua internet e tente novamente.");
+        }
+      }
       throw error;
     }
   };

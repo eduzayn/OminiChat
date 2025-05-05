@@ -80,30 +80,57 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey[0] as string, {
-      credentials: "include",
-    });
-
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
-    }
-
-    await throwIfResNotOk(res);
+    // Verificar e normalizar o caminho da API
+    const url = queryKey[0] as string;
+    console.log(`Realizando query para ${url}`);
     
-    // Verificar o content-type para fazer o parse adequado
-    const contentType = res.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      try {
-        return await res.json();
-      } catch (error) {
-        console.error('Erro ao fazer parse do JSON:', error);
-        // Em caso de falha, retorna null
+    try {
+      const res = await fetch(url, {
+        credentials: "include",
+        headers: {
+          'Accept': 'application/json',
+        }
+      });
+  
+      if (unauthorizedBehavior === "returnNull" && res.status === 401) {
+        console.log(`Acesso não autorizado para ${url}. Retornando null conforme configurado.`);
         return null;
       }
-    } else {
-      // Se a resposta não for JSON, retorna um objeto simples
-      console.log('Resposta não-JSON recebida na query');
-      return null;
+  
+      if (!res.ok) {
+        // Tratar erros de forma mais detalhada
+        const contentType = res.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          try {
+            const errorData = await res.json();
+            throw new Error(errorData.message || `Erro ${res.status}: ${res.statusText}`);
+          } catch (parseError) {
+            throw new Error(`Erro ${res.status}: ${res.statusText}`);
+          }
+        } else {
+          const errorText = await res.text();
+          throw new Error(`Erro ${res.status}: ${res.statusText} ${errorText ? `- ${errorText}` : ''}`);
+        }
+      }
+      
+      // Para respostas bem-sucedidas
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          return await res.json();
+        } catch (error) {
+          console.error('Erro ao fazer parse do JSON:', error);
+          // Em caso de falha, retorna null
+          return null;
+        }
+      } else {
+        // Se a resposta não for JSON, retorna um objeto simples
+        console.log(`Resposta não-JSON recebida na query para ${url}`);
+        return null;
+      }
+    } catch (error) {
+      console.error(`Erro na query para ${url}:`, error);
+      throw error;
     }
   };
 

@@ -41,10 +41,10 @@ export default function IntegrationsPage() {
   
   // Consulta para buscar canais configurados
   const { 
-    data: channels, 
+    data: channels = [], 
     isLoading: isLoadingChannels,
     refetch: refetchChannels
-  } = useQuery({
+  } = useQuery<any[]>({
     queryKey: ['/api/channels'],
     retry: false
   });
@@ -53,14 +53,24 @@ export default function IntegrationsPage() {
   const handleEditChannel = (channel: any) => {
     setSelectedChannel(channel);
     
-    if (channel.provider === 'zapi') {
+    // Verificar provider no objeto principal ou dentro do config
+    const provider = channel.provider || (channel.config && channel.config.provider);
+    
+    if (provider === 'zapi' || (channel.config && channel.config.provider === 'zapi')) {
       setZapiDialogOpen(true);
-    } else if (channel.provider === 'meta') {
+    } else if (provider === 'meta' || (channel.config && channel.config.provider === 'meta')) {
       setMetaDialogOpen(true);
-    } else if (channel.provider === 'smtp') {
+    } else if (provider === 'smtp') {
       setEmailDialogOpen(true);
-    } else if (channel.provider === 'asaas') {
+    } else if (provider === 'asaas') {
       setAsaasDialogOpen(true);
+    } else {
+      console.log('Tipo de canal não reconhecido:', channel);
+      toast({
+        title: "Tipo de canal não suportado",
+        description: "Este tipo de canal ainda não possui interface de configuração.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -123,13 +133,39 @@ export default function IntegrationsPage() {
   const getChannelStatus = (channel: any): 'connected' | 'disconnected' | 'pending' | 'error' => {
     if (!channel) return 'disconnected';
     
-    // Lógica baseada no status do canal
-    if (channel.status === 'active' || channel.isConnected) {
+    // Verificar primeiro em status
+    if (channel.status === 'active' || channel.status === 'connected' || channel.isConnected) {
       return 'connected';
-    } else if (channel.status === 'error') {
+    } 
+    
+    // Depois verificar em config
+    if (channel.config) {
+      if (channel.config.status === 'active' || channel.config.status === 'connected' || channel.config.isConnected) {
+        return 'connected';
+      } else if (channel.config.status === 'error') {
+        return 'error';
+      } else if (channel.config.status === 'pending') {
+        return 'pending';
+      }
+    }
+    
+    // Verificação direta
+    if (channel.status === 'error') {
       return 'error';
     } else if (channel.status === 'pending') {
       return 'pending';
+    }
+    
+    // Para canais Z-API, verificar se há mais dados de status
+    if (channel.config && channel.config.provider === 'zapi' && channel.lastConnection) {
+      const lastConnectionTime = new Date(channel.lastConnection).getTime();
+      const now = new Date().getTime();
+      const diffHours = (now - lastConnectionTime) / (1000 * 60 * 60);
+      
+      // Se conectou nas últimas 24h, considerar conectado
+      if (diffHours < 24) {
+        return 'connected';
+      }
     }
     
     return 'disconnected';
@@ -138,13 +174,24 @@ export default function IntegrationsPage() {
   // Função para filtrar canais por provedor
   const getChannelsByProvider = (provider: string) => {
     if (!channels || !Array.isArray(channels) || channels.length === 0) return [];
-    return channels.filter((channel: any) => channel.provider === provider);
+    return channels.filter((channel: any) => {
+      // Para canais Z-API, o provider está dentro do config
+      if (provider === 'zapi' && channel.config && channel.config.provider === 'zapi') {
+        return true;
+      }
+      // Para outros canais, verificar diretamente
+      return channel.provider === provider;
+    });
   };
 
   // Função para agrupar canais Meta por tipo
   const getMetaChannelsByType = (type: string) => {
     if (!channels || !Array.isArray(channels) || channels.length === 0) return [];
-    return channels.filter((channel: any) => channel.provider === 'meta' && channel.type === type);
+    return channels.filter((channel: any) => {
+      return (channel.provider === 'meta' || 
+             (channel.config && channel.config.provider === 'meta')) && 
+             channel.type === type;
+    });
   };
 
   return (

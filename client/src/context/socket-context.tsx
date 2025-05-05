@@ -46,7 +46,8 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       return;
     }
     
-    const wsUrl = `${protocol}//${host}/ws`;
+    // Remover barras duplas - substituir por formato URL válido
+    const wsUrl = `${protocol}//${host}/ws`.replace("//", "/");
     console.log("Conectando ao WebSocket em:", wsUrl);
     
     // Limpar timeout anterior se existir

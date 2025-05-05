@@ -4,7 +4,8 @@
  */
 export function createWebSocket(): WebSocket {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const wsUrl = `${protocol}//${window.location.host}/ws`;
+  // Substituir barras duplas por uma URL válida
+  const wsUrl = `${protocol}//${window.location.host}/ws`.replace("//", "/");
   
   // Criar o socket
   const socket = new WebSocket(wsUrl);

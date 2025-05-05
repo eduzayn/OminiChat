@@ -1,0 +1,69 @@
+O erro TypeError: Failed to execute 'fetch' on 'Window': '/api/channels/11/test' is not a valid HTTP method. indica que a função Workspace do navegador está sendo chamada de forma incorreta no seu código frontend (React).
+
+Especificamente, o segundo argumento esperado pela função Workspace, que deveria ser um objeto de opções contendo o método HTTP (como { method: 'GET' } ou { method: 'POST' }), está recebendo a própria URL '/api/channels/11/test' como valor.
+
+Passo a Passo para Resolver:
+
+Localize a Chamada Incorreta:
+
+O erro aponta para a função apiRequest no arquivo queryClient.ts (linha 15) como o local onde a chamada Workspace problemática está ocorrendo.
+
+Essa função apiRequest, por sua vez, foi chamada pela função testChannelConnection no arquivo index.tsx (linha 92).
+
+A ação foi provavelmente disparada em index.tsx (linha 400), possivelmente por um clique em um botão "Testar Conexão" para o canal 11 (que você está usando para a Zap API).
+
+Examine a Função apiRequest (queryClient.ts):
+
+Abra o arquivo queryClient.ts.
+
+Encontre a linha 15 (ou próximo a ela) dentro da função apiRequest.
+
+Procure pela linha que chama Workspace ou window.fetch.
+
+Verifique como os argumentos estão sendo passados para Workspace. A assinatura padrão é Workspace(url, options).
+
+Corrija a Chamada Workspace:
+
+O Problema: Você provavelmente está passando a URL onde o objeto options deveria estar, ou talvez passando a URL como o valor da propriedade method dentro das opções.
+
+A Solução:
+
+O primeiro argumento para Workspace deve ser sempre a URL (string).
+
+O segundo argumento deve ser um objeto contendo as opções da requisição. A propriedade method dentro deste objeto especifica o método HTTP. Se o segundo argumento for omitido, o método padrão é GET.
+
+Exemplo de como DEVERIA ser (para um GET):
+
+TypeScript
+
+// Dentro de apiRequest em queryClient.ts
+
+const url = '/api/channels/11/test'; // Ou a URL recebida como parâmetro
+const options = {
+    method: 'GET', // Ou 'POST', 'PUT', etc.
+    headers: {
+        'Content-Type': 'application/json',
+        // Incluir cabeçalho de Autorização (Bearer token) se necessário
+        'Authorization': `Bearer ${your_auth_token}`
+    },
+    // Adicionar 'body' se for POST/PUT:
+    // body: JSON.stringify(dataToSend)
+};
+
+// A chamada fetch correta:
+const response = await fetch(url, options);
+// Ou se for GET simples, sem headers/body customizados:
+// const response = await fetch(url);
+Adapte: Verifique qual método HTTP (GET, POST, etc.) o seu endpoint backend /api/channels/{id}/test espera receber e ajuste a propriedade method no objeto options corretamente. Se for um POST para iniciar um teste, você pode precisar enviar algum dado no body.
+
+Verifique Funções Auxiliares (se aplicável):
+
+Se você tiver uma função wrapper customizada para Workspace (como indicado por window.fetch vindo de Network.js), verifique também essa função para garantir que ela está passando os argumentos corretamente para a função Workspace nativa.
+
+Verifique como a função testChannelConnection em index.tsx chama apiRequest. Certifique-se que ela está passando a URL e, se necessário, o método e o corpo dos dados corretamente para apiRequest.
+
+Teste Novamente:
+
+Após corrigir a forma como Workspace é chamado em apiRequest, salve os arquivos e teste novamente a funcionalidade que estava causando o erro (provavelmente o teste de conexão do canal Zap API).
+
+Resumindo: O erro está na forma como a função Workspace está sendo chamada no seu código frontend (queryClient.ts). Você precisa garantir que o primeiro argumento seja a URL e o segundo seja um objeto de opções contendo { method: 'GET' } (ou o método correto que seu backend espera).

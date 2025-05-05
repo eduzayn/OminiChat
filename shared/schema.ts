@@ -108,13 +108,33 @@ export const insertContactSchema = createInsertSchema(contacts, {
   phone: (schema) => schema.optional().nullable(),
 });
 
+// Define configurações de canal
+export const channelConfigSchema = z.object({
+  provider: z.enum(["zapi", "twilio", "meta"]).optional(),
+  instanceId: z.string().optional(),
+  token: z.string().optional(),
+  phoneNumber: z.string().optional(),
+  accountSid: z.string().optional(),
+  authToken: z.string().optional(),
+  accessToken: z.string().optional(),
+  instagramAccountId: z.string().optional(),
+  pageId: z.string().optional(),
+  webhookUrl: z.string().optional(),
+  apiUrl: z.string().optional(),
+  apiKey: z.string().optional(),
+  apiSecret: z.string().optional(),
+  appId: z.string().optional(),
+}).catchall(z.any());
+
+export type ChannelConfig = z.infer<typeof channelConfigSchema>;
+
 // Channels Table
 export const channels = pgTable("channels", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   type: text("type").notNull(), // whatsapp, instagram, facebook
   isActive: boolean("is_active").default(true),
-  config: jsonb("config").default({}),
+  config: jsonb("config").$type<ChannelConfig>().default({}),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

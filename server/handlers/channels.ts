@@ -327,25 +327,33 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       
       // Verificar o tipo de canal e testar a conexão adequadamente
       if (channel.type === 'whatsapp') {
-        if (!channel.config) {
+        if (!channel.config || typeof channel.config !== 'object') {
           return res.status(400).json({ 
             success: false, 
             message: "Configuração do canal incompleta" 
           });
         }
         
-        const provider = channel.config.provider;
+        const config = channel.config as Record<string, any>;
+        const provider = config.provider as string;
         
         if (provider === 'zapi') {
           try {
             // Instanciar o cliente ZAPI com as credenciais do canal
-            const zapiClient = new ZAPIClient(
-              channel.config.instanceId as string,
-              channel.config.token as string
-            );
+            const instanceId = config.instanceId as string;
+            const token = config.token as string;
+            
+            if (!instanceId || !token) {
+              return res.status(400).json({
+                success: false,
+                message: "Credenciais Z-API incompletas. Verifique instanceId e token."
+              });
+            }
+            
+            const zapiClient = new ZAPIClient(instanceId, token);
             
             // Verificar o status da instância
-            const status = await zapiClient.getInstanceStatus();
+            const status = await zapiClient.getStatus();
             console.log(`ZAPI instance status: ${JSON.stringify(status)}`);
             
             // Se a instância está conectada, retorna sucesso
@@ -362,12 +370,12 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
                 status: status 
               });
             }
-          } catch (error) {
+          } catch (error: any) {
             console.error("Error testing ZAPI connection:", error);
             return res.status(200).json({ 
               success: false, 
               message: "Erro ao testar conexão com Z-API. Verifique as credenciais.", 
-              error: error.message 
+              error: error?.message || "Erro desconhecido" 
             });
           }
         } else if (provider === 'meta') {

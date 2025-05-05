@@ -1,4 +1,4 @@
-import { Channel } from "@shared/schema";
+import { Channel, ChannelConfig } from "@shared/schema";
 import axios from "axios";
 
 interface ZAPIResponse {
@@ -74,10 +74,10 @@ export class ZAPIClient {
   async getStatus(): Promise<ZAPIResponse> {
     return this.makeRequest('GET', '/status');
   }
-
-  // QR Code Generation
-  async getQRCode(): Promise<ZAPIResponse> {
-    return this.makeRequest('GET', '/qr-code');
+  
+  // Alias para getStatus para manter compatibilidade com o código existente
+  async getInstanceStatus(): Promise<ZAPIResponse> {
+    return this.getStatus();
   }
 
   // Disconnect / Restart session
@@ -193,8 +193,17 @@ export class ZAPIClient {
 // Setup Z-API WhatsApp channel
 export async function setupZAPIChannel(channel: Channel): Promise<{ status: string; message?: string; qrCode?: string }> {
   try {
-    const instanceId = channel.config.instanceId as string;
-    const token = channel.config.token as string;
+    const config = channel.config as ChannelConfig;
+    
+    if (!config || !config.instanceId || !config.token) {
+      return {
+        status: "error",
+        message: "Missing Z-API credentials (instanceId, token)"
+      };
+    }
+    
+    const instanceId = config.instanceId;
+    const token = config.token;
     
     if (!instanceId || !token) {
       return {
@@ -273,8 +282,16 @@ export async function sendZAPIWhatsAppMessage(
   extraOptions?: any
 ): Promise<{ status: string; message?: string; messageId?: string }> {
   try {
-    const instanceId = channel.config.instanceId as string;
-    const token = channel.config.token as string;
+    if (!channel.config || typeof channel.config !== 'object') {
+      return {
+        status: "error",
+        message: "Missing channel configuration"
+      };
+    }
+    
+    const config = channel.config as Record<string, any>;
+    const instanceId = config.instanceId as string;
+    const token = config.token as string;
     
     if (!instanceId || !token) {
       return {

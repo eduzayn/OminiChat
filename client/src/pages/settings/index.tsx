@@ -456,62 +456,98 @@ function SettingsPage() {
     
     switch (channelType) {
       case "whatsapp":
-        return (
-          <>
-            <div className="space-y-2">
-              <Label htmlFor="provider">Provedor</Label>
-              <Select 
-                value={channelForm.config.provider || "twilio"} 
-                onValueChange={(value) => handleChannelFormChange("config.provider", value)}
-              >
-                <SelectTrigger id="provider">
-                  <SelectValue placeholder="Selecione o provedor" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="twilio">Twilio</SelectItem>
-                  <SelectItem value="zap">Zap (QR Code)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            {channelForm.config.provider === "twilio" ? (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="phoneNumber">Número de Telefone</Label>
-                  <Input 
-                    id="phoneNumber" 
-                    value={channelForm.config.phoneNumber || ""} 
-                    onChange={(e) => handleChannelFormChange("config.phoneNumber", e.target.value)}
-                    placeholder="+5511987654321"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="accountSid">Twilio Account SID</Label>
-                  <Input 
-                    id="accountSid" 
-                    value={channelForm.config.accountSid || ""} 
-                    onChange={(e) => handleChannelFormChange("config.accountSid", e.target.value)}
-                    placeholder="AC123456..."
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="authToken">Twilio Auth Token</Label>
-                  <Input 
-                    id="authToken" 
-                    type="password"
-                    value={channelForm.config.authToken || ""} 
-                    onChange={(e) => handleChannelFormChange("config.authToken", e.target.value)}
-                    placeholder="******"
-                  />
-                </div>
-              </>
-            ) : (
-              <div className="py-4 text-center text-gray-500">
-                A configuração para Zap (QR Code) será exibida após a criação do canal.
+        // Não exibimos o seletor de provedor, pois já foi escolhido nas opções visuais
+        if (channelForm.config.provider === "meta") {
+          return (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="phoneNumberId">ID do Número de Telefone</Label>
+                <Input 
+                  id="phoneNumberId" 
+                  value={channelForm.config.phoneNumberId || ""} 
+                  onChange={(e) => handleChannelFormChange("config.phoneNumberId", e.target.value)}
+                  placeholder="12345678901"
+                />
+                <p className="text-xs text-muted-foreground">
+                  ID obtido no painel do WhatsApp Business na Meta.
+                </p>
               </div>
-            )}
-          </>
-        );
+              <div className="space-y-2">
+                <Label htmlFor="businessAccountId">ID da Conta Business</Label>
+                <Input 
+                  id="businessAccountId" 
+                  value={channelForm.config.businessAccountId || ""} 
+                  onChange={(e) => handleChannelFormChange("config.businessAccountId", e.target.value)}
+                  placeholder="12345678901"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="accessToken">Token de Acesso</Label>
+                <Input 
+                  id="accessToken" 
+                  type="password"
+                  value={channelForm.config.accessToken || ""} 
+                  onChange={(e) => handleChannelFormChange("config.accessToken", e.target.value)}
+                  placeholder="EAA..."
+                />
+                <p className="text-xs text-muted-foreground">
+                  Token de acesso gerado no Facebook/Meta Business Suite.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="wabaId">ID da WABA (Opcional)</Label>
+                <Input 
+                  id="wabaId" 
+                  value={channelForm.config.wabaId || ""} 
+                  onChange={(e) => handleChannelFormChange("config.wabaId", e.target.value)}
+                  placeholder="12345678901"
+                />
+                <p className="text-xs text-muted-foreground">
+                  ID da WhatsApp Business Account, caso possua uma.
+                </p>
+              </div>
+            </>
+          );
+        } else if (channelForm.config.provider === "twilio") {
+          return (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="phoneNumber">Número de Telefone</Label>
+                <Input 
+                  id="phoneNumber" 
+                  value={channelForm.config.phoneNumber || ""} 
+                  onChange={(e) => handleChannelFormChange("config.phoneNumber", e.target.value)}
+                  placeholder="+5511987654321"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="accountSid">Twilio Account SID</Label>
+                <Input 
+                  id="accountSid" 
+                  value={channelForm.config.accountSid || ""} 
+                  onChange={(e) => handleChannelFormChange("config.accountSid", e.target.value)}
+                  placeholder="AC123456..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="authToken">Twilio Auth Token</Label>
+                <Input 
+                  id="authToken" 
+                  type="password"
+                  value={channelForm.config.authToken || ""} 
+                  onChange={(e) => handleChannelFormChange("config.authToken", e.target.value)}
+                  placeholder="******"
+                />
+              </div>
+            </>
+          );
+        } else {
+          return (
+            <div className="py-4 text-center text-gray-500">
+              A configuração para WhatsApp via QR Code será exibida após a criação do canal.
+            </div>
+          );
+        }
       
       case "facebook":
       case "instagram":
@@ -1097,20 +1133,47 @@ function SettingsPage() {
               
               {selectedChannelType === "whatsapp" && (
                 <div className="space-y-4">
+                  <div className="bg-green-50 p-4 rounded-md border border-green-200">
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0">
+                        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                          <MessageCircle className="w-4 h-4 text-green-600" />
+                        </div>
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-medium text-green-800">Integração com API WhatsApp Business</h4>
+                        <p className="text-sm text-green-700">
+                          Você pode usar a integração direta com a API oficial do WhatsApp Business da Meta, sem necessidade de usar o Twilio como intermediário.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                
                   <div className="space-y-2">
                     <Label>Escolha o tipo de canal que deseja conectar</Label>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-3 gap-3">
                       <div 
-                        className={`flex flex-col items-center justify-center p-4 rounded-md border ${channelForm.config.provider === "twilio" ? 'border-primary bg-primary/5' : 'border-gray-200'} hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors`}
-                        onClick={() => handleChannelFormChange("config.provider", "twilio")}
+                        className={`flex flex-col items-center justify-center p-4 rounded-md border ${channelForm.config.provider === "meta" ? 'border-primary bg-primary/5' : 'border-gray-200'} hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors`}
+                        onClick={() => handleChannelFormChange("config.provider", "meta")}
                       >
                         <div className="flex items-center justify-center w-10 h-10 bg-green-100 rounded-full mb-2">
                           <Smartphone className="w-5 h-5 text-green-600" />
                         </div>
-                        <span className="text-sm font-medium">WhatsApp Cloud API</span>
+                        <span className="text-sm font-medium">Meta API</span>
                         <div className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full mt-2 flex items-center">
                           <Check className="w-3 h-3 mr-1" /> Oficial
                         </div>
+                      </div>
+                      
+                      <div 
+                        className={`flex flex-col items-center justify-center p-4 rounded-md border ${channelForm.config.provider === "twilio" ? 'border-primary bg-primary/5' : 'border-gray-200'} hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors`}
+                        onClick={() => handleChannelFormChange("config.provider", "twilio")}
+                      >
+                        <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full mb-2">
+                          <MessageCircle className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <span className="text-sm font-medium">Twilio</span>
+                        <span className="text-xs text-muted-foreground mt-1">Integração via Twilio</span>
                       </div>
                       
                       <div 
@@ -1130,7 +1193,26 @@ function SettingsPage() {
                 </div>
               )}
               
-              {(selectedChannelType === "facebook" || selectedChannelType === "instagram") && renderChannelConfigFields()}
+              {(selectedChannelType === "facebook" || selectedChannelType === "instagram") && (
+    <div className="space-y-4">
+      <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
+        <div className="flex gap-3">
+          <div className="flex-shrink-0">
+            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+              <Facebook className="w-4 h-4 text-blue-600" />
+            </div>
+          </div>
+          <div>
+            <h4 className="text-sm font-medium text-blue-800">Integração direta Meta/Facebook</h4>
+            <p className="text-sm text-blue-700">
+              Esta integração utiliza a API oficial do Meta/Facebook diretamente, sem intermediários como o Twilio.
+            </p>
+          </div>
+        </div>
+      </div>
+      {renderChannelConfigFields()}
+    </div>
+  )}
               {selectedChannelType === "sms" && renderChannelConfigFields()}
               
               {selectedChannelType === "email" && (

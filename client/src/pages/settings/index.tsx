@@ -657,9 +657,16 @@ function SettingsPage() {
                               </TableCell>
                               <TableCell className="capitalize">{channel.type}</TableCell>
                               <TableCell>
-                                <Badge variant={channel.isActive ? "success" : "secondary"}>
-                                  {channel.isActive ? "Ativo" : "Inativo"}
-                                </Badge>
+                                <div className="flex flex-col">
+                                  <Badge variant={channel.isActive ? "success" : "secondary"}>
+                                    {channel.isActive ? "Ativo" : "Inativo"}
+                                  </Badge>
+                                  {channel.config?.setupError && (
+                                    <div className="text-xs text-destructive mt-1">
+                                      Erro: {channel.config.setupError}
+                                    </div>
+                                  )}
+                                </div>
                               </TableCell>
                               <TableCell className="text-right">
                                 <DropdownMenu>

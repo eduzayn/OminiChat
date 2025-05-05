@@ -103,16 +103,18 @@ function SettingsPage() {
   const messageTemplatesQuery = useQuery({
     queryKey: ['/api/message-templates'],
     queryFn: async () => {
-      const response = await apiRequest('/api/message-templates');
-      return response || [];
+      const response = await apiRequest('GET', '/api/message-templates');
+      const data = await response.json();
+      return data || [];
     }
   });
   
   const channelsQuery = useQuery({
     queryKey: ['/api/channels'],
     queryFn: async () => {
-      const response = await apiRequest('/api/channels');
-      return response || [];
+      const response = await apiRequest('GET', '/api/channels');
+      const data = await response.json();
+      return data || [];
     }
   });
   

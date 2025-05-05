@@ -182,6 +182,12 @@ export class ZAPIClient {
   async getWebhook(): Promise<ZAPIResponse> {
     return this.makeRequest('GET', '/webhook');
   }
+  
+  // Obter QR Code para autenticação
+  async getQRCode(): Promise<ZAPIResponse> {
+    console.log('Requesting Z-API QR Code for connection');
+    return this.makeRequest('GET', '/qrcode');
+  }
 }
 
 // Setup Z-API WhatsApp channel

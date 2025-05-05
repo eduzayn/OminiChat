@@ -12,6 +12,7 @@ import { setupChannel } from "../services/channels/whatsapp";
 import { setupInstagramChannel } from "../services/channels/instagram";
 import { setupFacebookChannel } from "../services/channels/facebook";
 import { broadcastToClients } from "../services/socket";
+import { ZAPIClient } from "../services/channels/zapi";
 
 // Middleware to check if user is authenticated
 function isAuthenticated(req: any, res: any, next: any) {
@@ -248,6 +249,64 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
     }
   });
   
+  // Get QR Code for WhatsApp channel
+  app.get(`${apiPrefix}/channels/:id/qrcode`, isAuthenticated, async (req, res) => {
+    try {
+      const channelId = parseInt(req.params.id);
+      
+      const channel = await db.query.channels.findFirst({
+        where: eq(channels.id, channelId)
+      });
+      
+      if (!channel) {
+        return res.status(404).json({ message: "Channel not found" });
+      }
+      
+      if (channel.type !== "whatsapp") {
+        return res.status(400).json({ message: "QR Code is only available for WhatsApp channels" });
+      }
+      
+      const config = channel.config as any;
+      
+      // Check if this is a channel that supports QR code (Z-API or custom provider with QR Code)
+      if (config.provider === "zap") {
+        // Get QR Code from Z-API
+        const zapiClient = new ZAPIClient(config.instanceId, config.token);
+        const qrCodeResponse = await zapiClient.getQRCode();
+        
+        if (qrCodeResponse.error) {
+          console.error("Error getting QR Code from Z-API:", qrCodeResponse.error);
+          return res.status(500).json({ success: false, message: qrCodeResponse.error });
+        }
+        
+        if (!qrCodeResponse.qrcode) {
+          console.log("No QR Code available - channel might be already connected.");
+          return res.status(404).json({ 
+            success: false, 
+            message: "QR Code not available. Device might be already connected." 
+          });
+        }
+        
+        return res.json({ 
+          success: true, 
+          qrCode: qrCodeResponse.qrcode,
+          connected: qrCodeResponse.connected || false
+        });
+      } else {
+        return res.status(400).json({ 
+          success: false, 
+          message: "This channel provider doesn't support QR Code connection" 
+        });
+      }
+    } catch (error) {
+      console.error("Error generating QR Code:", error);
+      return res.status(500).json({ 
+        success: false, 
+        message: "Failed to generate QR Code" 
+      });
+    }
+  });
+
   // Delete a channel
   app.delete(`${apiPrefix}/channels/:id`, isAuthenticated, isAdmin, async (req, res) => {
     try {

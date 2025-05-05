@@ -119,6 +119,7 @@ function SettingsPage() {
   const [qrCodeData, setQrCodeData] = useState<string>("");
   const [qrCodeLoading, setQrCodeLoading] = useState(false);
   const [selectedWhatsAppChannel, setSelectedWhatsAppChannel] = useState<any>(null);
+  const [qrCodeDialogOpen, setQrCodeDialogOpen] = useState(false);
   
   // Consultas para buscar dados
   const messageTemplatesQuery = useQuery({
@@ -961,6 +962,17 @@ function SettingsPage() {
                                       <Edit className="mr-2 h-4 w-4" />
                                       <span>Editar</span>
                                     </DropdownMenuItem>
+                                    
+                                    {/* QR Code para WhatsApp */}
+                                    {channel.type === "whatsapp" && 
+                                     channel.config && 
+                                     channel.config.provider === "zap" && (
+                                      <DropdownMenuItem onClick={() => handleOpenQrCodeDialog(channel)}>
+                                        <QrCode className="mr-2 h-4 w-4" />
+                                        <span>Escanear QR Code</span>
+                                      </DropdownMenuItem>
+                                    )}
+                                    
                                     {!channel.isActive && (
                                       <DropdownMenuItem 
                                         onClick={() => handleToggleChannelStatus(channel.id, channel.isActive)}

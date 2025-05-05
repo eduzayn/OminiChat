@@ -104,6 +104,22 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       // Criar o WebSocket com validação
       const ws = new WebSocket(wsUrl);
       
+      // Referência para o timer de ping/pong
+      let pingIntervalRef: NodeJS.Timeout | null = null;
+      let pongTimeoutRef: NodeJS.Timeout | null = null;
+      
+      // Função para limpar os timers
+      const clearTimers = () => {
+        if (pingIntervalRef) {
+          clearInterval(pingIntervalRef);
+          pingIntervalRef = null;
+        }
+        if (pongTimeoutRef) {
+          clearTimeout(pongTimeoutRef);
+          pongTimeoutRef = null;
+        }
+      };
+      
       ws.onopen = () => {
         console.log("Conexão WebSocket estabelecida");
         setConnected(true);
@@ -116,12 +132,34 @@ export function SocketProvider({ children }: { children: ReactNode }) {
             role: user.role
           }
         }));
+        
+        // Configurar ping/pong para manter a conexão ativa
+        pingIntervalRef = setInterval(() => {
+          if (ws.readyState === WebSocket.OPEN) {
+            console.log('Enviando ping para servidor...');
+            ws.send(JSON.stringify({
+              type: 'ping',
+              timestamp: Date.now()
+            }));
+            
+            // Se não receber um pong em 10 segundos, considera a conexão morta
+            pongTimeoutRef = setTimeout(() => {
+              console.warn('Pong não recebido a tempo, verificando conexão...');
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.close(4000, 'Pong não recebido');
+              }
+            }, 10000);
+          }
+        }, 30000); // Ping a cada 30 segundos
       };
 
       ws.onclose = (event) => {
         console.log(`Conexão WebSocket fechada: ${event.code} ${event.reason}`);
         setConnected(false);
         setSocket(null);
+        
+        // Limpar timers de ping/pong
+        clearTimers();
         
         // Tentar reconectar após um intervalo crescente (3-15 segundos)
         const reconnectDelay = Math.min(3000 + Math.random() * 7000, 15000);
@@ -137,12 +175,29 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         // O evento onclose será disparado automaticamente após um erro
       };
       
-      // Listener para welcome message do servidor
+      // Listener para welcome message do servidor e pongs
       ws.addEventListener("message", (event) => {
         try {
           const data = JSON.parse(event.data);
+          
           if (data.type === "welcome") {
             console.log("Servidor WebSocket:", data.message);
+          }
+          else if (data.type === "pong") {
+            console.log('Pong recebido do servidor');
+            // Limpar o timeout do pong, pois recebemos resposta
+            if (pongTimeoutRef) {
+              clearTimeout(pongTimeoutRef);
+              pongTimeoutRef = null;
+            }
+          }
+          else if (data.type === "authentication_success") {
+            console.log('Autenticação WebSocket bem-sucedida');
+            toast({
+              title: "Conexão ao sistema de mensagens",
+              description: "Você está conectado e receberá notificações em tempo real",
+              duration: 3000
+            });
           }
         } catch (e) {
           console.error("Erro ao processar mensagem do servidor:", e);

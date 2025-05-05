@@ -79,7 +79,7 @@ export function setupWebSocketServer(wss: WebSocketServer, db: any): void {
                 .then(() => {
                   console.log(`User ${userId} marked as online in database`);
                 })
-                .catch((error) => {
+                .catch((error: unknown) => {
                   console.error('Error updating user online status:', error);
                 });
             } catch (error) {
@@ -193,7 +193,7 @@ export function setupWebSocketServer(wss: WebSocketServer, db: any): void {
               .then(() => {
                 console.log(`User ${userId} marked as offline in database`);
               })
-              .catch((err) => {
+              .catch((err: unknown) => {
                 console.error('Error updating user offline status:', err);
               });
           }
@@ -254,7 +254,8 @@ export function sendToUser(userId: number, data: any): void {
 export function sendZAPINotification(message: any, channel: any, contact: any): void {
   console.log('Enviando notificação Z-API via WebSocket');
   
-  broadcastToClients({
+  // Incluir mais detalhes da mensagem e contato na notificação
+  const notificationData = {
     type: "zapi_notification",
     data: {
       message: message,
@@ -271,7 +272,16 @@ export function sendZAPINotification(message: any, channel: any, contact: any): 
       },
       timestamp: new Date().toISOString()
     }
-  });
+  };
+  
+  // Registrar nos logs para depuração
+  console.log('Enviando notificação com dados:', JSON.stringify(notificationData, null, 2));
+  
+  // Broadcast da notificação para todos os clientes conectados
+  broadcastToClients(notificationData);
+  
+  // Log do número de clientes conectados
+  console.log(`Notificação enviada para ${clients.size} cliente(s) conectado(s)`);
 }
 
 // Get active clients count

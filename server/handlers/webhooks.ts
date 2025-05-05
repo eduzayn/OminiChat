@@ -432,7 +432,16 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
       
       // Verificar se a mensagem veio do Z-API e enviar notificação específica
       if (messageMetadata && messageMetadata.source === 'zapi') {
-        console.log('Enviando notificação Z-API específica');
+        console.log('Enviando notificação Z-API específica para mensagem:', processedData.messageId);
+        
+        // Log detalhado para debug
+        console.log('Detalhes da mensagem para notificação:');
+        console.log('- Contato:', contact.name, contact.phone);
+        console.log('- Canal:', channel.id, channel.name, channel.type);
+        console.log('- Conteúdo:', processedData.message.substring(0, 50) + (processedData.message.length > 50 ? '...' : ''));
+        console.log('- Tipo de mídia:', processedData.isMedia ? processedData.mediaType : 'texto');
+        
+        // Enviar notificação via WebSocket
         sendZAPINotification(messageWithDetails, channel, contact);
       }
       

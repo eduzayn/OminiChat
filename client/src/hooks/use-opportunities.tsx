@@ -90,6 +90,7 @@ export function useOpportunities() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           ...data,
           contactId: data.contactId ? parseInt(data.contactId) : undefined,
@@ -114,6 +115,7 @@ export function useOpportunities() {
     mutationFn: async (id: number) => {
       const response = await fetch(`/api/opportunities/${id}`, {
         method: 'DELETE',
+        credentials: 'include',
       });
 
       if (!response.ok) {

@@ -37,10 +37,10 @@ export async function setupChannel(channel: Channel): Promise<{ status: string; 
 // Setup WhatsApp via Twilio
 async function setupTwilioWhatsApp(channel: Channel): Promise<{ status: string; message?: string }> {
   try {
-    // Check Twilio configuration
+    // Check Twilio configuration - prefer environment variables over channel config
     const accountSid = process.env.TWILIO_ACCOUNT_SID || channel.config.accountSid;
     const authToken = process.env.TWILIO_AUTH_TOKEN || channel.config.authToken;
-    const phoneNumber = channel.config.phoneNumber;
+    const phoneNumber = process.env.TWILIO_PHONE_NUMBER || channel.config.phoneNumber;
 
     if (!accountSid || !authToken || !phoneNumber) {
       return {
@@ -73,20 +73,25 @@ async function setupTwilioWhatsApp(channel: Channel): Promise<{ status: string; 
         };
       }
 
-      // Configure the WhatsApp number to use our webhook
-      await axios.post(
-        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/IncomingPhoneNumbers/${phoneNumber}.json`,
-        `SmsUrl=${webhookUrl}`,
+      // Configure webhook for WhatsApp messages via Twilio API
+      console.log(`Setting up webhook for Twilio WhatsApp: ${webhookUrl}`);
+      
+      // Para o WhatsApp Business API através do Twilio, configuramos o webhook na Twilio Console
+      // Em vez de modificar o número diretamente, vamos verificar a conectividade
+      const sandboxInfoResponse = await axios.get(
+        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messaging/Services.json`,
         {
           auth: {
             username: accountSid,
             password: authToken
-          },
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
           }
         }
       );
+      
+      console.log(`Twilio messaging services retrieved: ${sandboxInfoResponse.data.meta.page_size} services found`);
+      
+      // No mundo real, instrua o usuário a configurar o webhook na Twilio Console manualmente
+      // ou utilize a API de Messaging Services para configurar o webhook
 
       return {
         status: "success",
@@ -211,7 +216,7 @@ async function sendTwilioWhatsAppMessage(
   try {
     const accountSid = process.env.TWILIO_ACCOUNT_SID || channel.config.accountSid;
     const authToken = process.env.TWILIO_AUTH_TOKEN || channel.config.authToken;
-    const fromNumber = channel.config.phoneNumber;
+    const fromNumber = process.env.TWILIO_PHONE_NUMBER || channel.config.phoneNumber;
     
     if (!accountSid || !authToken || !fromNumber) {
       return {
@@ -221,8 +226,17 @@ async function sendTwilioWhatsAppMessage(
     }
     
     // Format the 'to' number to WhatsApp format if needed
-    const whatsappTo = to.startsWith("whatsapp:") ? to : `whatsapp:${to}`;
-    const whatsappFrom = fromNumber.startsWith("whatsapp:") ? fromNumber : `whatsapp:${fromNumber}`;
+    // De acordo com a documentação do Twilio: https://www.twilio.com/docs/whatsapp/quickstart
+    // Para usar WhatsApp com Twilio, o formato do número deve ser whatsapp:+1234567890
+    const whatsappTo = to.startsWith("whatsapp:") ? to : `whatsapp:+${to.replace(/^\+/, '')}`;
+    
+    // O sandbox do Twilio utiliza um número específico com prefixo whatsapp:
+    // Se o número já tiver o prefixo, usamos como está
+    const whatsappFrom = fromNumber.startsWith("whatsapp:") ? 
+      fromNumber : 
+      `whatsapp:+${fromNumber.replace(/^\+/, '')}`;
+    
+    console.log(`Enviando mensagem WhatsApp de ${whatsappFrom} para ${whatsappTo}`);
     
     // Send the message
     const response = await axios.post(

@@ -305,6 +305,10 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
       
       // Extrair os dados da mensagem recebida do Twilio
       // Formato da mensagem do Twilio: https://www.twilio.com/docs/messaging/guides/webhook-request
+      // Analisar os dados da requisição Twilio conforme documentação
+      // https://www.twilio.com/docs/whatsapp/quickstart
+      console.log("Twilio Webhook Recebido:", JSON.stringify(req.body, null, 2));
+      
       const {
         From: from,
         Body: messageBody,

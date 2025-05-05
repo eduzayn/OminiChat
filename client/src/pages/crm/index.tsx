@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { Helmet } from "react-helmet";
 import { Sidebar } from "@/components/sidebar";
 import { useContacts } from "@/hooks/use-contacts";
+import { useOpportunities } from "@/hooks/use-opportunities";
+import { OpportunityForm } from "@/components/opportunity-form";
 import {
   Card,
   CardContent,
@@ -87,9 +89,17 @@ const opportunityStats = {
 function CRMDashboard() {
   const { user } = useAuth();
   const [selectedTab, setSelectedTab] = useState("visão-geral");
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const { contacts } = useContacts();
+  const { createOpportunity } = useOpportunities();
   
   // Calcula o valor total dos negócios em andamento
   const totalPipelineValue = dealStages.reduce((total, stage) => total + stage.value, 0);
+  
+  // Manipulador de submissão do formulário
+  const handleCreateOpportunity = async (data: any) => {
+    await createOpportunity.mutateAsync(data);
+  };
   
   return (
     <>
@@ -112,7 +122,10 @@ function CRMDashboard() {
                     <Filter className="h-4 w-4" />
                     <span>Filtros</span>
                   </Button>
-                  <Button className="flex items-center gap-2">
+                  <Button 
+                    className="flex items-center gap-2"
+                    onClick={() => setIsFormOpen(true)}
+                  >
                     <Plus className="h-4 w-4" />
                     <span>Nova Oportunidade</span>
                   </Button>
@@ -322,6 +335,14 @@ function CRMDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Formulário de Nova Oportunidade */}
+      <OpportunityForm
+        isOpen={isFormOpen}
+        onClose={() => setIsFormOpen(false)}
+        onSubmit={handleCreateOpportunity}
+        contacts={contacts || []}
+      />
     </>
   );
 }

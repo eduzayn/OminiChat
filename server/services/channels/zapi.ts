@@ -655,15 +655,64 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
       if (qrResponse.data && qrResponse.data.length > 0) {
         console.log(`Recebido buffer de tamanho: ${qrResponse.data.length} bytes`);
         
-        // Converter o buffer para base64 com prefixo data:URL correto
-        const qrCodeBase64 = `data:image/png;base64,${Buffer.from(qrResponse.data).toString('base64')}`;
-        console.log("QR Code convertido para base64 com sucesso");
-        
-        return {
-          status: "waiting_scan",
-          message: "Escaneie o QR Code com o WhatsApp para conectar",
-          qrCode: qrCodeBase64
-        };
+        try {
+          // A Z-API está retornando um objeto JSON em vez de uma imagem direta
+          // Primeiro, vamos converter para texto e verificar a estrutura
+          const responseText = Buffer.from(qrResponse.data).toString('utf-8');
+          console.log("Primeiros 100 caracteres da resposta:", responseText.substring(0, 100) + "...");
+          
+          // Tentar converter para JSON
+          let qrObject;
+          try {
+            qrObject = JSON.parse(responseText);
+            console.log("Formato da resposta JSON:", Object.keys(qrObject).join(", "));
+          } catch (jsonError) {
+            console.log("Resposta não é um JSON válido, tratando como imagem direta");
+            // Se não for JSON, vamos criar a string base64 direto da imagem
+            const qrCodeBase64Direct = `data:image/png;base64,${Buffer.from(qrResponse.data).toString('base64')}`;
+            
+            return {
+              status: "waiting_scan",
+              message: "Escaneie o QR Code com o WhatsApp para conectar",
+              qrCode: qrCodeBase64Direct
+            };
+          }
+          
+          // Se temos um objeto JSON com a propriedade 'value', é o caso que estamos encontrando
+          if (qrObject && qrObject.value) {
+            console.log("QR Code retornado como JSON com propriedade 'value'");
+            
+            // Gerar um QR code através do serviço online QR Server
+            const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrObject.value)}`;
+            console.log("Gerando URL para QR code visual com o valor fornecido pela Z-API");
+            
+            return {
+              status: "waiting_scan",
+              message: "Escaneie o QR Code com o WhatsApp para conectar",
+              qrCode: qrCodeUrl
+            };
+          } else {
+            console.log("QR Code em formato não reconhecido:", Object.keys(qrObject).join(", "));
+            // Fallback para a abordagem anterior
+            const qrCodeBase64Fallback = `data:image/png;base64,${Buffer.from(qrResponse.data).toString('base64')}`;
+            
+            return {
+              status: "waiting_scan",
+              message: "Escaneie o QR Code com o WhatsApp para conectar",
+              qrCode: qrCodeBase64Fallback
+            };
+          }
+        } catch (error) {
+          console.error("Erro no processamento do QR code:", error);
+          // Fallback para o método original em caso de erro no processamento
+          const qrCodeBase64Fallback = `data:image/png;base64,${Buffer.from(qrResponse.data).toString('base64')}`;
+          
+          return {
+            status: "waiting_scan", 
+            message: "Escaneie o QR Code com o WhatsApp para conectar (processamento alternativo)",
+            qrCode: qrCodeBase64Fallback
+          };
+        }
       } 
       
       // Retornar erro se não conseguiu obter o QR code

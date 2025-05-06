@@ -688,12 +688,12 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
         message: "Este provedor não suporta geração de QR Code",
         details: `O provedor ${config.provider} não tem implementação para geração de QR Code.`
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error getting QR code:", error);
       return res.status(500).json({ 
         success: false,
         message: "Internal server error", 
-        details: error.message 
+        details: error.message || "Unknown error" 
       });
     }
   });

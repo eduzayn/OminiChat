@@ -1,8 +1,23 @@
+// Definir tipo para o manipulador de eventos
+type EventHandler = (data: any) => void;
+
+// Interface para o serviço de socket
+interface SocketService {
+  socket: WebSocket | null;
+  listeners: Map<string, Set<EventHandler>>;
+  initialize: () => void;
+  send: (type: string, data: any) => boolean;
+  on: (event: string, handler: EventHandler) => void;
+  off: (event: string, handler: EventHandler) => void;
+  isConnected: () => boolean;
+  notifyListeners: (event: string, data: any) => void;
+}
+
 /**
  * Cria uma conexão WebSocket com o servidor, com opções avançadas de tratamento de eventos
  * @returns {WebSocket} A instância de WebSocket criada
  */
-export function createWebSocket(): WebSocket {
+function createWebSocket(): WebSocket {
   try {
     // Determinar o protocolo baseado no protocolo atual da página
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -31,13 +46,22 @@ export function createWebSocket(): WebSocket {
     socket.onclose = (event) => {
       // Código 1000 = fechamento normal, qualquer outro é potencialmente um erro
       if (event.code !== 1000) {
-        console.log(`Conexão WebSocket fechada com código: ${event.code}, razão: ${event.reason}`);
+        console.log(`Conexão WebSocket fechada: ${event.code} ${event.reason}`);
       } else {
         console.log("Conexão WebSocket fechada normalmente");
       }
       
       // Desativar o ping/pong
       (socket as any).pingPongActive = false;
+      
+      // Tentar reconectar após um tempo
+      if (event.code !== 1000) {
+        const reconnectTime = 8; // segundos
+        console.log(`Tentando reconectar em ${reconnectTime}s`);
+        setTimeout(() => {
+          socketService.initialize();
+        }, reconnectTime * 1000);
+      }
     };
     
     socket.onerror = (error) => {
@@ -48,9 +72,32 @@ export function createWebSocket(): WebSocket {
     socket.addEventListener('message', (event) => {
       try {
         const data = JSON.parse(event.data);
+        console.log("WebSocket message received:", data.type);
+        
         // Resetar contador de pings perdidos quando qualquer mensagem válida é recebida
         if (data && typeof data === 'object') {
           (socket as any).missedPings = 0;
+          
+          // Se for uma mensagem de ping, responder com um pong
+          if (data.type === 'ping') {
+            console.log("Ping recebido do servidor:", data);
+            console.log("Enviando ping para servidor...");
+            socket.send(JSON.stringify({ 
+              type: 'pong', 
+              timestamp: Date.now(),
+              clientTime: new Date().toISOString() 
+            }));
+          }
+          
+          // Se for uma mensagem de pong, atualizamos o status da conexão
+          if (data.type === 'pong') {
+            console.log("Pong recebido do servidor:", data);
+          }
+          
+          // Notificar handlers registrados
+          if (data.type) {
+            socketService.notifyListeners(data.type, data.data || data);
+          }
         }
       } catch (e) {
         // Possivelmente uma mensagem que não é JSON (como um ping)
@@ -62,6 +109,7 @@ export function createWebSocket(): WebSocket {
       if (socket.readyState === WebSocket.OPEN && (socket as any).pingPongActive) {
         // Enviar um ping através de uma mensagem JSON para compatibilidade
         try {
+          console.log("Enviando ping para servidor...");
           socket.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
           (socket as any).missedPings++;
           
@@ -79,7 +127,7 @@ export function createWebSocket(): WebSocket {
         // Limpeza - parar o intervalo se a conexão foi fechada
         clearInterval(pingInterval);
       }
-    }, 25000); // Ping a cada 25 segundos
+    }, 30000); // Ping a cada 30 segundos
     
     return socket;
   } catch (error) {
@@ -88,76 +136,88 @@ export function createWebSocket(): WebSocket {
   }
 }
 
-/**
- * Envia uma mensagem para o servidor WebSocket
- * @param {WebSocket} socket - Socket WebSocket aberto
- * @param {string} type - Tipo da mensagem
- * @param {any} data - Dados a serem enviados
- * @returns {boolean} - Sucesso do envio
- */
-export function sendSocketMessage(socket: WebSocket, type: string, data: any): boolean {
-  if (!socket) {
-    console.error("Socket não está definido. Mensagem não enviada.");
-    return false;
-  }
+// Criar o serviço de socket singleton
+export const socketService: SocketService = {
+  socket: null,
+  listeners: new Map<string, Set<EventHandler>>(),
   
-  if (socket.readyState === WebSocket.OPEN) {
+  initialize() {
     try {
-      const message = { 
-        type, 
-        data,
-        timestamp: new Date().toISOString() 
-      };
-      socket.send(JSON.stringify(message));
-      return true;
+      this.socket = createWebSocket();
+      
+      // Configurar handler de mensagens global para distribuir eventos
+      this.socket.addEventListener('message', (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          if (message && message.type) {
+            this.notifyListeners(message.type, message.data || message);
+          }
+        } catch (e) {
+          // Ignorar mensagens que não são JSON válido
+        }
+      });
+      
     } catch (error) {
-      console.error("Erro ao enviar mensagem WebSocket:", error);
+      console.error("Falha ao inicializar o serviço de socket:", error);
+    }
+  },
+  
+  send(type: string, data: any): boolean {
+    if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+      console.warn("Socket não está conectado. Mensagem não enviada.");
       return false;
     }
-  } else {
-    console.warn(`WebSocket não está aberto (estado: ${socket.readyState}). Mensagem não enviada.`);
-    return false;
-  }
-}
-
-/**
- * Adiciona um listener tipado para mensagens de um tipo específico
- * @param {WebSocket} socket - Socket WebSocket
- * @param {string} messageType - Tipo da mensagem para filtrar
- * @param {Function} callback - Função a ser chamada quando mensagens deste tipo forem recebidas
- * @returns {Function} - Função para remover o listener
- */
-export function addSocketListener(
-  socket: WebSocket,
-  messageType: string,
-  callback: (data: any) => void
-): () => void {
-  if (!socket) {
-    console.error("Socket não está definido. Listener não adicionado.");
-    return () => {}; // Função de limpeza vazia
-  }
-  
-  const handler = (event: MessageEvent) => {
+    
     try {
-      const message = JSON.parse(event.data);
-      if (message.type === messageType) {
-        // Adicionar informações de debug nos ambientes de desenvolvimento
-        if (process.env.NODE_ENV !== 'production') {
-          console.debug(`[WS Recebido] ${messageType}:`, message.data);
-        }
-        callback(message.data);
-      }
+      const message = {
+        type,
+        data,
+        timestamp: Date.now()
+      };
+      this.socket.send(JSON.stringify(message));
+      return true;
     } catch (error) {
-      console.error("Erro ao processar mensagem WebSocket:", error);
+      console.error("Erro ao enviar mensagem:", error);
+      return false;
     }
-  };
+  },
   
-  socket.addEventListener("message", handler);
-  
-  // Retornar função para remover o listener
-  return () => {
-    if (socket) {
-      socket.removeEventListener("message", handler);
+  on(event: string, handler: EventHandler) {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set());
     }
-  };
+    this.listeners.get(event)?.add(handler);
+  },
+  
+  off(event: string, handler: EventHandler) {
+    if (this.listeners.has(event)) {
+      this.listeners.get(event)?.delete(handler);
+    }
+  },
+  
+  isConnected(): boolean {
+    return this.socket !== null && this.socket.readyState === WebSocket.OPEN;
+  },
+  
+  // Método interno para notificar todos os handlers registrados para um tipo de evento
+  notifyListeners(event: string, data: any) {
+    if (this.listeners.has(event)) {
+      this.listeners.get(event)?.forEach(handler => {
+        try {
+          handler(data);
+        } catch (error) {
+          console.error(`Erro ao executar handler para evento ${event}:`, error);
+        }
+      });
+    }
+  }
+};
+
+// Inicializar socket automaticamente
+if (typeof window !== 'undefined') {
+  // Verificar se já existe uma conexão
+  if (!socketService.socket) {
+    // Inicializar apenas no cliente
+    socketService.initialize();
+  }
 }

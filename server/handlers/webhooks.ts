@@ -66,7 +66,7 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
       
       if (!conversation) {
         // Criar nova conversa se não existir uma aberta
-        const [newConversation] = await db.insert(schema.conversations)
+        const [newConversation] = await db.insert(conversations)
           .values({
             contactId,
             channelId,
@@ -223,13 +223,13 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
       const contactPhone = body.from;
       
       // Buscar contato pelo número de telefone
-      let contact = await db.query.schema.contacts.findFirst({
-        where: eq(schema.contacts.phone, contactPhone)
+      let contact = await db.query.contacts.findFirst({
+        where: eq(contacts.phone, contactPhone)
       });
       
       // Se o contato não existir, criar um novo
       if (!contact) {
-        const [newContact] = await db.insert(schema.contacts)
+        const [newContact] = await db.insert(contacts)
           .values({
             name: `WhatsApp ${contactPhone}`,
             phone: contactPhone,
@@ -293,7 +293,7 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
   app.post(`${apiPrefix}/webhooks/zapi/:channelId`, async (req: Request, res: Response) => {
     try {
       const channelId = parseInt(req.params.channelId);
-      console.log(`Webhook Z-API recebido para canal ${channelId}:`, req.body);
+      console.log(`Webhook Z-API recebido para canal ${channelId}:`, JSON.stringify(req.body, null, 2));
       
       // Verificar se o canal existe
       const channel = await db.query.channels.findFirst({
@@ -305,15 +305,72 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
       }
 
       // Verificar tipo de evento recebido
-      const eventData = req.body;
+      const webhook = req.body;
       
-      // Resposta padrão para eventos que não são mensagens
-      if (!eventData.isMessage) {
+      // Normalizar os dados do webhook para um formato padrão
+      // Z-API pode enviar diferentes formatos de evento
+      let eventData = {
+        isMessage: false,
+        phone: '',
+        text: '',
+        messageId: '',
+        senderName: '',
+        timestamp: new Date(),
+        isGroupMessage: false,
+        mediaUrl: null,
+        mediaType: null,
+        fileName: null
+      };
+      
+      // Verificar os diferentes formatos possíveis do webhook Z-API
+      if (webhook.phone && webhook.message) {
+        // Formato simples de mensagem
+        eventData.isMessage = true;
+        eventData.phone = webhook.phone;
+        eventData.text = webhook.message;
+        eventData.messageId = webhook.messageId || webhook.id || '';
+        eventData.senderName = webhook.senderName || webhook.name || '';
+        eventData.timestamp = webhook.timestamp ? new Date(webhook.timestamp) : new Date();
+      } else if (webhook.type === 'message') {
+        // Formato de evento message
+        eventData.isMessage = true;
+        eventData.phone = webhook.from || webhook.phone || '';
+        eventData.text = webhook.body || webhook.content || webhook.text || '';
+        eventData.messageId = webhook.id || webhook.messageId || '';
+        eventData.senderName = webhook.sender?.name || webhook.senderName || '';
+        eventData.timestamp = webhook.timestamp ? new Date(webhook.timestamp) : new Date();
+        
+        // Verificar se é mídia
+        if (webhook.isMedia || webhook.hasMedia || webhook.mediaType) {
+          eventData.mediaType = webhook.mediaType || '';
+          eventData.mediaUrl = webhook.mediaUrl || webhook.media?.url || '';
+          eventData.fileName = webhook.fileName || webhook.media?.fileName || '';
+        }
+      } else if (webhook.event === 'onMessageReceived' || webhook.event === 'onMessage') {
+        // Formato de evento onMessageReceived
+        const messageData = webhook.message || webhook.data || webhook;
+        eventData.isMessage = true;
+        eventData.phone = messageData.phone || messageData.from || '';
+        eventData.text = messageData.body || messageData.text || messageData.content || '';
+        eventData.messageId = messageData.id || messageData.messageId || '';
+        eventData.senderName = messageData.sender?.name || messageData.senderName || '';
+        eventData.timestamp = messageData.timestamp ? new Date(messageData.timestamp) : new Date();
+        
+        // Verificar se é mensagem de grupo
+        eventData.isGroupMessage = !!messageData.isGroup;
+      }
+      
+      // Se não for uma mensagem ou não tiver identificado o formato corretamente
+      if (!eventData.isMessage || !eventData.phone) {
+        console.log('[Z-API] Evento recebido não é uma mensagem ou formato não reconhecido:', webhook);
         return res.status(200).json({ 
           success: true, 
-          message: "Evento não-mensagem processado com sucesso" 
+          message: "Evento não-mensagem ou formato desconhecido processado com sucesso" 
         });
       }
+      
+      // Log dos dados normalizados para depuração
+      console.log('[Z-API] Dados da mensagem normalizados:', eventData);
       
       // Processar mensagem recebida
       if (eventData.isMessage && eventData.phone && eventData.text) {
@@ -467,16 +524,48 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
             }
           });
           
-          // Na implementação real, aqui enviaria a mensagem para o WhatsApp via API Z-API
-          // Exemplo de código (comentado pois depende da implementação do serviço):
-          /*
-          import { sendWhatsAppMessage } from '../services/channels/whatsapp';
-          await sendWhatsAppMessage(
-            channel, 
-            contact.phone, 
-            autoReplyResult.suggestedReply
-          );
-          */
+          // Enviar a resposta automática para o WhatsApp via Z-API
+          try {
+            // Importar serviço WhatsApp para envio de mensagens
+            const whatsAppService = await import("../services/channels/whatsapp");
+            
+            // Enviar a mensagem para o contato via WhatsApp
+            const sendResult = await whatsAppService.sendWhatsAppMessage(
+              channel,
+              contact.phone,
+              autoReplyResult.suggestedReply
+            );
+            
+            // Atualizar status da mensagem de acordo com o resultado do envio
+            if (sendResult.status === "success") {
+              await db.update(messages)
+                .set({
+                  status: "delivered",
+                  metadata: {
+                    ...autoReplyMessage.metadata,
+                    externalMessageId: sendResult.messageId
+                  }
+                })
+                .where(eq(messages.id, autoReplyMessage.id));
+                
+              console.log(`[Z-API] Resposta automática enviada com sucesso para ${contact.phone}`);
+            } else {
+              console.error(`[Z-API] Erro ao enviar resposta automática: ${sendResult.message}`);
+              
+              // Atualizar status da mensagem para erro
+              await db.update(messages)
+                .set({
+                  status: "failed",
+                  metadata: {
+                    ...autoReplyMessage.metadata,
+                    error: sendResult.message
+                  }
+                })
+                .where(eq(messages.id, autoReplyMessage.id));
+            }
+          } catch (sendError) {
+            console.error('[Z-API] Erro ao tentar enviar resposta automática:', sendError);
+          }
           
           // Atribuir a conversa ao agente bot
           if (bot && !conversation.assignedTo) {

@@ -1,6 +1,9 @@
 import { Channel } from "@shared/schema";
 import axios from "axios";
 
+// Importando serviço Z-API
+import * as zapiService from './zapi';
+
 // Function to set up and configure WhatsApp channel
 export async function setupChannel(channel: Channel): Promise<{ status: string; message?: string; qrCode?: string }> {
   try {
@@ -19,6 +22,8 @@ export async function setupChannel(channel: Channel): Promise<{ status: string; 
       return setupMetaWhatsApp(channel);
     } else if (provider === "twilio") {
       return setupTwilioWhatsApp(channel);
+    } else if (provider === "zapi") {
+      return zapiService.setupZAPIChannel(channel);
     } else {
       return {
         status: "error",

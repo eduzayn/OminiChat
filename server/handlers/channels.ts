@@ -72,9 +72,11 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
   app.post(`${apiPrefix}/channels`, isAuthenticated, isAdmin, async (req, res) => {
     try {
       // Validate request body
+      console.log("Corpo da requisição:", JSON.stringify(req.body));
       const validation = insertChannelSchema.safeParse(req.body);
       
       if (!validation.success) {
+        console.log("Erro de validação:", JSON.stringify(validation.error.errors));
         return res.status(400).json({ 
           message: "Invalid channel data", 
           errors: validation.error.errors 

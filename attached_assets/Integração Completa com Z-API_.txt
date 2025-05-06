@@ -1,0 +1,866 @@
+﻿Guia Técnico Detalhado e Plano de Execução para Integração Completa com a Z-API
+
+
+
+
+1. Introdução
+
+
+
+
+1.1. Visão Geral da Z-API
+
+
+A Z-API é apresentada como um serviço de API RESTful robusto, projetado especificamente para facilitar a integração de sistemas e aplicações com a plataforma WhatsApp.1 Sua principal proposta de valor reside na capacidade de automatizar interações e replicar programaticamente uma vasta gama de funcionalidades nativas do WhatsApp, permitindo que empresas desenvolvam soluções personalizadas, como bots de atendimento, sistemas de notificação, agendamentos e muito mais.1 A plataforma se dirige primariamente a desenvolvedores com conhecimento em APIs RESTful ou a usuários que utilizam soluções de terceiros que já possuem integração com a Z-API.1 Com uma base de mais de 5.000 empresas utilizando seus serviços globalmente, a Z-API se posiciona como uma solução significativa no mercado brasileiro de integrações com o WhatsApp.2
+
+
+1.2. Objetivo e Escopo do Relatório
+
+
+O objetivo deste relatório técnico é fornecer um guia abrangente e um plano de execução detalhado para a integração completa de um sistema com a Z-API. A meta é capacitar as equipes de desenvolvimento a explorar ao máximo a documentação oficial da Z-API para replicar, da forma mais fiel possível, as funcionalidades disponíveis no aplicativo WhatsApp. Este documento se baseia exclusivamente na documentação oficial da Z-API, disponível em developer.z-api.io, e outros recursos oficiais relacionados, garantindo informações precisas e atualizadas sobre a plataforma.1 O escopo abrange a análise da arquitetura da Z-API, seus mecanismos de autenticação, o gerenciamento de instâncias, a replicação de funcionalidades centrais (mensagens, contatos, grupos, comunidades, status), o tratamento de webhooks para eventos em tempo real e as melhores práticas recomendadas para uma integração robusta e sustentável.
+
+
+1.3. Público-Alvo
+
+
+Este relatório é destinado a profissionais técnicos com responsabilidade direta na implementação da integração com a Z-API, como Líderes Técnicos (Tech Leads), Desenvolvedores Sênior e Arquitetos de Sistemas. Pressupõe-se que o leitor possua proficiência em conceitos de APIs RESTful, manipulação de dados no formato JSON e princípios gerais de desenvolvimento de software e arquitetura de sistemas.
+
+
+2. Conceitos Fundamentais e Arquitetura da Z-API
+
+
+
+
+2.1. Protocolo Subjacente (WhatsApp Web/Multi-Dispositivos)
+
+
+Um ponto arquitetural fundamental da Z-API é sua dependência do mesmo canal de comunicação utilizado pelo WhatsApp Web.1 Essencialmente, a Z-API opera automatizando uma sessão que simula a interação de um cliente WhatsApp Web com os servidores do WhatsApp. Isso implica que a Z-API está sujeita às mesmas funcionalidades, limitações e potenciais instabilidades inerentes a esse protocolo não oficial.Com a introdução da funcionalidade Multi-Dispositivos pelo WhatsApp, a Z-API adaptou-se para suportar essa nova capacidade.1 Isso permite que uma conta WhatsApp esteja conectada em até quatro dispositivos adicionais simultaneamente (tipicamente o telefone principal mais três sessões Web/Desktop/API). Uma vantagem significativa dessa compatibilidade é que a instância da Z-API pode operar sem a necessidade de o telefone principal estar constantemente conectado à internet.1 Contudo, se o telefone principal permanecer desconectado por mais de 14 dias, as sessões adicionais, incluindo a da Z-API, serão desconectadas.4Apesar da melhoria na estabilidade potencial trazida pela menor dependência da conexão do telefone, a Z-API ainda herda as limitações do protocolo Multi-Dispositivos. Funcionalidades como visualização de localização em tempo real em dispositivos adicionais, fixação de conversas no WhatsApp Web/Desktop, certas ações de gerenciamento de grupos (entrar, visualizar/resetar convites) e edição de perfil comercial ou etiquetas no WhatsApp Business ainda podem exigir o uso do aplicativo no telefone principal.4 Além disso, a comunicação com contatos que utilizam versões muito antigas do WhatsApp pode não funcionar através da instância Z-API.4 A dependência de um protocolo não oficial, mesmo o Multi-Dispositivos, significa que a Z-API está sujeita a alterações implementadas pelo Meta (Facebook), que podem impactar a funcionalidade e a estabilidade da API sem aviso prévio.
+
+
+2.2. Arquitetura Baseada em Instâncias
+
+
+A arquitetura da Z-API é centrada no conceito de "Instância".6 Cada instância representa uma conexão ativa e isolada com um número de telefone específico que possui uma conta WhatsApp. Do ponto de vista técnico, uma instância corresponde a um ambiente virtual dedicado (seja uma máquina virtual ou um contêiner) provisionado na infraestrutura de nuvem da Z-API (historicamente mencionada como AWS Brasil 6, e mais recentemente como Oracle Cloud). Este ambiente é responsável por manter a conexão com o WhatsApp e processar o envio e recebimento de mensagens para aquele número específico.É possível criar múltiplas instâncias para gerenciar diferentes números de telefone a partir de uma única conta Z-API.6 No entanto, cada instância só pode estar conectada a um número de telefone por vez. É permitido desconectar um número de uma instância e conectar um número diferente à mesma instância posteriormente.6
+
+
+2.3. API RESTful e Webhooks
+
+
+A Z-API expõe suas funcionalidades através de uma API RESTful, projetada com foco na simplicidade e objetividade para desenvolvedores.1 Isso permite que os sistemas integrados interajam com o WhatsApp enviando requisições HTTP para endpoints específicos, utilizando métodos padrão como GET, POST, PUT e DELETE.Para a comunicação em tempo real no sentido inverso (do WhatsApp para o sistema integrado), a Z-API utiliza Webhooks.1 Webhooks são notificações automáticas enviadas pela Z-API para URLs pré-configuradas no sistema do cliente sempre que um evento relevante ocorre na instância conectada. Esses eventos incluem o recebimento de novas mensagens, atualizações no status de mensagens enviadas (entregue, lida), mudanças no status da conexão da instância (conectada, desconectada), entre outros. Para receber essas notificações, o sistema integrado deve expor endpoints HTTPS capazes de receber requisições POST.8
+
+
+2.4. Z-API vs. API Oficial do WhatsApp Business
+
+
+É crucial distinguir a Z-API da API Oficial do WhatsApp Business (também conhecida como WhatsApp Business Platform). A Z-API opera utilizando o protocolo do WhatsApp Web/Multi-Dispositivos, que não é oficialmente suportado ou documentado pelo Meta para integrações de terceiros.16 Em contraste, a API Oficial é uma solução sancionada e suportada pelo Meta, projetada especificamente para uso empresarial.
+Essa diferença fundamental leva a várias distinções práticas importantes:
+* Configuração e Acesso: A Z-API geralmente permite um início rápido, conectando-se a qualquer número WhatsApp existente (pessoal ou comercial) através da leitura de um QR Code.1 A API Oficial requer um processo de integração mais formal, muitas vezes mediado por Parceiros de Solução do WhatsApp (BSPs), pode exigir a verificação da empresa (Meta Business Manager) e, frequentemente, o uso de um número de telefone novo e dedicado, além de um período de aprovação.16
+* Modelo de Custos: A Z-API tipicamente adota um modelo de assinatura mensal fixa por instância conectada (por exemplo, R$99,90/mês para 1 número, conforme mencionado em materiais promocionais 2). A API Oficial do WhatsApp Business opera predominantemente em um modelo de precificação baseado em conversas (com janelas de 24 horas iniciadas pelo usuário ou pela empresa) ou, futuramente, por mensagem para templates 40, podendo envolver custos variáveis dependendo do volume e do tipo de conversa/mensagem, além de potenciais taxas dos BSPs.16
+* Tipos de Mensagem e Funcionalidades: A Z-API busca replicar a maior gama possível de funcionalidades do WhatsApp acessíveis via Web/Multi-Device.1 A API Oficial possui regras mais estritas, especialmente para iniciar conversas com usuários. As empresas devem usar "Mensagens de Modelo" (Templates, anteriormente HSM - Highly Structured Messages) pré-aprovadas pelo Meta para iniciar conversas de marketing, utilidade ou autenticação.16 Embora a Z-API ofereça funcionalidades interativas como botões e listas, estas são implementadas através do protocolo Web e não constituem templates oficiais aprovados pelo Meta.
+* Estabilidade e Risco: A API Oficial, por ser sancionada, geralmente oferece maior estabilidade e conformidade a longo prazo. A Z-API, por depender de um protocolo não oficial, carrega riscos inerentes, incluindo a possibilidade de instabilidade devido a atualizações do WhatsApp e o risco de bloqueio ou banimento do número conectado por violação dos Termos de Serviço do WhatsApp. A Z-API implementa mecanismos para mitigar esses riscos, como filas de envio e medidas de segurança, mas o risco fundamental permanece.1
+A escolha entre Z-API e a API Oficial envolve uma ponderação entre flexibilidade, custo e amplitude de funcionalidades (onde a Z-API pode ter vantagens percebidas) versus estabilidade, conformidade e suporte oficial (onde a API Oficial é superior). A meta do usuário de replicar ao máximo as funcionalidades do WhatsApp pode parecer mais alinhada com a abordagem da Z-API, mas essa escolha deve ser feita com plena consciência dos riscos associados.
+A tabela a seguir resume as principais diferenças:
+Característica/Aspecto
+	Z-API
+	API Oficial do WhatsApp Business
+	Protocolo
+	WhatsApp Web / Multi-Dispositivos (Não Oficial) 1
+	API dedicada e sancionada pelo Meta 16
+	Configuração
+	Rápida, qualquer número (pessoal/comercial), leitura de QR Code 1
+	Processo formal, via parceiros (BSPs), verificação da empresa, pode exigir novo número 16
+	Modelo de Custo
+	Geralmente assinatura fixa por instância 2
+	Baseado em conversa/mensagem, custos variáveis, taxas de BSPs 16
+	Iniciação de Conversa
+	Envio direto (sujeito a políticas do WhatsApp) 1
+	Requer Mensagens de Modelo (Templates/HSM) pré-aprovadas 16
+	Escopo de Funcionalidades
+	Busca replicar tudo do WhatsApp Web/Multi-Device 1
+	Foco empresarial, funcionalidades específicas via API documentada 41
+	Estabilidade
+	Dependente de atualizações do WhatsApp Web/Multi-Device
+	Geralmente mais estável, suportada oficialmente
+	Risco de Conformidade/Ban
+	Maior risco inerente devido ao protocolo não oficial 16
+	Menor risco (se as políticas forem seguidas)
+	Público-Alvo Principal
+	Desenvolvedores, PMEs, casos de uso flexíveis 1
+	Médias e Grandes Empresas, foco em escala e conformidade 16
+	
+
+3. Autenticação, Configuração e Gerenciamento de Instâncias
+
+
+
+
+3.1. Camadas de Autenticação
+
+
+A Z-API emprega um sistema de autenticação de duas camadas para proteger o acesso aos seus recursos:
+1. ID da Instância (Instance ID) e Token da Instância: Cada instância criada na Z-API recebe um identificador único (instanceId) e um token de segurança associado (instanceToken).11 Estes são utilizados diretamente na construção da URL para direcionar as requisições à instância correta.
+2. Token de Segurança da Conta (Client-Token): Além das credenciais por instância, a Z-API exige um token de segurança adicional, válido para toda a conta do usuário/desenvolvedor. Este token deve ser incluído como um cabeçalho HTTP (Client-Token) em todas as requisições à API.10
+A necessidade de ambas as credenciais (as específicas da instância na URL e a geral da conta no cabeçalho) fortalece a segurança. O ID e Token da instância garantem que a operação seja direcionada e autorizada para aquela conexão específica do WhatsApp. O Client-Token no cabeçalho autentica o sistema ou desenvolvedor que está realizando a chamada, impedindo que alguém que obtenha as credenciais de uma única instância possa realizar chamadas em nome de outras instâncias ou acessar funcionalidades de gerenciamento no nível da conta, o que é particularmente relevante para parceiros que gerenciam múltiplas instâncias de clientes.5
+
+
+3.2. Obtenção das Credenciais
+
+
+* ID e Token da Instância: São gerados e disponibilizados no momento da criação da instância. Podem ser visualizados e copiados acessando os detalhes da instância no painel administrativo da Z-API 11 ou através da resposta da API de criação de instância para parceiros.14 A resposta da API de criação (/instances/integrator/on-demand) retorna um JSON contendo id (o instanceId) e token (o instanceToken).14
+* Token de Segurança da Conta (Client-Token): Este token é gerado e gerenciado através do painel administrativo da Z-API. O processo envolve:
+   1. Acessar a conta Z-API.
+   2. Navegar até a aba "Segurança".
+   3. Localizar o módulo "Token de Segurança da Conta".
+   4. Clicar na opção "Configurar agora" (ou similar) para gerar o token. Inicialmente, o token é gerado como desabilitado.10
+   5. Configurar a aplicação cliente para incluir este token no cabeçalho Client-Token de todas as requisições.
+   6. Retornar ao painel da Z-API e clicar em "Ativar Token".10 A partir deste momento, todas as requisições sem o Client-Token correto serão rejeitadas com um erro (ex: "error": "null not allowed").10
+
+
+3.3. Estrutura da Requisição API
+
+
+As interações com a Z-API seguem uma estrutura RESTful padrão:
+* URL Base: A URL base para todas as chamadas da API Z-API é https://api.z-api.io.12
+* Estrutura do Caminho do Endpoint: A maioria dos endpoints específicos de uma instância segue o padrão: /instances/{instanceId}/token/{instanceToken}/{endpoint}.12
+   * {instanceId}: Deve ser substituído pelo ID da instância específica.
+   * {instanceToken}: Deve ser substituído pelo token da instância correspondente.
+   * {endpoint}: Representa o recurso ou ação específica sendo acessada (ex: status, send-text, contacts).
+* Cabeçalhos HTTP Padrão:
+   * Client-Token: Obrigatório. Contém o Token de Segurança da Conta.10 O formato é Client-Token: SEU_TOKEN_DE_SEGURANCA.10 Exemplos de uso são vistos em integrações como Pipedream 63 e scripts Zoho Deluge.64
+   * Content-Type: Obrigatório para requisições que enviam um corpo (payload), como POST e PUT. O valor mais comum é application/json.15 A omissão ou valor incorreto pode resultar em erro HTTP 415 (Unsupported Media Type).15
+   * Accept: Embora não explicitamente detalhado na documentação Z-API para todas as chamadas, é uma prática padrão REST incluir Accept: application/json para indicar que o cliente espera receber respostas no formato JSON.65
+
+
+3.4. Conectando uma Instância
+
+
+Após a criação de uma instância (seja pelo painel ou API de parceiro), o próximo passo é conectá-la à conta WhatsApp desejada:
+* Método do QR Code: Este é o método padrão.
+   1. Utilizar a API da Z-API para obter o QR Code. Existem dois endpoints para isso:
+      * GET /instances/{instanceId}/token/{instanceToken}/qr-code: Retorna os bytes brutos do QR Code.
+      * GET /instances/{instanceId}/token/{instanceToken}/qr-code/image: Retorna o QR Code como uma imagem codificada em Base64.
+   2. Exibir o QR Code obtido na interface do sistema integrado.
+   3. O usuário final deve abrir o aplicativo WhatsApp em seu celular, navegar até "Aparelhos conectados" (ou similar) e escanear o QR Code exibido.
+   4. Importante: O QR Code gerado pelo WhatsApp é invalidado a cada 20 segundos. Portanto, a aplicação integrada deve implementar um mecanismo de polling (chamando a API de QR Code a cada 10-20 segundos) para atualizar o QR Code exibido ao usuário. Recomenda-se interromper o polling após algumas tentativas (ex: 3) se o usuário não escanear, adicionando um botão para que o usuário reinicie o processo, evitando chamadas excessivas à API.
+* Método do Código via Telefone: Como alternativa ao QR Code, a Z-API oferece um endpoint para obter um código de conexão:
+   1. Chamar GET /instances/{instanceId}/token/{instanceToken}/phone-code/{phone}, onde {phone} é o número de telefone a ser conectado.
+   2. Exibir o código retornado na interface.
+   3. O usuário, no aplicativo WhatsApp (na mesma tela de escanear QR Code), deve selecionar a opção "Conectar com número de telefone" e inserir o código fornecido.
+* Confirmação da Conexão: O sucesso da conexão é sinalizado pelo webhook on-webhook-connected.8 Adicionalmente, o status pode ser verificado programaticamente através do endpoint
+/status.
+
+
+3.5. Chamadas API Básicas de Gerenciamento de Instância
+
+
+Uma vez conectada, a instância pode ser gerenciada através de endpoints específicos:
+   * Verificar Status (GET /status): Retorna o estado atual da conexão (connected: boolean, indicando conexão com Z-API/WhatsApp; smartphoneConnected: boolean, indicando se o celular pareado tem conexão internet - menos relevante com Multi-Device) e mensagens de erro detalhadas se connected for falso.
+   * Reiniciar Instância (GET /restart): Força uma reinicialização da conexão da instância com os servidores WhatsApp. Útil para tentar resolver problemas de conexão sem exigir que o usuário escaneie novamente o QR Code. Resposta de sucesso: {"value": true}.
+   * Desconectar Instância (GET /disconnect): Realiza o logout da sessão WhatsApp Web/Multi-Device associada à instância. Após esta chamada, todas as APIs da instância ficam indisponíveis e webhooks param de ser enviados. Para reconectar, é necessário escanear novamente o QR Code.
+   * Obter Dados da Instância (GET /me): Retorna informações detalhadas sobre a instância, incluindo seu ID, token, nome, data de expiração (due), status de conexão (connected), status de pagamento (paymentStatus), data de criação, URLs de webhook configuradas e outras configurações booleanas (como callRejectAuto, autoReadMessage).13
+   * Obter Informações do Dispositivo (GET /device): Retorna dados sobre o número de telefone conectado, nome e URL da foto do perfil WhatsApp, e alguns detalhes técnicos da sessão e do dispositivo simulado pela Z-API.
+   * Renomear Instância (PUT /update-name): Permite alterar o nome da instância que aparece no painel administrativo da Z-API. Requer um corpo JSON com a chave value contendo o novo nome (ex: { "value": "Novo Nome da Instancia" }). Resposta de sucesso: {"value": true}.
+
+
+4. Implementando Funcionalidades Essenciais do WhatsApp via Z-API
+
+
+Esta seção detalha como utilizar os endpoints da Z-API para replicar as principais funcionalidades de comunicação e gerenciamento do WhatsApp. Para cada endpoint, serão especificados o método HTTP, o caminho completo (assumindo a estrutura base https://api.z-api.io/instances/YOUR_INSTANCE/token/YOUR_TOKEN/), os parâmetros obrigatórios e opcionais do corpo da requisição (com tipos e descrições) e a estrutura esperada das respostas de sucesso e erro, com base na documentação.
+
+
+4.1. Mensagens
+
+
+A Z-API oferece uma ampla gama de endpoints para envio de diversos tipos de mensagens. É fundamental armazenar o messageId retornado na resposta de sucesso do envio, pois ele é necessário para ações subsequentes como responder, reagir, editar ou deletar a mensagem.
+
+
+4.1.1. Envio de Mensagens de Texto (POST /send-text)
+
+
+   * Parâmetros Obrigatórios:
+   * phone (string): Número do destinatário (ou ID do grupo) no formato DDI+DDD+Número (ex: 5511999999999). Enviar apenas números.18
+   * message (string): O conteúdo da mensagem de texto.18
+   * Parâmetros Opcionais:
+   * delayMessage (number): Atraso em segundos (1-15) antes de enviar a próxima mensagem na fila. Padrão: 1-3s.18
+   * delayTyping (number): Tempo em segundos (1-15) para exibir o status "Digitando...". Padrão: 0s.18
+   * editMessageId (string): ID da mensagem a ser editada com o novo conteúdo fornecido em message. Requer configuração de webhook.18
+   * Formatação:
+   * Estilos: Suporta a formatação padrão do WhatsApp (ex: *bold*, _italic_, ~strike~, monospace).18
+   * Emojis: Podem ser incluídos diretamente no texto (copiar/colar).18
+   * Quebras de Linha: Utilizar \n, \r, \r\n ou %0a, dependendo da plataforma/linguagem.18
+   * Exemplo de Payload:
+JSON
+{
+ "phone": "5511999999999",
+ "message": "Olá! Esta é uma mensagem *formatada* com emoji 🤪.\nNova linha."
+}
+
+   * Resposta (Sucesso 200): JSON contendo zaapId e messageId.
+
+
+4.1.2. Envio de Mídia
+
+
+A Z-API permite o envio de mídia (imagens, áudio, vídeo, documentos) de duas formas principais: fornecendo uma URL pública onde o arquivo está hospedado ou enviando o conteúdo do arquivo codificado em Base64 diretamente no corpo da requisição.22 É crucial observar os limites de tamanho e formato de arquivo impostos pelo WhatsApp, que podem mudar; a documentação da Z-API recomenda verificar os limites atuais no site oficial do WhatsApp/Meta Developers.19 Parâmetros opcionais comuns incluem
+caption (legenda), messageId (para resposta), delayMessage, viewOnce (visualização única) e async (processamento em background).
+      * Imagens (POST /send-image):
+      * Params: phone (req), image (req, URL ou Base64), caption (opt), messageId (opt), delayMessage (opt), viewOnce (opt).22
+      * Nota Base64: Prefixar com data:image/png;base64, (ou tipo MIME apropriado).22
+      * Payload URL: { "phone": "...", "image": "https://...", "caption": "Logo", "viewOnce": false }.
+      * Payload Base64: { "phone": "...", "image": "data:image/png;base64,...", "caption": "Logo", "viewOnce": false }.
+      * Áudio (POST /send-audio):
+      * Params: phone (req), audio (req, URL ou Base64), messageId (opt), delayMessage (opt), viewOnce (opt), async (opt), waveform (opt, para exibir onda sonora).21
+      * Payload URL: { "phone": "...", "audio": "https://...", "viewOnce": false, "waveform": true }.
+      * Payload Base64: { "phone": "...", "audio": "data:audio/mpeg;base64,...", "viewOnce": false, "waveform": true }.
+      * Vídeo (POST /send-video):
+      * Params: phone (req), video (req, URL ou Base64), caption (opt), messageId (opt), delayMessage (opt), viewOnce (opt), async (opt).20
+      * Payload URL: { "phone": "...", "video": "https://...", "caption": "Test", "viewOnce": true }.
+      * Payload Base64: { "phone": "...", "video": "data:video/mp4;base64,...", "caption": "Test", "viewOnce": true }.
+      * Documentos (POST /send-document/{extension}):
+      * Path Param: {extension} (obrigatório, ex: pdf, docx).
+      * Body Params: phone (req), document (req, URL ou Base64), fileName (opt), messageId (opt), delayMessage (opt).19
+      * Payload URL: { "phone": "...", "document": "https://.../exemplo.pdf", "fileName": "My PDF" }.
+      * Payload Base64: { "phone": "...", "document": "data:application/pdf;base64,...", "fileName": "My PDF" }.
+      * Stickers (POST /send-sticker):
+      * Params: phone (req), sticker (req, URL ou Base64 de uma imagem), messageId (opt), delayMessage (opt), stickerAuthor (opt, nome do autor).34
+      * Nota Base64: Prefixar com data:image/png;base64, (ou apropriado).34
+      * Payload URL: { "phone": "...", "sticker": "https://...", "stickerAuthor": "Z-API" }.
+      * Payload Base64: { "phone": "...", "sticker": "data:image/png;base64,...", "stickerAuthor": "Z-API" }.
+      * GIFs (POST /send-gif):
+      * Params: phone (req), gif (req, URL de um arquivo MP4), caption (opt), messageId (opt), delayMessage (opt).
+      * Importante: A API espera uma URL para um arquivo MP4, não um GIF animado diretamente.
+      * Payload URL: { "phone": "...", "gif": "https://.../file_example.mp4", "caption": "Olha isso!" }.
+      * PTV (Push-to-Video) (POST /send-ptv): Mensagem de vídeo curta, similar a um "vídeo para transferência pré-gravado".
+      * Params: phone (req), video (req, URL ou Base64, referido como ptv nos exemplos), messageId (opt), delayMessage (opt).68
+      * Payload URL: { "phone": "...", "ptv": "http://.../small.mp4" }.
+      * Payload Base64: { "phone": "...", "ptv": "data:video/mp4;base64,..." }.
+
+
+4.1.3. Envio de Mensagens Interativas
+
+
+Mensagens interativas, como botões e listas, melhoram significativamente a experiência do usuário. A Z-API implementa essas funcionalidades através do protocolo Web. Isso significa que, embora visualmente semelhantes às mensagens interativas da API Oficial, seu comportamento pode variar e estão mais sujeitas a alterações ou instabilidades decorrentes de atualizações do WhatsApp.69 A documentação da Z-API alerta sobre a instabilidade histórica dos botões e recomenda verificar o status atual da funcionalidade.28
+      * Botões de Ação (POST /send-button-actions): Permite enviar botões que acionam chamadas telefônicas, abrem URLs ou enviam respostas pré-definidas.
+      * Params: phone (req), message (req), buttonActions (req, array de objetos: type, label (req), phone (condicional p/ CALL), url (condicional p/ URL), id (opt)), title (opt), footer (opt), delayMessage (opt).30
+      * Nota: Enviar os três tipos (CALL, URL, REPLY) simultaneamente pode causar erro no WhatsApp Web; recomenda-se enviar CALL e URL juntos, e REPLY separadamente.30
+      * Payload (CALL + URL): { "phone": "...", "message": "...", "buttonActions": }.
+      * Payload (REPLY): { "phone": "...", "message": "...", "buttonActions": }.
+      * Botões de Texto Simples (POST /send-button-list): Envia uma mensagem com botões que, quando clicados, enviam o texto do botão como resposta.
+      * Params: phone (req), message (req), buttonList (req, objeto com buttons array de objetos: label (req), id (opt)), delayMessage (opt).38
+      * Payload: { "phone": "...", "message": "Z-API é Bom?", "buttonList": { "buttons": [{"id": "1", "label": "Ótimo"}, {"id": "2", "label": "Excelente"}] } }.
+      * Botões com Imagem (POST /send-button-list): Mesmo endpoint dos botões simples, mas o objeto buttonList inclui a chave image (URL ou Base64) além do array buttons.
+      * Params: phone (req), message (req), buttonList (req, objeto com image (req, URL/Base64), buttons array de objetos: label (req), id (opt)), delayMessage (opt).31
+      * Payload: { "phone": "...", "message": "Escolha:", "buttonList": { "image": "https://...", "buttons": } }.
+      * Botões com Vídeo (POST /send-button-list-video): Endpoint específico para enviar botões acompanhados de um vídeo.
+      * Params (Inferido, B32 inacessível): phone (req), message (req), buttonList (req, objeto com video (req, URL/Base64), buttons array de objetos: label (req), id (opt)), delayMessage (opt).
+      * Payload (Inferido): { "phone": "...", "message": "Veja o vídeo e escolha:", "buttonList": { "video": "https://.../video.mp4", "buttons": [{"label": "Gostei"}, {"label": "Não Gostei"}] } }. (Estrutura a confirmar na documentação oficial).
+      * Lista de Opções (POST /send-option-list): Apresenta uma mensagem com um botão que, ao ser clicado, abre uma lista de opções selecionáveis.
+      * Params: phone (req), message (req), optionList (req, objeto com title (req), buttonLabel (req), options (req, array de objetos: id (req), title (req), description (req))), delayMessage (opt).
+      * Payload: { "phone": "...", "message": "Selecione:", "optionList": { "title": "Opções", "buttonLabel": "Ver opções", "options": [{"id": "1", "title": "Z-API", "description": "..."}, {"id": "2", "title": "Outros", "description": "..."}] } }.
+      * Botão OTP (POST /send-button-otp): Envia uma mensagem com um botão otimizado para copiar um código (One-Time Password).
+      * Params: phone (req), message (req), code (req, string a ser copiada), image (opt, URL/Base64), buttonText (opt, texto do botão, padrão: "Copiar código").28
+      * Payload: { "phone": "...", "message": "Seu código:", "code": "123456", "buttonText": "Copiar Código OTP" }.
+      * Botão PIX (POST /send-button-pix): Envia uma mensagem com a chave PIX e um botão para copiá-la.
+      * Params: phone (req), pixKey (req, string da chave), type (req, string: 'CPF', 'CNPJ', 'PHONE', 'EMAIL', 'EVP').29
+      * Nota: Mensagens PIX recebidas no WhatsApp Web podem não atualizar o estado da conversa (não marca como não lida, não sobe na lista).29
+      * Payload: { "phone": "...", "pixKey": "chave-pix-aleatoria-...", "type": "EVP" }.
+
+
+4.1.4. Envio de Outros Tipos de Mensagem
+
+
+      * Contato Único (POST /send-contact):
+      * Params: phone (req), contactName (req), contactPhone (req, número a ser compartilhado), messageId (opt), delayMessage (opt), contactBusinessDescription (opt).23
+      * Payload: { "phone": "...", "contactName": "Contato Z-API", "contactPhone": "554498398733" }.
+      * Múltiplos Contatos (POST /send-contacts):
+      * Params: phone (req), contacts (req, array de objetos: name (req), phones (req, array de strings), businessDescription (opt)), messageId (opt), delayMessage (opt).24
+      * Payload: { "phone": "...", "contacts": [{"name": "Contato 1", "phones": ["5511..."]}, {"name": "Contato 2", "phones": ["5521..."], "businessDescription": "Empresa X"}] }.
+      * Localização (POST /send-location): Envia um mapa com um pino em uma localização fixa.
+      * Params: phone (req), title (req), address (req, string com endereço completo), latitude (req, string), longitude (req, string), messageId (opt), delayMessage (opt).25
+      * Payload: { "phone": "...", "title": "Google Brasil", "address": "Av. Faria Lima,...", "latitude": "-23.069...", "longitude": "-50.435..." }.
+      * Link com Pré-visualização (POST /send-link): Envia uma mensagem contendo um link com uma pré-visualização (imagem, título, descrição).
+      * Params: phone (req), message (req, deve conter a linkUrl no final), image (req, URL da imagem da prévia), linkUrl (req, URL do link), title (req), linkDescription (req), messageId (opt), delayMessage (opt).26
+      * Condição para Prévia: O link só gera pré-visualização se o destinatário tiver o número remetente salvo nos contatos ou se ele tiver iniciado a conversa.26
+      * Payload: { "phone": "...", "message": "Confira nosso site: https://z-api.io", "image": "https://.../logo.png", "linkUrl": "https://z-api.io", "title": "Z-API", "linkDescription": "Integração WhatsApp" }.
+      * Catálogo (POST /send-message-catalog): Envia um link para o catálogo de produtos do WhatsApp Business.
+      * Params: phone (req), catalogPhone (req, número da conta Business dona do catálogo).32
+      * Requer conta WhatsApp Business com catálogo configurado.32
+      * Produto (POST /send-message-product): Envia um item específico do catálogo.
+      * Params (Inferido 2):
+phone (req), productId (req), businessPhone (req). (Detalhes exatos na seção Business da documentação).
+         * Enquete (POST /send-poll): Cria e envia uma enquete.
+         * Params (Inferido 3):
+phone (req), pollName (req), options (req, array de strings).
+            * Voto em Enquete (POST /send-poll-vote): Envia um voto para uma enquete existente.
+            * Params (Inferido 3):
+phone (req), messageId (req, ID da mensagem da enquete), selectedOptionHash (req, hash da opção votada - obtido via webhook).
+               * Evento (POST /send-event): Envia uma mensagem de evento (disponível apenas para grupos).
+               * Params: phone (req, ID do grupo), event (req, objeto: name (req), description (opt), dateTime (req, ISO string), location (opt, objeto: name), callLinkType (opt, 'voice'/'video'), canceled (req, boolean)).33
+               * Payload: { "phone": "120...-group", "event": { "name": "Reunião", "dateTime": "2024-04-29T09:30:53.309Z" } }.33
+
+
+4.1.5. Ações sobre Mensagens
+
+
+               * Responder Mensagem: Utilizar o parâmetro opcional messageId nos endpoints de envio (/send-text, /send-image, etc.) para indicar a mensagem que está sendo respondida. O parâmetro privateAnswer (boolean, opcional) pode ser usado em respostas dentro de grupos para direcionar a resposta ao privado do remetente original (não funciona se o remetente for a própria instância).15
+               * Reagir a Mensagem (POST /send-message-reaction):
+               * Params: phone (req), reaction (req, string do emoji), messageId (req, ID da mensagem a reagir).35
+               * Remover Reação (POST /send-remove-reaction): Remove uma reação previamente enviada.
+               * Params (Inferido 3):
+phone (req), messageId (req, ID da mensagem original).
+                  * Editar Mensagem (POST /send-text com editMessageId): Enviar uma requisição para /send-text com o messageId da mensagem original no parâmetro editMessageId e o novo conteúdo no parâmetro message. Requer configuração de webhook.18
+                  * Deletar Mensagem (POST /delete-message): Remove uma mensagem enviada.
+                  * Params (Inferido 3):
+phone (req), messageId (req), owner (req, boolean: true para deletar apenas para si, false para deletar para todos).
+                     * Encaminhar Mensagem (POST /forward-message): Reenvia uma mensagem existente para outro chat.
+                     * Params (Inferido 3):
+phone (req, novo destinatário), messageId (req, ID da mensagem a encaminhar).
+                        * Fixar/Desafixar Mensagem (POST /send-pin-message): Fixa ou desafixa uma mensagem no topo do chat.
+                        * Params (Inferido 3):
+phone (req), messageId (req), pin (req, boolean: true para fixar, false para desafixar).
+                           * Ler Mensagem (POST /read-message): Marca mensagens específicas como lidas.
+                           * Params (Inferido 3):
+phone (req), messageId (req). (Alternativamente, /read-chat marca todas como lidas).
+A tabela abaixo resume os principais endpoints de mensagens:
+
+
+Funcionalidade
+	Caminho do Endpoint
+	Método HTTP
+	Parâmetros Chave Obrigatórios (Corpo)
+	Descrição Breve
+	Enviar Texto
+	/send-text
+	POST
+	phone, message
+	Envia mensagem de texto simples ou formatada.
+	Enviar Imagem
+	/send-image
+	POST
+	phone, image (URL/Base64)
+	Envia arquivo de imagem.
+	Enviar Áudio
+	/send-audio
+	POST
+	phone, audio (URL/Base64)
+	Envia arquivo de áudio.
+	Enviar Vídeo
+	/send-video
+	POST
+	phone, video (URL/Base64)
+	Envia arquivo de vídeo.
+	Enviar Documento
+	/send-document/{extension}
+	POST
+	phone, document (URL/Base64)
+	Envia arquivo de documento (extensão na URL).
+	Enviar Sticker
+	/send-sticker
+	POST
+	phone, sticker (URL/Base64)
+	Envia sticker (imagem convertida).
+	Enviar GIF
+	/send-gif
+	POST
+	phone, gif (URL de MP4)
+	Envia GIF animado (requer formato MP4).
+	Enviar PTV
+	/send-ptv
+	POST
+	phone, video (URL/Base64)
+	Envia vídeo curto pré-gravado.
+	Enviar Botões de Ação
+	/send-button-actions
+	POST
+	phone, message, buttonActions (array)
+	Envia texto com botões CALL, URL, REPLY.
+	Enviar Botões Simples/Imagem
+	/send-button-list
+	POST
+	phone, message, buttonList (obj: buttons, opt: image)
+	Envia texto com botões de resposta (opcionalmente com imagem).
+	Enviar Lista de Opções
+	/send-option-list
+	POST
+	phone, message, optionList (obj: title, btnLabel, opts)
+	Envia mensagem com lista de opções selecionáveis.
+	Enviar Contato(s)
+	/send-contact, /send-contacts
+	POST
+	phone, contactName/contacts (array), contactPhone/phones
+	Envia um ou múltiplos contatos.
+	Enviar Localização
+	/send-location
+	POST
+	phone, title, address, latitude, longitude
+	Envia um mapa com localização fixa.
+	Enviar Link com Prévia
+	/send-link
+	POST
+	phone, message (com URL), image (URL), linkUrl, title, desc
+	Envia link com pré-visualização.
+	Responder Mensagem
+	(Vários endpoints de envio)
+	POST
+	messageId (adicionado aos params normais)
+	Responde a uma mensagem específica no chat.
+	Reagir a Mensagem
+	/send-message-reaction
+	POST
+	phone, reaction (emoji), messageId
+	Adiciona uma reação a uma mensagem.
+	Editar Mensagem
+	/send-text
+	POST
+	phone, message (novo), editMessageId (original)
+	Edita o conteúdo de uma mensagem enviada.
+	Deletar Mensagem
+	/delete-message
+	POST
+	phone, messageId, owner
+	Deleta uma mensagem enviada.
+	
+
+4.2. Gerenciamento de Contatos
+
+
+A API permite interagir com a lista de contatos associada ao número conectado:
+                              * Listar Todos os Contatos (GET /contacts): Retorna a lista de contatos salvos no WhatsApp da instância.3
+                              * Obter Metadados do Contato (GET /contact-metadata): Recupera informações detalhadas sobre um contato específico, provavelmente usando o phone como parâmetro.3
+                              * Obter Foto do Perfil (GET /profile-pic): Retorna a URL da foto de perfil de um contato específico.3
+                              * Verificar Existência do Número (GET /check-number-status/{phone}): Verifica se um determinado número de telefone possui uma conta WhatsApp ativa.3
+                              * Validar Números em Massa (POST /validate-numbers-in-bulk): Permite verificar o status de múltiplos números de telefone em uma única chamada.3
+                              * Bloquear/Desbloquear Contato (POST /block-contact, POST /unblock-contact): Adiciona ou remove um contato da lista de bloqueados.3
+                              * Reportar Contato (POST /report-contact): Denuncia um contato ao WhatsApp.3
+                              * Adicionar/Remover Contato (POST /add-contact, POST /remove-contact): Gerencia a lista de contatos do próprio telefone associado à instância (pode ter limitações ou comportamento inesperado dependendo da sincronização do dispositivo).3
+
+
+4.3. Gerenciamento de Chats
+
+
+Endpoints para gerenciar as conversas individuais e em grupo:
+                              * Listar Todos os Chats (GET /chats): Retorna uma lista de todas as conversas ativas.3
+                              * Obter Metadados do Chat (GET /chat-metadata): Recupera informações sobre um chat específico (ex: nome do grupo, participantes) usando o ID do chat (phone).3
+                              * Ler Chat (POST /read-chat): Marca todas as mensagens de um chat específico como lidas.3
+                              * Arquivar/Desarquivar Chat (POST /archive-chat, POST /unarchive-chat): Move um chat para a seção de arquivados ou o retorna para a lista principal.3
+                              * Fixar/Desafixar Chat (POST /pin-chat, POST /unpin-chat): Fixa ou desafixa um chat no topo da lista de conversas.3
+                              * Silenciar/Dessilenciar Chat (POST /mute-chat, POST /unmute-chat): Ativa ou desativa as notificações para um chat específico.3
+                              * Limpar Chat (POST /clear-chat): Remove todas as mensagens de um chat, mas mantém o chat na lista.3
+                              * Deletar Chat (POST /delete-chat): Remove completamente um chat da lista de conversas.3
+                              * Gerenciar Expiração de Chat (POST /update-chat-expiration): Configura o temporizador para mensagens temporárias (que desaparecem após um período) em um chat.3
+
+
+4.4. Gerenciamento de Grupos
+
+
+Funcionalidades específicas para interagir e administrar grupos do WhatsApp:
+                              * Encontrar Grupos (GET /groups): Lista todos os grupos dos quais o número conectado é membro.3
+                              * Criar Grupo (POST /create-group): Cria um novo grupo, especificando nome e participantes iniciais.3
+                              * Atualizar Informações do Grupo:
+                              * Nome (PUT /update-group-name): Altera o nome do grupo.3
+                              * Imagem (PUT /update-group-image): Define ou altera a imagem do grupo.3
+                              * Descrição (PUT /update-group-description): Modifica a descrição do grupo.3
+                              * Gerenciar Participantes:
+                              * Adicionar (POST /add-participant): Inclui novos membros no grupo.3
+                              * Remover (POST /remove-participant): Remove membros do grupo.3
+                              * Promover a Admin (POST /promote-participant): Concede privilégios de administrador a um membro.3
+                              * Demover Admin (POST /demote-participant): Remove privilégios de administrador de um membro.3
+                              * Aprovar/Rejeitar Participantes (POST /approve-participant, POST /reject-participant): Gerencia solicitações de entrada em grupos que exigem aprovação de administrador.3
+                              * Mencionar Participantes (POST /mention): Envia uma mensagem mencionando participantes específicos (@numero) ou todos os membros (@all).3
+                              * Sair do Grupo (POST /leave-group): Remove o número conectado do grupo.3
+                              * Obter Metadados do Grupo (GET /group-metadata): Recupera detalhes completos do grupo, incluindo lista de participantes (com seus IDs e status de admin), link de convite atual, e configurações do grupo.3
+                              * Configurar Permissões do Grupo (PUT /update-group-settings): Ajusta quem pode enviar mensagens no grupo (todos ou apenas admins) e quem pode editar as informações do grupo (todos ou apenas admins).3
+                              * Gerenciar Link de Convite:
+                              * Obter (GET /group-invite-link): Recupera o link de convite atual do grupo.3
+                              * Resetar (GET /group-revoke-link): Invalida o link de convite atual e gera um novo.3
+
+
+4.5. Gerenciamento de Comunidades
+
+
+As Comunidades do WhatsApp permitem agrupar chats relacionados sob um tema comum.9 Cada comunidade criada inclui automaticamente um "Grupo de Avisos" padrão, onde apenas administradores podem enviar mensagens para todos os membros da comunidade.9
+                              * Criar Comunidade (POST /create-community): Cria uma nova comunidade. É importante verificar se o recurso de Comunidades já está habilitado no aplicativo WhatsApp do telefone conectado antes de usar esta API.9 A resposta da criação retorna informações sobre o Grupo de Avisos criado.9
+                              * Listar Comunidades (GET /communities): Retorna a lista de comunidades das quais o usuário faz parte.3
+                              * Vincular/Desvincular Grupos (POST /link-group-community, POST /unlink-group-community): Adiciona ou remove grupos existentes de uma comunidade.3
+                              * Obter Metadados da Comunidade (GET /community-metadata): Recupera detalhes sobre uma comunidade específica, incluindo seu nome e a lista de grupos vinculados.3
+                              * Gerenciar Participantes/Admins da Comunidade: A gestão de membros e administradores da comunidade (adição, remoção, promoção) é realizada através do Grupo de Avisos, utilizando os mesmos endpoints de gerenciamento de grupos padrão (ex: /add-participant, /promote-participant aplicados ao ID do Grupo de Avisos).9 O ID do Grupo de Avisos pode ser obtido:
+                              1. Na resposta da API de criação da comunidade.
+                              2. Através da API de listar chats (/chats), identificando o chat com isGroupAnnouncement como true.
+                              3. Através da API de metadados da comunidade (/community-metadata).9
+                              * Desativar Comunidade (POST /deactivate-community): Desvincula todos os grupos associados à comunidade (os grupos em si não são excluídos).3
+
+
+4.6. Atualizações de Status
+
+
+Permite interagir com o recurso de Status do WhatsApp:
+                              * Enviar Status de Texto (POST /send-text-status): Publica uma atualização de status contendo apenas texto.3
+                              * Enviar Status de Imagem (POST /send-image-status): Publica uma imagem como atualização de status.3
+                              * Enviar Status de Vídeo (POST /send-video-status): Publica um vídeo como atualização de status.3
+                              * Responder a Status (POST /reply-status-text, POST /reply-status-gif, POST /reply-status-sticker): Envia uma resposta (texto, GIF ou sticker) diretamente a uma atualização de status de um contato. Requer o statusMessageId da atualização de status original, que pode ser obtido através do webhook de mensagem recebida.3
+
+
+4.7. Funcionalidades do WhatsApp Business (Opcional)
+
+
+Para replicar completamente as funcionalidades, especialmente em um contexto comercial, a integração com os recursos do WhatsApp Business pode ser necessária. A Z-API oferece suporte a várias dessas funcionalidades:
+                              * Gerenciamento de Produtos:
+                              * Criar/Editar (POST /create-product): Adiciona ou modifica produtos no catálogo.3
+                              * Obter Informações (GET /products, GET /product/{phone}, GET /product/{id}): Lista todos os produtos ou obtém detalhes de um produto específico.3
+                              * Deletar (DELETE /delete-product): Remove um produto do catálogo.3
+                              * Gerenciamento de Catálogo:
+                              * Configurar (PUT /update-catalog-config): Ajusta configurações gerais do catálogo.3
+                              * Gerenciamento de Coleções (Conjuntos de Produtos):
+                              * Criar (POST /create-collection), Listar (GET /collections), Deletar (DELETE /delete-collection), Editar (PUT /edit-collection).3
+                              * Listar Produtos da Coleção (GET /collection-products), Adicionar/Remover Produtos (POST /add-collection-products, POST /remove-collection-products).3
+                              * Perfil Comercial:
+                              * Atualizar (PUT /update-business-profile): Modifica descrição, email, endereço, websites, horário de funcionamento e categorias do perfil comercial.3
+                              * Etiquetas (Labels):
+                              * Gerenciar (Criar, Editar, Deletar, Atribuir a Chats, Remover de Chats) usando endpoints como /create-label, /edit-label, /delete-label, /assign-label, /remove-label.3
+
+
+5. Tratamento de Eventos em Tempo Real com Webhooks
+
+
+
+
+5.1. Fundamentos dos Webhooks
+
+
+Webhooks são essenciais para uma integração dinâmica e responsiva, permitindo que o sistema receba informações da Z-API em tempo real sobre eventos que ocorrem na conta WhatsApp conectada.8 Em vez de o sistema precisar consultar (poll) a Z-API repetidamente para verificar novas mensagens ou status, a Z-API envia ativamente uma notificação (uma requisição HTTP POST) para um endpoint pré-definido no sistema do cliente sempre que um evento ocorre.8
+
+
+5.2. Configuração das URLs de Webhook
+
+
+As URLs para onde a Z-API enviará as notificações de webhook podem ser configuradas de duas maneiras:
+                              1. Painel Administrativo Z-API: A interface web da Z-API permite configurar manualmente as URLs para cada tipo de evento suportado.8
+                              2. Via API: A Z-API fornece endpoints específicos (utilizando o método HTTP PUT) para configurar programaticamente as URLs de webhook. Isso permite maior flexibilidade e automação na configuração. Os endpoints incluem 3:
+                              * /update-webhook-received: Para mensagens recebidas.
+                              * /update-webhook-delivery: Para confirmação de entrega da mensagem pela Z-API.
+                              * /update-webhook-disconnected: Para evento de desconexão da instância.
+                              * /update-webhook-connected: Para evento de conexão da instância.
+                              * /update-webhook-message-status: Para atualizações de status de mensagens enviadas (entregue, lida, etc.).
+                              * /update-webhook-presence-chat: Para atualizações de presença no chat (digitando, gravando).
+                              * /update-webhooks: Permite atualizar todas as URLs de webhook de uma vez para o mesmo valor.3
+É um requisito fundamental que os endpoints configurados para receber webhooks sejam HTTPS; a Z-API não envia webhooks para URLs HTTP.27
+
+
+5.3. Eventos Essenciais de Webhook e Payloads
+
+
+Compreender os diferentes eventos de webhook e a estrutura de seus payloads (corpo da requisição JSON) é crucial para processar as informações corretamente. Os eventos mais importantes incluem:
+                              * Mensagem Recebida (receivedCallbackUrl):
+                              * Propósito: Notifica o sistema sempre que a instância recebe uma mensagem (texto, mídia, localização, contato, resposta a status, etc.).8
+                              * Payload Chave: Contém informações detalhadas sobre a mensagem recebida, como phone (remetente ou ID do grupo), text.message (conteúdo do texto), image.imageUrl (URL da imagem), document.documentUrl (URL do documento), location.latitude, location.longitude, contact.vCard, messageId (ID único da mensagem), timestamp (quando foi recebida), fromMe (geralmente false para recebidas), isGroup (boolean), participantPhone (quem enviou no grupo), type ("ReceivedCallback"), isStatusReply (boolean), referenceMessageId (se for uma resposta).27 Ver exemplos de payload em.27
+                              * Atualização de Status da Mensagem (messageStatusCallbackUrl):
+                              * Propósito: Informa sobre mudanças no status de uma mensagem enviada pela instância (ex: de SENT para RECEIVED, de RECEIVED para READ ou PLAYED).8 Também pode notificar sobre respostas ou deleções.
+                              * Payload Chave (Inferido): Provavelmente inclui messageId (da mensagem enviada), status (novo status: 'SENT', 'RECEIVED', 'READ', 'PLAYED', 'REPLIED', 'DELETED'), phone (destinatário), timestamp.
+                              * Confirmação de Entrega Z-API (deliveryCallbackUrl):
+                              * Propósito: Confirma que a Z-API processou com sucesso a requisição de envio e entregou a mensagem à fila do WhatsApp para envio. Não garante que o destinatário final recebeu a mensagem.8
+                              * Payload Chave: Inclui zaapId (ID interno da Z-API), messageId (ID da mensagem no WhatsApp), phone (destinatário), type ("DeliveryCallback"), instanceId.39
+                              * Status da Conexão (connectedCallbackUrl, disconnectedCallbackUrl):
+                              * Propósito: Notifica quando a instância estabelece ou perde a conexão com os servidores do WhatsApp.8
+                              * Payload Chave: Inclui connected (boolean), phone (número conectado), momment (timestamp do evento), type ("ConnectedCallback" ou "DisconnectedCallback").67
+                              * Status do Chat (presenceChatCallbackUrl):
+                              * Propósito: Informa sobre atualizações de presença em um chat, como quando o contato está "digitando..." ou "gravando áudio...".3
+                              * Payload Chave (Inferido): Provavelmente inclui phone (ID do chat), presence (status: 'typing', 'recording', 'paused'), participantPhone (se for grupo).
+O tratamento confiável e eficiente dos webhooks é um pilar para qualquer integração bem-sucedida com a Z-API. O sistema receptor deve ser capaz de receber as requisições POST HTTPS, validar a origem (se necessário), analisar (parse) o corpo JSON e executar a lógica de negócios apropriada para cada tipo de evento. Falhas no processamento de webhooks podem levar à perda de mensagens recebidas, status de mensagens desatualizados na interface do usuário ou falha em detectar desconexões da instância, comprometendo a funcionalidade e a confiabilidade da integração. A implementação de filas e mecanismos de retentativa no lado do receptor do webhook é uma boa prática para lidar com picos de eventos ou falhas temporárias.
+
+
+5.4. Análise (Parsing) dos Payloads de Webhook
+
+
+Ao receber um webhook, o primeiro passo é analisar o corpo da requisição JSON para extrair as informações relevantes.
+                              * Identificação do Evento: A chave type no payload JSON geralmente indica o tipo de evento que disparou o webhook (ex: "ReceivedCallback", "MessageStatusCallback", "ConnectedCallback"). Isso permite direcionar o processamento para a lógica correta.
+                              * Identificadores Chave: Identificadores como messageId, phone (remetente/destinatário/chat ID), participantPhone (em grupos) são cruciais para associar o evento ao contexto correto dentro do sistema integrado.
+                              * Extração de Conteúdo: Para webhooks de ReceivedCallback, é necessário verificar qual tipo de conteúdo foi recebido (texto, imagem, áudio, etc.) e extrair os dados relevantes (ex: text.message, image.imageUrl, location.latitude).
+                              * Exemplo Conceitual de Processamento:
+
+
+Snippet de código
+
+
+
+
+função handleWebhook(request):
+ payload = parseJson(request.body)
+ eventType = payload.type
+
+ se eventType == "ReceivedCallback":
+   processarMensagemRecebida(payload)
+ senão se eventType == "MessageStatusCallback":
+   atualizarStatusMensagem(payload)
+ senão se eventType == "DisconnectedCallback":
+   tratarDesconexao(payload)
+ senão se eventType == "ConnectedCallback":
+   tratarConexao(payload)
+ fim se
+
+ retornar httpStatus(200) // Acusa recebimento para Z-API
+
+função processarMensagemRecebida(payload):
+ messageId = payload.messageId
+ remetente = payload.phone
+ timestamp = payload.momment
+ // Verifica o tipo de conteúdo (texto, imagem, etc.) e extrai
+ se payload.text:
+   conteudo = payload.text.message
+ senão se payload.image:
+   conteudoUrl = payload.image.imageUrl
+ //... outros tipos de mídia...
+ fim se
+ // Lógica para armazenar a mensagem, notificar usuário, etc.
+
+função atualizarStatusMensagem(payload):
+ messageId = payload.messageId
+ novoStatus = payload.status
+ // Lógica para atualizar o status da mensagem enviada no banco de dados/UI
+
+função tratarDesconexao(payload):
+ instanceId = payload.instanceId
+ // Lógica para notificar administrador, tentar reconectar, etc.
+
+função tratarConexao(payload):
+ instanceId = payload.instanceId
+ // Lógica para registrar conexão bem-sucedida
+
+A tabela a seguir resume os eventos de webhook mais importantes e seus atributos chave:
+
+
+Tipo de Evento (Valor do Campo type)
+	Atributos Chave do Payload
+	Descrição/Propósito
+	ReceivedCallback
+	messageId, phone, timestamp, text, image, audio, video, document, location, contact, isGroup, participantPhone, isStatusReply, referenceMessageId
+	Notifica o recebimento de uma nova mensagem (qualquer tipo) ou resposta a status. Contém os dados da mensagem.
+	MessageStatusCallback
+	messageId, status ('SENT', 'RECEIVED', 'READ', 'PLAYED', 'REPLIED', 'DELETED'), phone, timestamp
+	Informa sobre a mudança de status de uma mensagem enviada pela instância.
+	DeliveryCallback
+	zaapId, messageId, phone, instanceId
+	Confirma que a Z-API processou e enviou a mensagem para a fila do WhatsApp (não garante recebimento final).
+	ConnectedCallback
+	connected (true), phone, momment
+	Sinaliza que a instância conectou-se com sucesso ao WhatsApp.
+	DisconnectedCallback
+	connected (false), phone, momment
+	Sinaliza que a instância perdeu a conexão com o WhatsApp.
+	(Presença no Chat)
+	phone, presence ('typing', 'recording', 'paused'), participantPhone (se grupo)
+	Informa sobre ações de presença (digitando, gravando) em um chat. (Nome exato do type a confirmar).
+	
+
+6. Plano de Execução Detalhado
+
+
+Este plano de execução detalha as fases e ações recomendadas para a integração completa com a Z-API, com estimativas de tempo baseadas na complexidade e dependências.
+                              * Fase 1: Configuração Inicial e Conexão (Estimativa: 1-2 dias)
+                              * Ação 1.1: Criar conta na Z-API e a primeira Instância via Painel Administrativo.
+                              * Ação 1.2: Obter e armazenar de forma segura o ID e Token da Instância inicial.11
+                              * Ação 1.3: Gerar e obter o Token de Segurança da Conta (Client-Token) no painel; armazenar de forma segura, mas não ativar ainda.10
+                              * Ação 1.4: Desenvolver a infraestrutura básica do cliente API no sistema (configuração da URL base, tratamento de cabeçalhos padrão, incluindo Client-Token como configurável, tratamento de requisição/resposta JSON).
+                              * Ação 1.5: Implementar a lógica de recuperação e exibição do QR Code (GET /qr-code/image), incluindo o mecanismo de polling (intervalos de 10-20s) e a interrupção com interação do usuário após 3 tentativas.
+                              * Ação 1.6: Implementar a chamada de verificação de status da instância (GET /status).
+                              * Ação 1.7: Realizar a conexão inicial escaneando o QR Code gerado. Verificar a conexão usando a chamada /status.
+                              * Ação 1.8: Configurar a aplicação para enviar o cabeçalho Client-Token com o valor obtido na Ação 1.3. Ativar o Client-Token no painel da Z-API.10 Testar uma chamada básica (ex:
+/status) para confirmar que a autenticação de duas camadas está funcionando.
+                                 * Fase 2: Implementação do Envio de Mensagens Core (Estimativa: 3-5 dias)
+                                 * Ação 2.1: Integrar o endpoint /send-text. Testar envio de texto simples, texto com formatação (*bold*, etc.), emojis e diferentes tipos de quebra de linha (\n, %0a).
+                                 * Ação 2.2: Implementar o envio dos tipos de mídia mais comuns: Imagens (/send-image), Áudio (/send-audio), Vídeo (/send-video) e Documentos (/send-document/{extension}). Testar envio via URL e via Base64 para cada tipo. Incluir suporte para legendas (caption).
+                                 * Ação 2.3: Implementar a funcionalidade de resposta a mensagens, utilizando o parâmetro messageId nas chamadas de envio de texto e mídia. Testar respostas em chats individuais e em grupos (incluindo privateAnswer).
+                                 * Fase 3: Mensagens Avançadas e Funcionalidades Adicionais (Estimativa: 5-7 dias)
+                                 * Ação 3.1: Implementar envio de Stickers (/send-sticker), GIFs (/send-gif - atenção ao formato MP4) e PTV (/send-ptv).
+                                 * Ação 3.2: Implementar envio de Contatos (Único: /send-contact, Múltiplos: /send-contacts).
+                                 * Ação 3.3: Implementar envio de Localização (/send-location).
+                                 * Ação 3.4: Implementar envio de Links com Pré-visualização (/send-link). Testar as condições que afetam a geração da prévia.26
+                                 * Ação 3.5: Implementar envio de Mensagens Interativas: Botões de Ação (CALL/URL/REPLY), Botões Simples, Botões com Imagem, Lista de Opções, Botão OTP, Botão PIX. (Alocar tempo extra para testes devido à potencial instabilidade reportada).
+                                 * Ação 3.6: Implementar reações a mensagens (/send-message-reaction, /send-remove-reaction).3
+                                 * Ação 3.7: Implementar edição (editMessageId em /send-text) e deleção (/delete-message 3) de mensagens.
+                                 * Fase 4: Gerenciamento de Usuários/Grupos/Comunidades (Estimativa: 4-6 dias)
+                                 * Ação 4.1: Implementar funcionalidades de gerenciamento de contatos: listar, obter metadados, verificar status, bloquear/desbloquear.3
+                                 * Ação 4.2: Implementar funcionalidades de gerenciamento de chats: listar, ler, arquivar, fixar, deletar.3
+                                 * Ação 4.3: Implementar funcionalidades de gerenciamento de grupos: criar, listar, atualizar informações (nome, imagem, descrição), gerenciar participantes (adicionar, remover, promover/demover admin), obter metadados e link de convite.3
+                                 * Ação 4.4: Implementar funcionalidades de gerenciamento de comunidades: criar, listar, vincular/desvincular grupos, gerenciar participantes/admins através do Grupo de Avisos.3
+                                 * Ação 4.5: Implementar funcionalidades de Status: enviar atualizações de texto/mídia e responder a status de contatos.3
+                                 * Fase 5: Integração de Webhooks (Estimativa: 5-7 dias)
+                                 * Ação 5.1: Projetar e implementar endpoints HTTPS seguros no sistema para receber as requisições POST dos webhooks da Z-API.
+                                 * Ação 5.2: Implementar a lógica para configurar as URLs de webhook dinamicamente através dos endpoints da Z-API (ex: /update-webhook-received, /update-webhook-message-status).3
+                                 * Ação 5.3: Implementar a lógica de análise (parsing) dos payloads JSON para os eventos chave: Mensagem Recebida, Atualização de Status de Mensagem, Status da Conexão.8
+                                 * Ação 5.4: Desenvolver a lógica de tratamento para cada evento: armazenar mensagens recebidas no banco de dados, atualizar o status de mensagens enviadas na interface do usuário, tratar desconexões (notificar usuário/admin, agendar tentativa de reconexão).
+                                 * Ação 5.5: Testar exaustivamente a funcionalidade dos webhooks enviando e recebendo diferentes tipos de mensagens, alterando status (marcando como lida), desconectando e reconectando a instância.
+                                 * Fase 6: Implementação de Funcionalidades Business (Opcional, Estimativa: 3-5 dias)
+                                 * Ação 6.1: Se o caso de uso exigir, implementar as funcionalidades do WhatsApp Business: gerenciamento de Produtos, Catálogo e Coleções.3
+                                 * Ação 6.2: Implementar a atualização do Perfil Comercial via API.3
+                                 * Fase 7: Testes Abrangentes (Estimativa: 5-7 dias)
+                                 * Ação 7.1: Realizar testes funcionais de todas as chamadas API implementadas e dos handlers de webhook.
+                                 * Ação 7.2: Testar casos de borda: envio de arquivos grandes (respeitando limites), inputs inválidos, requisições rápidas e concorrentes.
+                                 * Ação 7.3: Testar o tratamento de erros da API (respostas 4xx, 5xx) e falhas no processamento de webhooks.
+                                 * Ação 7.4: Testar cenários relacionados ao Multi-Device (comportamento com telefone online vs. offline).
+                                 * Ação 7.5: Realizar Testes de Aceitação do Usuário (UAT) simulando padrões de uso do mundo real.
+                                 * Fase 8: Implantação e Monitoramento (Contínuo)
+                                 * Ação 8.1: Definir a estratégia de implantação da aplicação integrada (ex: contêineres, configuração de servidor).
+                                 * Ação 8.2: Implementar logging detalhado para chamadas API (requisição/resposta) e eventos de webhook recebidos/processados.
+                                 * Ação 8.3: Configurar monitoramento para a disponibilidade da API Z-API, taxas de erro das chamadas, saúde dos endpoints de webhook e status de conexão da(s) instância(s).
+                                 * Ação 8.4: Desenvolver procedimentos operacionais para lidar com desconexões frequentes de instância e potenciais bloqueios/banimentos de números pelo WhatsApp.
+
+
+7. Melhores Práticas e Considerações
+
+
+Para garantir uma integração eficaz, estável e de longo prazo com a Z-API, é fundamental seguir as melhores práticas e estar ciente de certas considerações.
+
+
+7.1. Aderência às Políticas do WhatsApp
+
+
+Embora a Z-API facilite a automação, ela opera sobre a infraestrutura do WhatsApp e, portanto, está sujeita às políticas de uso da plataforma. A não conformidade pode levar ao bloqueio ou banimento permanente do número de telefone conectado.
+                                 * Leitura Obrigatória: É imperativo ler e compreender os Termos de Serviço e as Políticas Comerciais do WhatsApp, disponíveis em whatsapp.com/legal.1
+                                 * Evitar Spam: Não enviar mensagens em massa não solicitadas. Obter consentimento explícito (opt-in) dos usuários antes de enviar mensagens proativas, especialmente de natureza promocional. Respeitar solicitações de opt-out imediatamente.
+                                 * Padrão de Uso: Como a Z-API simula uma sessão de WhatsApp Web/Multi-Device, o padrão de envio de mensagens deve, idealmente, parecer natural e não excessivamente automatizado ou robótico, especialmente em interações iniciais.1 A fila interna de mensagens da Z-API ajuda a mitigar o risco de envio em massa 16, mas a responsabilidade final recai sobre o padrão de uso implementado. O envio de um grande volume de mensagens idênticas ou muito similares em curto espaço de tempo para muitos usuários desconhecidos é um comportamento de alto risco.
+                                 * Risco de Banimento: Mesmo utilizando a API Oficial do WhatsApp, violações das políticas podem levar ao banimento.16 Com uma API não oficial como a Z-API, o risco é inerentemente maior. Combinar as ferramentas de segurança da Z-API (como a fila e potenciais IPs dedicados) com um uso responsável e alinhado às diretrizes do WhatsApp é a melhor estratégia para minimizar esse risco.16
+
+
+7.2. Tratamento de Erros
+
+
+Uma integração robusta deve antecipar e tratar falhas de forma adequada.
+                                 * Respostas da API: Verificar o código de status HTTP de cada resposta da API. Códigos 4xx indicam erros do cliente (ex: requisição malformada, autenticação inválida, recurso não encontrado), enquanto códigos 5xx indicam erros no servidor da Z-API. Analisar o corpo da resposta JSON para mensagens de erro específicas que podem fornecer mais detalhes.
+                                 * Lógica de Retentativa: Implementar mecanismos de retentativa (com backoff exponencial) para erros transitórios, como falhas de rede ou erros 5xx intermitentes. Evitar retentativas para erros 4xx que indicam um problema fundamental na requisição.
+                                 * Processamento de Webhooks: Os endpoints de webhook devem ser resilientes. Implementar tratamento de exceções para evitar que uma falha no processamento de um webhook impeça o recebimento de eventos subsequentes. Considerar o uso de filas de mensagens (ex: RabbitMQ, SQS) para desacoplar o recebimento do processamento e permitir retentativas em caso de falha no processamento. Registrar erros detalhados durante o processamento de webhooks.
+
+
+7.3. Segurança
+
+
+Proteger as credenciais e a comunicação é vital.
+                                 * Armazenamento de Credenciais: O ID da Instância, o Token da Instância e, especialmente, o Token de Segurança da Conta (Client-Token) devem ser tratados como informações sensíveis e armazenados de forma segura (ex: variáveis de ambiente, cofres de segredos como AWS Secrets Manager, Azure Key Vault, HashiCorp Vault). Nunca devem ser codificados diretamente no código-fonte, especialmente em aplicações client-side.11
+                                 * Execução Server-Side: Todas as chamadas para a API Z-API devem ser originadas do backend (servidor) da aplicação integrada, nunca diretamente do frontend (navegador ou aplicativo móvel). Isso evita a exposição das credenciais da API ao usuário final.12
+                                 * Comunicação Segura: Utilizar sempre HTTPS tanto para as chamadas à API Z-API quanto para os endpoints que recebem webhooks.
+                                 * Restrição de IP: Verificar se a Z-API oferece e utilizar, se aplicável, a funcionalidade de restrição de IP para permitir que apenas IPs conhecidos e autorizados (os servidores da aplicação integrada) possam fazer chamadas à API ou enviar webhooks.10
+
+
+7.4. Considerações sobre Multi-Dispositivos
+
+
+A compatibilidade com Multi-Dispositivos traz benefícios, mas também impõe limitações a serem consideradas no design da solução:
+                                 * Funcionalidades Dependentes do Celular: Estar ciente das funcionalidades que ainda podem exigir o aplicativo WhatsApp no celular principal (conforme listado na Seção 2.1) e instruir os usuários adequadamente ou projetar fluxos de trabalho alternativos.4
+                                 * Status de Conexão do Smartphone: Embora a conexão constante do celular seja menos crítica, o endpoint /status ainda fornece o campo smartphoneConnected. Pode ser útil monitorar isso para diagnóstico ou lógicas de fallback muito específicas, mas a principal dependência foi removida pelo Multi-Device.4
+
+
+7.5. Limites de Taxa e Enfileiramento
+
+
+                                 * Limites Implícitos: Embora a Z-API afirme não ter limites de envio de mensagens 1, o protocolo subjacente do WhatsApp Web/Multi-Device pode impor limites não documentados para evitar abuso. Enviar mensagens muito rapidamente pode aumentar o risco de detecção e bloqueio.
+                                 * Enfileiramento Z-API: A plataforma possui uma fila interna para gerenciar o envio de mensagens, o que ajuda a regular o fluxo.1
+                                 * Enfileiramento/Throttling no Cliente: Para aplicações que precisam enviar grandes volumes de mensagens em rajadas, pode ser prudente implementar um mecanismo adicional de enfileiramento ou throttling no lado do cliente (sistema integrado) para controlar a taxa de envio para a Z-API.
+                                 * Parâmetro delayMessage: Utilizar o parâmetro delayMessage (disponível em muitos endpoints de envio) para introduzir pausas deliberadas entre mensagens consecutivas, ajudando a simular um comportamento de envio mais natural.
+
+
+7.6. Armazenamento de Mensagens
+
+
+É fundamental entender que a Z-API não armazena o histórico de mensagens trocadas. As mensagens enviadas são processadas pela fila e depois descartadas dos sistemas da Z-API.1 Portanto, a responsabilidade de armazenar o histórico de conversas (mensagens enviadas e recebidas) para fins de auditoria, exibição na interface do usuário ou análise recai inteiramente sobre a aplicação integrada. Isso geralmente é feito capturando os dados das mensagens enviadas (na resposta da API ou antes do envio) e das mensagens recebidas (através do payload do webhook
+ReceivedCallback).
+
+
+8. Conclusão
+
+
+
+
+8.1. Sumário da Abordagem de Integração
+
+
+A integração completa com o WhatsApp utilizando a Z-API envolve a interação com seus endpoints RESTful e o tratamento de eventos assíncronos via webhooks. A arquitetura da Z-API, baseada na simulação do protocolo WhatsApp Web/Multi-Device, oferece uma ampla gama de funcionalidades que permitem replicar muitas das características do aplicativo WhatsApp. A autenticação de duas camadas (ID/Token da Instância na URL e Client-Token no cabeçalho) garante a segurança das operações. A implementação requer um entendimento detalhado de cada endpoint para envio de mensagens (texto, mídia, interativas), gerenciamento de contatos, chats, grupos e comunidades, além de uma infraestrutura robusta para receber e processar webhooks em tempo real.
+
+
+8.2. Recapitulação dos Passos Chave
+
+
+O plano de execução proposto delineia um caminho estruturado para a integração, começando pela configuração inicial e conexão da instância, passando pela implementação progressiva das funcionalidades de mensagens (desde as básicas até as mais avançadas e interativas), gerenciamento de entidades (contatos, chats, grupos, comunidades), integração crucial dos webhooks para comunicação bidirecional, implementação opcional de recursos do WhatsApp Business, e culminando em testes abrangentes e planejamento de implantação/monitoramento.
+
+
+8.3. Considerações Finais
+
+
+A integração com a Z-API apresenta uma alternativa flexível e potencialmente de menor custo em comparação com a API Oficial do WhatsApp Business, especialmente para desenvolvedores e empresas que buscam replicar uma vasta gama de funcionalidades do WhatsApp. No entanto, essa flexibilidade vem acompanhada de riscos inerentes à utilização de um protocolo não oficial. O sucesso e a sustentabilidade da integração dependem criticamente de:
+                                 1. Conformidade Rigorosa: Aderir estritamente às políticas de uso do WhatsApp para minimizar o risco de bloqueios ou banimentos.
+                                 2. Implementação Técnica Sólida: Construir um tratamento de erros robusto, garantir a segurança das credenciais e da comunicação, e implementar um processamento de webhooks confiável.
+                                 3. Monitoramento Contínuo: Acompanhar de perto o status da conexão da instância, as taxas de erro da API e a saúde dos endpoints de webhook.
+                                 4. Consciência dos Riscos: Entender que a dependência do protocolo Web/Multi-Device significa que mudanças futuras no WhatsApp podem impactar a funcionalidade da Z-API.
+Ao seguir as diretrizes e o plano de execução detalhados neste relatório, e mantendo as melhores práticas em mente, as equipes técnicas estarão bem equipadas para realizar uma integração abrangente e funcional com a Z-API, explorando ao máximo suas capacidades para replicar a experiência do WhatsApp dentro de seus próprios sistemas.
+Referências citadas
+                                 1. Introduction - Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/
+                                 2. Whatsapp API: Integre sua empresa | Z-API, acessado em maio 6, 2025, https://www.z-api.io/
+                                 3. Z-API Docs: Introdução, acessado em maio 6, 2025, https://developer.z-api.io/
+                                 4. Introduction | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/multidevices/introduction
+                                 5. Introduction | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/partner/introduction
+                                 6. Introduction | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/instance/introduction
+                                 7. Introduction | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/calls/introduction
+                                 8. Introduction - Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/webhooks/introduction
+                                 9. Introduction - Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/communities/introduction
+                                 10. Account security token - Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/security/client-token
+                                 11. Authentication and security | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/quickstart/authentication
+                                 12. ID and Token - Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/security/introduction
+                                 13. Instance data | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/instance/me
+                                 14. Creating an instance | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/partner/create-instance
+                                 15. Answer Messages | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/message/reply-message
+                                 16. Z-API vs API Oficial, acessado em maio 6, 2025, https://developer.z-api.io/en/tips/Z-APIvsAPI-OFICIAL
+                                 17. Search Newsletters | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/newsletter/search-newsletter
+                                 18. Sending plain text - Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/message/send-message-text
+                                 19. Send documents - Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/message/send-message-document
+                                 20. Send video | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/message/send-message-video
+                                 21. Send audio | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/message/send-message-audio
+                                 22. Sending Image | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/message/send-message-image
+                                 23. Send contact | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/message/send-message-contact
+                                 24. Send multiple contacts | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/message/send-message-multiple-contacts
+                                 25. Send location | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/message/send-message-location
+                                 26. Send link | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/message/send-message-link
+                                 27. Upon receiving - Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/webhooks/on-message-received
+                                 28. Send OTP Button | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/message/send-button-otp
+                                 29. Send PIX Button | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/message/send-button-pix
+                                 30. Send text with action buttons | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/message/send-button-actions
+                                 31. Send buttons with images | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/message/send-button-list-image
+                                 32. Send catalog - Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/message/send-message-catalog
+                                 33. Send Event - Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/message/send-event
+                                 34. Send stickers | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/message/send-message-sticker
+                                 35. Send reaction - Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/message/send-message-reaction
+                                 36. Send Event Response - Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/message/send-event-response
+                                 37. Respond to Status with Text - Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/status/reply-status-text
+                                 38. Send texts with buttons - Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/message/send-button-list
+                                 39. When sending - Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/webhooks/on-message-send
+                                 40. Template Messages - Cloud API - Meta for Developers, acessado em maio 6, 2025, https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-message-templates/
+                                 41. Messages - Cloud API - Meta for Developers, acessado em maio 6, 2025, https://developers.facebook.com/docs/whatsapp/cloud-api/reference/messages/
+                                 42. Webhook Notification Payload Examples - Meta for Developers, acessado em maio 6, 2025, https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/payload-examples/
+                                 43. WhatsApp Business API - MessageBird, acessado em maio 6, 2025, https://developers.messagebird.com/api/whatsapp
+                                 44. Message Templates - On-Premises API - Meta for Developers, acessado em maio 6, 2025, https://developers.facebook.com/docs/whatsapp/api/messages/message-templates/
+                                 45. Everything you ever wanted to know about WhatsApp Business templates - Sinch, acessado em maio 6, 2025, https://sinch.com/blog/everything-you-ever-wanted-know-about-whatsapp-business-templates/
+                                 46. Docs Conversations Whatsapp Message Templates Curl - MessageBird, acessado em maio 6, 2025, https://developers.messagebird.com/docs/conversations/whatsapp/message-templates-curl
+                                 47. WhatsApp Templates - Sinch Developer Documentation, acessado em maio 6, 2025, https://developers.sinch.com/docs/provisioning-api/api-reference/provisioning-api/tag/WhatsApp-Templates/
+                                 48. WhatsApp - Sunshine Conversations Docs, acessado em maio 6, 2025, https://docs.smooch.io/guide/whatsapp/
+                                 49. Get Message Templates - WATI API Reference, acessado em maio 6, 2025, https://docs.wati.io/reference/get_api-v1-getmessagetemplates
+                                 50. WhatsApp Message Templates User Guide - Zoho Cares, acessado em maio 6, 2025, https://help.zoho.com/portal/en/kb/desk/support-channels/instant-messaging/whatsapp/articles/whatsapp-message-templates-user-guide
+                                 51. Message Template Guidelines - WhatsApp Business Platform - Meta for Developers, acessado em maio 6, 2025, https://developers.facebook.com/docs/whatsapp/message-templates/guidelines/
+                                 52. Gupshup - Template Messaging - Message does not match WhatsApp HSM template, acessado em maio 6, 2025, https://stackoverflow.com/questions/68594111/gupshup-template-messaging-message-does-not-match-whatsapp-hsm-template
+                                 53. WhatsApp - Sunshine Conversations Docs, acessado em maio 6, 2025, https://docs.smooch.io/guide/v1/whatsapp/
+                                 54. Message Template Management with WhatsApp Business API - Enablex, acessado em maio 6, 2025, https://developer.enablex.io/docs/references/apis/whatsapp-business-api/content/api-routes/templates-api/index/
+                                 55. Send template message - WATI API Reference, acessado em maio 6, 2025, https://docs.wati.io/reference/post_api-v1-sendtemplatemessage
+                                 56. Creating & Sending WhatsApp Media Message Template - Overview - Messangi, acessado em maio 6, 2025, https://docs.messangi.com/docs/creating-sending-whatsapp-media-message-template
+                                 57. Whatsapp API send document with message template - Stack Overflow, acessado em maio 6, 2025, https://stackoverflow.com/questions/79319045/whatsapp-api-send-document-with-message-template
+                                 58. Creating WhatsApp Message templates | Bird API Docs, acessado em maio 6, 2025, https://docs.bird.com/api/touchpoints-api/supported-projects/whatsapp-approved-message-templates/creating-whatsapp-message-templates
+                                 59. WhatsApp Template Messages: Rules, Best Practices and Examples - Userlike, acessado em maio 6, 2025, https://www.userlike.com/en/blog/whatsapp-template
+                                 60. API Reference | Tellephant, acessado em maio 6, 2025, https://app.tellephant.com/api-documentation
+                                 61. Seja um Parceiro - Integre 0 seu aplicativo e a sua empresa ... - Z-Api, acessado em maio 6, 2025, https://materiais.z-api.io/lp-z-api-empresas
+                                 62. API de WhatsApp e Integración Omnicanal - Sinch, acessado em maio 6, 2025, https://sinch.com/es/blog/api-de-whatsapp-e-integracion-omnicanal/
+                                 63. Z-API API Integrations - Pipedream, acessado em maio 6, 2025, https://pipedream.com/apps/z-api
+                                 64. How run post api json request using function - Zoho Cares, acessado em maio 6, 2025, https://help.zoho.com/portal/en/community/topic/how-run-post-api-json-request-using-function
+                                 65. What are API Headers? - Budibase, acessado em maio 6, 2025, https://budibase.com/blog/inside-it/api-headers/
+                                 66. Request components - eBay Developers Program, acessado em maio 6, 2025, https://developer.ebay.com/api-docs/static/rest-request-components.html
+                                 67. When connecting - Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/en/webhooks/on-webhook-connected
+                                 68. Introdução | Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/message/introduction
+                                 69. ZAPI - Whatsapp API Plugin | Bubble, acessado em maio 6, 2025, https://meta.bubbleapps.io/plugin/%F0%9F%93%9E-zapi---whatsapp-api-1664332272598x995797300239663100
+                                 70. leandcesar/n8n-nodes-zapi: Custom n8n node for Z-API - GitHub, acessado em maio 6, 2025, https://github.com/leandcesar/n8n-nodes-zapi
+                                 71. Authenticating with a JSON Web Token (JWT) - Zowe Docs, acessado em maio 6, 2025, https://docs.zowe.org/stable/user-guide/authenticating-with-jwt-token/
+                                 72. Z-API – Automate WhatsApp Messaging - Integrations - Boost.space, acessado em maio 6, 2025, https://boost.space/integrations/z-api/
+                                 73. Criar comunidade - Z-API Docs, acessado em maio 6, 2025, https://developer.z-api.io/communities/create-community

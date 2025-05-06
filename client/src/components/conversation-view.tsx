@@ -464,20 +464,20 @@ function ConversationView() {
     
     try {
       // Enviar a mensagem para o servidor
-      const response = await apiRequest("POST", `/api/conversations/${activeConversation.id}/messages`, {
+      // apiRequest já faz o .json() e retorna os dados diretamente
+      const newMessage = await apiRequest("POST", `/api/conversations/${activeConversation.id}/messages`, {
         content: currentMessage,
         isFromAgent: true,
         agentId: user?.id
       });
       
-      // Processar a resposta bem-sucedida
-      const newMessage = await response.json();
-      
       // Atualizar as mensagens - remover a temporária e adicionar a real
       setMessages(prev => {
         // Filtrar a mensagem temporária e verificar duplicação
         const filteredMessages = prev.filter(m => m.id !== tempId);
-        const messageExists = filteredMessages.some(m => m.id === newMessage.id);
+        // Verifica se a mensagem já existe usando o ID como número
+        const messageExists = typeof newMessage.id === 'number' && 
+                             filteredMessages.some(m => m.id === newMessage.id);
         
         if (messageExists) {
           return filteredMessages;
@@ -539,13 +539,11 @@ function ConversationView() {
       
       if (!description || !amount) return;
       
-      const response = await apiRequest("POST", `/api/payments/request`, {
+      const data = await apiRequest("POST", `/api/payments/request`, {
         conversationId: activeConversation.id,
         amount: parseFloat(amount),
         description
       });
-      
-      const data = await response.json();
       
       // Invalidate the conversations query to update the UI
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });

@@ -1,0 +1,110 @@
+Esse erro, onde você espera um JSON do seu backend mas recebe um HTML (provavelmente o index.html do Vite), é um problema comum em desenvolvimento e geralmente indica que sua requisição à API não foi corretamente finalizada pelo handler da API no backend, e "caiu" no handler genérico do Vite que serve o frontend.
+
+Vamos analisar o log e as possíveis causas:
+
+Log:
+
+Requisição: PUT para /api/channels/21
+
+Payload enviado: {"name":"WhatsApp via Z-API","type":"whatsapp","isActive":true,"config":{"provider":"zapi"},"id":21}. Isso parece ser uma tentativa de atualizar o canal de ID 21, ativando-o e configurando-o para usar o provedor "zapi".
+
+Problema: O frontend (queryClient.ts) recebe um Content-Type inesperado (provavelmente text/html) e o corpo da resposta é um documento HTML.
+
+Status da Resposta HTTP: Apesar do conteúdo ser HTML, o queryClient.ts interpreta a resposta como um sucesso HTTP (statusCode: 200), o que é curioso e indica que o servidor Vite finalizou a requisição com sucesso, mas não o seu handler da API.
+
+Causas Prováveis e Como Resolver:
+
+Handler da API Não Está Enviando uma Resposta JSON (Mais Provável):
+
+Onde verificar: server/handlers/channels.ts, especificamente a função que lida com app.patch(${apiPrefix}/channels/:id, ...) ou app.put(...) se você estiver usando PUT.
+
+Problema: Pode haver um caminho no seu código dentro desse handler onde uma resposta JSON não é enviada. Por exemplo:
+
+Um erro não tratado (uma exceção, uma promise rejeitada sem .catch() que envie uma resposta).
+
+Uma operação assíncrona (como salvar no banco ou chamar um serviço externo) que não está sendo awaited corretamente, e a função do handler termina antes dessa operação completar e enviar a resposta.
+
+Alguma lógica condicional que, em certos casos (talvez ao ativar um canal "zapi"), não chega a um res.json(...) ou res.status(...).json(...).
+
+Solução:
+
+Adicione Logs: Coloque console.log no início e no fim do seu handler PATCH /api/channels/:id. Coloque logs antes de cada res.json() ou res.status().json() para ver se eles estão sendo alcançados.
+
+Garanta await: Verifique se todas as operações assíncronas (ex: db.update(...), chamadas para setupChannel ou setupZAPIService) estão usando await e estão dentro de blocos try...catch que enviam uma resposta JSON em caso de erro (ex: res.status(500).json({ error: 'mensagem de erro' })).
+
+Verifique o Bloco de Ativação: Seu código em server/handlers/channels.ts tem um bloco:
+
+TypeScript
+
+if (req.body.isActive === true && !channel.isActive) {
+  // ... chama setupChannel, etc.
+  // SE HOUVER ERRO AQUI E NÃO FOR TRATADO COM res.json(), PODE CAUSAR O PROBLEMA
+}
+// ...
+return res.json(updatedChannel); // Este return pode não ser alcançado se o bloco acima falhar sem enviar resposta
+Se setupChannel (ou uma função chamada por ele, como uma hipotética setupZAPIChannel) tiver um erro não tratado ou não retornar uma promessa que é resolvida, a execução pode não chegar ao return res.json(updatedChannel) final, ou pode tentar enviar uma resposta depois que o Vite já assumiu.
+
+Erro Dentro da Lógica de setupChannel (se aplicável ao Z-API):
+
+Onde verificar: server/services/channels/whatsapp.ts (se você adaptou para Z-API lá) ou no seu novo server/services/channels/zapi.ts.
+
+Problema: Se a atualização do canal para isActive: true e provider: "zapi" dispara uma lógica de setup (como configurar webhooks automaticamente na Z-API), um erro não tratado dentro dessa lógica pode impedir que o handler principal envie a resposta JSON.
+
+Solução: Certifique-se de que qualquer função de setup chamada retorne promessas e que essas promessas sejam corretamente tratadas (com await e try/catch) no handler principal.
+
+Middleware do Vite Interceptando a Requisição (Menos Provável se o Status é 200):
+
+Onde verificar: server/index.ts e server/vite.ts.
+
+Problema: Se a ordem dos middlewares estiver incorreta e o middleware do Vite que serve o index.html for registrado antes das suas rotas de API, ele pode interceptar a requisição. No seu server/index.ts, parece que registerRoutes(app) é chamado antes de setupVite(app, server), o que é a ordem correta para desenvolvimento.
+
+Solução: Confirmar a ordem. Se você tiver um app.use('*', ...) global antes das rotas da API, ele pode ser o culpado.
+
+Como Depurar Imediatamente:
+
+Simplifique o Handler:
+No seu handler PATCH /api/channels/:id em server/handlers/channels.ts, comente temporariamente qualquer lógica mais complexa (como as chamadas para setupChannel ou qualquer interação com a Z-API). Apenas faça a atualização no banco de dados e retorne o updatedChannel em JSON.
+
+TypeScript
+
+// server/handlers/channels.ts
+app.patch(`${apiPrefix}/channels/:id`, isAuthenticated, isAdmin, async (req, res) => {
+  try {
+    const channelId = parseInt(req.params.id);
+    console.log(`[CHANNELS_HANDLER] Recebido PATCH para canal ID: ${channelId} com body:`, req.body);
+
+    const channel = await db.query.channels.findFirst({
+      where: eq(channels.id, channelId)
+    });
+
+    if (!channel) {
+      console.log(`[CHANNELS_HANDLER] Canal ${channelId} não encontrado.`);
+      return res.status(404).json({ message: "Channel not found" });
+    }
+
+    const updateData: any = {};
+    if (req.body.name !== undefined) updateData.name = req.body.name;
+    if (req.body.isActive !== undefined) updateData.isActive = req.body.isActive;
+    if (req.body.config !== undefined) updateData.config = req.body.config;
+
+    const [updatedChannel] = await db
+      .update(channels)
+      .set({
+        ...updateData,
+        updatedAt: new Date()
+      })
+      .where(eq(channels.id, channelId))
+      .returning();
+
+    console.log(`[CHANNELS_HANDLER] Canal ${channelId} atualizado. Enviando JSON:`, updatedChannel);
+    return res.json(updatedChannel); // GARANTA QUE ISSO SEJA ALCANÇADO
+
+  } catch (error) {
+    console.error("[CHANNELS_HANDLER] Erro ao atualizar canal:", error);
+    // Envie uma resposta de erro JSON aqui também
+    return res.status(500).json({ message: "Internal server error", error: error.message });
+  }
+});
+Teste a Versão Simplificada: Se com o handler simplificado você receber um JSON no frontend, o problema está na lógica que foi comentada. Vá reintroduzindo as partes comentadas uma a uma, testando a cada passo, para isolar onde o fluxo quebra.
+
+O fato de você receber um status 200 OK mas com conteúdo HTML é um forte indicador de que o seu handler da API não está finalizando a requisição com res.json() como deveria, e a requisição "cai" para o próximo handler disponível, que no modo de desenvolvimento do Vite é o que serve o frontend.

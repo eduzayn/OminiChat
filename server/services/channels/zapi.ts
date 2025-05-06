@@ -596,14 +596,15 @@ export class ZAPIClient {
             try {
               response = await axios.get(url, { headers });
               console.log(`Resposta HTTP ${response.status} de ${url}`);
-            } catch (axiosError) {
-              if (axios.isAxiosError(axiosError) && axiosError.response) {
-                console.error(`Erro HTTP ${axiosError.response.status} de ${url}:`, 
-                  axiosError.response.data ? JSON.stringify(axiosError.response.data) : 'Sem dados na resposta');
+            } catch (error) {
+              // Verificar se é um erro do Axios
+              if (axios.isAxiosError(error) && error.response) {
+                console.error(`Erro HTTP ${error.response.status} de ${url}:`, 
+                  error.response.data ? JSON.stringify(error.response.data) : 'Sem dados na resposta');
                 
                 // Caso especial para Instance not found
-                if (axiosError.response.status === 400 && 
-                    axiosError.response.data?.error === 'Instance not found') {
+                if (error.response.status === 400 && 
+                    error.response.data?.error === 'Instance not found') {
                   errors.push({
                     config: config.description,
                     endpoint: endpoint.path,
@@ -617,11 +618,13 @@ export class ZAPIClient {
               }
               
               // Para outros erros, apenas registrar e continuar
-              console.error(`Erro ao acessar ${url}:`, axiosError.message || 'Erro desconhecido');
+              const errorMessage = axios.isAxiosError(error) ? error.message : 
+                                  (error instanceof Error ? error.message : 'Erro desconhecido');
+              console.error(`Erro ao acessar ${url}:`, errorMessage);
               errors.push({
                 config: config.description,
                 endpoint: endpoint.path,
-                error: axiosError.message || 'Erro desconhecido'
+                error: errorMessage
               });
               
               // Pular para o próximo endpoint
@@ -709,7 +712,7 @@ export class ZAPIClient {
       // Detectar padrões específicos de erro
       
       // Verificar se muitos erros foram "Instance not found"
-      const instanceNotFoundErrors = errors.filter(e => 
+      const instanceNotFoundErrors = errors.filter((e: any) => 
         e.error === 'INSTANCE_NOT_FOUND' || 
         (typeof e.error === 'string' && e.error.includes('Instance not found'))
       );
@@ -724,8 +727,30 @@ export class ZAPIClient {
         };
       }
       
+      // Verificar se muitos erros foram relacionados a problemas de autenticação ou token
+      const authErrors = errors.filter((e: any) => 
+        e.error === 'Client-Token is required' || 
+        (typeof e.error === 'string' && (
+          e.error.includes('Token') || 
+          e.error.includes('token') || 
+          e.error.includes('Authentication') || 
+          e.error.includes('authentication') || 
+          e.error.includes('auth')
+        ))
+      );
+      
+      if (authErrors.length > 3) {
+        console.log(`Padrão detectado: ${authErrors.length} erros relacionados a autenticação ou token`);
+        return {
+          error: 'AUTH_ERROR',
+          message: 'Problemas de autenticação detectados. Verifique se o token da Z-API está correto e se a autenticação está configurada adequadamente.',
+          status: 'error',
+          detailed_errors: authErrors.slice(0, 5) // Limitando para não sobrecarregar a resposta
+        };
+      }
+      
       // Verificar se muitos erros foram NOT_FOUND
-      const notFoundErrors = errors.filter(e => 
+      const notFoundErrors = errors.filter((e: any) => 
         e.error === 'NOT_FOUND' || 
         (typeof e.error === 'string' && e.error.includes('NOT_FOUND'))
       );
@@ -811,10 +836,9 @@ export async function setupZAPIChannel(channel: Channel): Promise<{ status: stri
       
       if (statusResponse.error === 'STATUS_CHECK_FAILED') {
         // Verificar se há algum indício de problema de autenticação
-        const authErrors = statusResponse.detailed_errors?.filter(e => 
+        const authErrors = statusResponse.detailed_errors?.filter((e: any) => 
           e.error === 'Client-Token is required' || 
-          e.message?.includes('Token') || 
-          e.message?.includes('Authentication')
+          (typeof e.message === 'string' && (e.message.includes('Token') || e.message.includes('Authentication')))
         );
         
         if (authErrors && authErrors.length > 0) {
@@ -943,7 +967,7 @@ export async function sendZAPIWhatsAppMessage(
     if (!config || !config.instanceId || !config.token) {
       return {
         status: "error",
-        message: "Missing Z-API credentials (instanceId, token)"
+        message: "Credenciais Z-API ausentes (instanceId, token). Por favor, configure o canal com as credenciais corretas."
       };
     }
     
@@ -953,46 +977,47 @@ export async function sendZAPIWhatsAppMessage(
     if (!instanceId || !token) {
       return {
         status: "error",
-        message: "Missing Z-API credentials (instanceId, token)"
+        message: "Credenciais Z-API ausentes (instanceId, token). Por favor, configure o canal com as credenciais corretas."
       };
     }
 
-    // Format phone number if needed (remove + and special chars)
+    // Formatar número de telefone (remover + e caracteres especiais)
     const formattedPhone = phone.replace(/\D/g, '');
     
-    // Create Z-API client
+    // Criar cliente Z-API com diagnóstico aprimorado
+    console.log(`Enviando mensagem WhatsApp via Z-API para ${formattedPhone.substring(0, 5)}*****`);
     const client = new ZAPIClient(instanceId, token);
     
-    // Log sending attempt
-    console.log(`Sending Z-API WhatsApp message to ${formattedPhone}, type: ${type}, content length: ${content?.length || 0}`);
+    // Registrar tentativa de envio
+    console.log(`Enviando mensagem tipo ${type}, tamanho do conteúdo: ${content?.length || 0}`);
     
     let response: ZAPIResponse;
     
     switch (type) {
       case 'image':
         if (!mediaUrl) {
-          return { status: "error", message: "Media URL is required for image messages" };
+          return { status: "error", message: "URL da imagem é obrigatória para mensagens de imagem" };
         }
         response = await client.sendImageMessage(formattedPhone, mediaUrl, content);
         break;
         
       case 'file':
         if (!mediaUrl) {
-          return { status: "error", message: "Media URL is required for file messages" };
+          return { status: "error", message: "URL do arquivo é obrigatória para mensagens de arquivo" };
         }
         response = await client.sendFileMessage(formattedPhone, mediaUrl, fileName);
         break;
         
       case 'voice':
         if (!mediaUrl) {
-          return { status: "error", message: "Media URL is required for voice messages" };
+          return { status: "error", message: "URL do áudio é obrigatória para mensagens de voz" };
         }
         response = await client.sendVoiceMessage(formattedPhone, mediaUrl);
         break;
         
       case 'location':
         if (!extraOptions?.latitude || !extraOptions?.longitude) {
-          return { status: "error", message: "Latitude and longitude are required for location messages" };
+          return { status: "error", message: "Latitude e longitude são obrigatórios para mensagens de localização" };
         }
         response = await client.sendLocationMessage(
           formattedPhone, 
@@ -1004,14 +1029,14 @@ export async function sendZAPIWhatsAppMessage(
         
       case 'link':
         if (!mediaUrl) {
-          return { status: "error", message: "URL is required for link preview messages" };
+          return { status: "error", message: "URL é obrigatória para mensagens com preview de link" };
         }
         response = await client.sendLinkPreview(formattedPhone, mediaUrl, content);
         break;
         
       case 'contact':
         if (!extraOptions?.contactName || !extraOptions?.contactNumber) {
-          return { status: "error", message: "Contact name and number are required for contact card messages" };
+          return { status: "error", message: "Nome e número do contato são obrigatórios para cartões de contato" };
         }
         response = await client.sendContactCard(
           formattedPhone, 
@@ -1026,25 +1051,55 @@ export async function sendZAPIWhatsAppMessage(
         break;
     }
     
+    // Tratamento específico para diferentes tipos de erros
     if (response.error) {
-      console.error(`Error sending Z-API WhatsApp message: ${response.error}`);
+      console.error(`Erro ao enviar mensagem Z-API WhatsApp: ${response.error}`);
+      
+      if (response.error === 'INVALID_CREDENTIALS' || 
+          response.error === 'INSTANCE_NOT_FOUND' || 
+          response.error === 'INVALID_INSTANCE_ID') {
+        return {
+          status: "error",
+          message: "Credenciais Z-API inválidas. Verifique o instanceId e token no painel da Z-API e tente novamente."
+        };
+      }
+      
+      if (response.error === 'API_COMPATIBILITY_ERROR') {
+        return {
+          status: "error",
+          message: "Incompatibilidade com a API Z-API. A versão da API pode ter mudado desde a última atualização deste sistema."
+        };
+      }
+      
+      if (response.error === 'Client-Token is required' || 
+          (typeof response.error === 'string' && 
+           (response.error.includes('token') || response.error.includes('Token')))) {
+        return {
+          status: "error",
+          message: "Falha na autenticação Z-API. Verifique se o token está correto e tente novamente."
+        };
+      }
+      
+      // Outros erros não classificados
       return {
         status: "error",
-        message: `Error sending message: ${response.error}`
+        message: `Erro ao enviar mensagem: ${response.error}`
       };
     }
     
-    console.log(`Z-API WhatsApp message sent successfully to ${formattedPhone}, response:`, response);
+    console.log(`Mensagem Z-API WhatsApp enviada com sucesso para ${formattedPhone.substring(0, 5)}*****, resposta:`, response);
     return {
       status: "success",
       messageId: response.messageId || response.id,
-      message: "Message sent successfully"
+      message: "Mensagem enviada com sucesso"
     };
   } catch (error) {
-    console.error("Error sending Z-API WhatsApp message:", error);
+    console.error("Erro ao enviar mensagem Z-API WhatsApp:", error);
     return {
       status: "error",
-      message: error instanceof Error ? error.message : "Unknown error sending Z-API WhatsApp message"
+      message: error instanceof Error 
+        ? `Erro inesperado: ${error.message}` 
+        : "Erro desconhecido ao enviar mensagem Z-API WhatsApp"
     };
   }
 }

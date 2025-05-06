@@ -54,7 +54,11 @@ function WhatsAppQRCode({ channelId }: { channelId: number }) {
         status?: string; 
         message?: string; 
         success?: boolean; 
-        connected?: boolean
+        connected?: boolean;
+        error_code?: string;
+        details?: string;
+        recommendations?: string[];
+        technical_info?: Record<string, any>;
       }>("GET", `/api/channels/${channelId}/qrcode`);
       
       console.log("Resposta da API de QR Code:", data);
@@ -63,6 +67,11 @@ function WhatsAppQRCode({ channelId }: { channelId: number }) {
       if (data.connected || data.status === 'connected') {
         setStatus('connected');
         setQrCode(null);
+        toast({
+          title: "WhatsApp Conectado",
+          description: "Este dispositivo já está conectado ao WhatsApp.",
+          variant: "default"
+        });
         return;
       }
       
@@ -75,17 +84,108 @@ function WhatsAppQRCode({ channelId }: { channelId: number }) {
         setStatus(data.status || 'waiting');
       } else {
         console.error("QR Code não encontrado na resposta:", data);
-        // Verificar se houve erro específico
-        if (data.message) {
-          setError(data.message);
-        } else {
-          setError('Não foi possível gerar o QR Code. Verifique as credenciais da Z-API e tente novamente.');
+        
+        // Construir mensagem de erro detalhada
+        let errorDetails = '';
+        
+        if (data.details) {
+          errorDetails += data.details;
         }
+        
+        if (data.recommendations && data.recommendations.length > 0) {
+          errorDetails += '\n\nRecomendações:\n';
+          data.recommendations.forEach((rec, i) => {
+            errorDetails += `${i+1}. ${rec}\n`;
+          });
+        }
+        
+        if (data.error_code) {
+          errorDetails += `\n\nCódigo do erro: ${data.error_code}`;
+          
+          // Adicionar mensagens personalizadas para códigos de erro conhecidos
+          if (data.error_code === 'NOT_FOUND') {
+            errorDetails += `\n\nEste erro indica que a API da Z-API não reconheceu sua instância. Verifique se as credenciais estão corretas no painel da Z-API.`;
+          } else if (data.error_code === 'API_COMPATIBILITY_ERROR') {
+            errorDetails += `\n\nEste erro indica um problema de compatibilidade com a API. Verifique a versão da sua Z-API e as URLs suportadas.`;
+          }
+        }
+        
+        // Exibir mensagem de erro com detalhes
+        const errorMessage = data.message || 'Não foi possível gerar o QR Code';
+        setError(`${errorMessage}${errorDetails ? '\n\n' + errorDetails : ''}`);
+        
+        toast({
+          title: "Erro ao gerar QR Code",
+          description: errorMessage,
+          variant: "destructive"
+        });
       }
     } catch (err: any) {
       console.error('Erro ao obter QR Code:', err);
-      const errorMessage = err?.message || 'Erro ao obter o QR Code. Tente novamente.';
-      setError(errorMessage);
+      
+      let errorMessage = 'Erro ao obter o QR Code. Tente novamente.';
+      let errorDetails = '';
+      
+      // Tentar extrair informações detalhadas do erro
+      if (err?.message) {
+        try {
+          // Verificar se a mensagem de erro contém um JSON
+          const errMsg = err.message;
+          // Encontrar qualquer JSON na mensagem de erro
+          let jsonMatch = null;
+          if (errMsg.includes('{') && errMsg.includes('}')) {
+            const startIndex = errMsg.indexOf('{');
+            const endIndex = errMsg.lastIndexOf('}') + 1;
+            if (startIndex >= 0 && endIndex > startIndex) {
+              jsonMatch = [errMsg.substring(startIndex, endIndex)];
+            }
+          }
+          
+          if (jsonMatch) {
+            const errorData = JSON.parse(jsonMatch[0]);
+            
+            // Extrair mensagem principal
+            errorMessage = errorData.message || errorMessage;
+            
+            // Extrair detalhes adicionais
+            if (errorData.details) {
+              errorDetails += errorData.details;
+            }
+            
+            // Extrair recomendações
+            if (errorData.recommendations && errorData.recommendations.length > 0) {
+              errorDetails += '\n\nRecomendações:\n';
+              errorData.recommendations.forEach((rec: string, i: number) => {
+                errorDetails += `${i+1}. ${rec}\n`;
+              });
+            }
+            
+            // Informações técnicas específicas para desenvolvedores
+            if (errorData.technical_info) {
+              const technicalInfo = errorData.technical_info;
+              console.log('Informações técnicas do erro:', technicalInfo);
+              
+              // Adicionar instanceId se disponível
+              if (technicalInfo.instanceId) {
+                errorDetails += `\n\nInstância: ${technicalInfo.instanceId}`;
+              }
+              
+              // Adicionar URLs testadas
+              if (technicalInfo.attempted_urls) {
+                errorDetails += `\n\nURLs tentadas: ${technicalInfo.attempted_urls.length}`;
+              }
+            }
+          } else {
+            errorMessage = errMsg;
+          }
+        } catch (parseError) {
+          // Se falhar ao analisar JSON, usar mensagem original
+          errorMessage = err.message;
+        }
+      }
+      
+      // Definir erro completo para exibição
+      setError(`${errorMessage}${errorDetails ? '\n\n' + errorDetails : ''}`);
       
       // Mostrar toast com erro
       toast({
@@ -165,13 +265,60 @@ function WhatsAppQRCode({ channelId }: { channelId: number }) {
         </>
       ) : (
         <div className="flex flex-col items-center justify-center p-4">
-          <p className="text-muted-foreground mb-4">
-            QR Code não disponível. Status: {status}
-          </p>
-          <Button onClick={fetchQRCode} variant="outline">
-            <RefreshCcw className="h-4 w-4 mr-2" />
-            Tentar Novamente
-          </Button>
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+            <p className="text-yellow-800 mb-2 font-medium">QR Code não disponível</p>
+            <p className="text-muted-foreground mb-4">
+              Status: {status}
+            </p>
+            <p className="text-sm">
+              Verifique se a instância Z-API está configurada corretamente. 
+              Se o problema persistir, tente obter um diagnóstico detalhado.
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={fetchQRCode} variant="outline">
+              <RefreshCcw className="h-4 w-4 mr-2" />
+              Tentar Novamente
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={async () => {
+                try {
+                  toast({
+                    title: "Executando diagnóstico...",
+                    description: "Verificando a conexão com a Z-API",
+                  });
+                  const result = await apiRequest("GET", `/api/channels/${channelId}/status`);
+                  console.log("Diagnóstico Z-API:", result);
+                  
+                  // Mostrar resultado diagnóstico em toast
+                  const recommendations = result.recommendations || [];
+                  toast({
+                    title: "Diagnóstico Z-API",
+                    description: 
+                      recommendations.length > 0 
+                        ? `${recommendations.length} ${recommendations.length === 1 ? 'recomendação' : 'recomendações'} encontrada${recommendations.length === 1 ? '' : 's'}.`
+                        : "Nenhum problema crítico encontrado",
+                    variant: recommendations.length > 0 ? "destructive" : "default",
+                  });
+                  
+                  // Se há problemas no diagnóstico, mostrar erro informativo
+                  if (recommendations.length > 0) {
+                    setError(`Diagnóstico Z-API:\n\n${recommendations.join('\n\n')}`);
+                  }
+                } catch (error) {
+                  console.error("Erro ao executar diagnóstico:", error);
+                  toast({
+                    title: "Erro no diagnóstico",
+                    description: "Não foi possível obter diagnóstico da integração",
+                    variant: "destructive"
+                  });
+                }
+              }}
+            >
+              Executar Diagnóstico
+            </Button>
+          </div>
         </div>
       )}
     </div>

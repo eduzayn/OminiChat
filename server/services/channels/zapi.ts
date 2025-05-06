@@ -35,6 +35,29 @@ export async function setupZAPIChannel(channel: Channel): Promise<{ status: stri
     const webhookUrl = process.env.BASE_URL 
       ? `${process.env.BASE_URL}/api/webhooks/zapi/${channel.id}` 
       : `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}/api/webhooks/zapi/${channel.id}`;
+      
+    // Registrar o webhook na Z-API
+    try {
+      await axios.post(
+        `${BASE_URL}/instances/${instanceId}/token/${token}/webhook`,
+        {
+          url: webhookUrl,
+          webhookFeatures: {
+            receiveAllNotifications: true
+          }
+        },
+        {
+          headers: {
+            'Client-Token': token,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      console.log(`Webhook Z-API configurado para ${webhookUrl}`);
+    } catch (webhookError) {
+      console.error("Erro ao configurar webhook Z-API:", webhookError);
+      // Não interromper o fluxo se falhar o registro do webhook
+    }
 
     try {
       // Verifica status da conexão
@@ -75,20 +98,7 @@ export async function setupZAPIChannel(channel: Channel): Promise<{ status: stri
         }
       }
 
-      // Configura o webhook na Z-API
-      await axios.post(
-        `${BASE_URL}/instances/${instanceId}/token/${token}/webhook`,
-        {
-          url: webhookUrl,
-          method: "POST"
-        },
-        {
-          headers: {
-            'Client-Token': token,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      // Webhook já foi configurado anteriormente no fluxo
 
       return {
         status: "success",

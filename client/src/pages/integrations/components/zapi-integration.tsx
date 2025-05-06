@@ -47,8 +47,8 @@ export function ZAPIIntegrationDialog({
     isActive: true,
     config: {
       provider: 'zapi',
-      instanceId: '',
-      token: '',
+      instanceId: '3DF871A7ADF830F8499BE6006CECDC1',
+      token: 'A4E4203C24887ZDA084747',
     },
   });
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'loading' | 'connected' | 'disconnected'>('unknown');

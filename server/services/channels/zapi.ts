@@ -13,17 +13,17 @@ const ZAPI_TOKEN = process.env.ZAPI_TOKEN;
 const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID;
 const BASE_URL = 'https://api.z-api.io';
 
+// Z-API Security Token (Token de Segurança da conta, diferente do token da instância)
+const ZAPI_SECURITY_TOKEN = "Fa427b12e188a433292a658fe45a07714S";
+
 // Função de ajuda para garantir que incluímos sempre o Client-Token nos headers
 function getHeadersWithToken(token: string) {
   // Muito importante! De acordo com a documentação Z-API, o Client-Token é crucial
   // para autenticação das requisições e deve estar presente em todos os headers
-  // Tentando várias combinações diferentes porque a API parece ser sensível ao caso
+  // A Z-API usa o formato "client-token" (minúsculo e com hífen)
+  // O Client-Token deve ser o token de segurança da conta, não o token da instância
   return {
-    'Client-Token': token,
-    'client-token': token,
-    'clienttoken': token,
-    'ClientToken': token,
-    'clientToken': token,
+    'client-token': ZAPI_SECURITY_TOKEN,
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   };
@@ -63,10 +63,7 @@ export async function setupZAPIChannel(channel: Channel): Promise<{ status: stri
           }
         },
         {
-          headers: {
-            'Client-Token': token,
-            'Content-Type': 'application/json'
-          }
+          headers: getHeadersWithToken(token)
         }
       );
       console.log(`Webhook Z-API configurado para ${webhookUrl}`);
@@ -80,10 +77,7 @@ export async function setupZAPIChannel(channel: Channel): Promise<{ status: stri
       const statusResponse = await axios.get(
         `${BASE_URL}/instances/${instanceId}/token/${token}/status`,
         {
-          headers: {
-            'Client-Token': token,
-            'Content-Type': 'application/json'
-          }
+          headers: getHeadersWithToken(token)
         }
       );
 
@@ -92,13 +86,13 @@ export async function setupZAPIChannel(channel: Channel): Promise<{ status: stri
         try {
           // Gera QR Code - modificando para usar endpoint correto e tratar resposta apropriadamente
           // De acordo com a documentação, devemos usar o endpoint qr-code
+          const headers = getHeadersWithToken(token);
+          headers['Accept'] = 'image/png, application/json';
+          
           const qrResponse = await axios.get(
             `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code`,
             {
-              headers: {
-                'Client-Token': token,
-                'Accept': 'image/png, application/json'
-              },
+              headers,
               // Configurar para receber resposta em formato binário
               responseType: 'arraybuffer'
             }
@@ -188,10 +182,7 @@ export async function sendTextMessage(
         message: content
       },
       {
-        headers: {
-          'Client-Token': token,
-          'Content-Type': 'application/json'
-        }
+        headers: getHeadersWithToken(token)
       }
     );
     
@@ -252,10 +243,7 @@ export async function sendImageMessage(
         caption: caption || ''
       },
       {
-        headers: {
-          'Client-Token': token,
-          'Content-Type': 'application/json'
-        }
+        headers: getHeadersWithToken(token)
       }
     );
     

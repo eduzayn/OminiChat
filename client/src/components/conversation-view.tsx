@@ -78,15 +78,13 @@ function ChannelBadge({ type }: { type: string }) {
 }
 
 function MessageBubble({ message, isAgent }: { message: Message, isAgent: boolean }) {
-  console.log("MessageBubble recebendo props:", { message, isAgent });
   const timestamp = new Date(message.createdAt);
   
   // If this is a payment request message
   const paymentRequest = message.metadata?.paymentRequest;
   
-  // Renderiza uma mensagem de debug para testar
   return (
-    <div className={`flex items-end ${isAgent ? 'justify-end' : ''} border border-yellow-300`}>
+    <div className={`flex items-end ${isAgent ? 'justify-end' : ''}`}>
       {!isAgent && (
         <div className="ml-2 flex-shrink-0 order-2">
           <Avatar className="w-8 h-8">
@@ -102,18 +100,9 @@ function MessageBubble({ message, isAgent }: { message: Message, isAgent: boolea
             ? 'bg-primary-500 text-white chat-bubble-agent' 
             : 'bg-white text-neutral-800 chat-bubble-client'
         }`}>
-          <p className="text-sm font-bold mb-1">DEBUG INFO:</p>
           <p className="text-sm whitespace-pre-wrap">
-            ID: {message.id}<br/>
-            Content: {message.content || "<Mensagem sem conteúdo>"}<br/>
-            isFromAgent: {String(message.isFromAgent)}<br/>
-            Created: {message.createdAt}
+            {message.content || "<Mensagem sem conteúdo>"}
           </p>
-          {!message.content && (
-            <p className="text-xs italic mt-1">
-              {isAgent ? "Mensagem do agente sem conteúdo" : "Mensagem do cliente sem conteúdo"}
-            </p>
-          )}
         </div>
         
         {paymentRequest && (
@@ -621,15 +610,12 @@ function ConversationView() {
   }
   
   // Group messages by date for date separators
-  console.log("Mensagens disponíveis para agrupar:", messages);
   const messagesByDate: { [date: string]: Message[] } = {};
   messages.forEach(message => {
-    console.log("Processando mensagem:", message);
     const date = new Date(message.createdAt).toDateString();
     if (!messagesByDate[date]) messagesByDate[date] = [];
     messagesByDate[date].push(message);
   });
-  console.log("messagesByDate estruturado:", messagesByDate);
   
   return (
     <div className="flex-1 flex flex-col h-screen max-h-screen bg-neutral-50">
@@ -696,11 +682,7 @@ function ConversationView() {
       </div>
       
       {/* Conversation body */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-yellow-50 border-2 border-red-500" id="conversation-messages">
-        <p className="font-bold text-lg text-red-500">
-          DEBUG: Número de mensagens disponíveis: {messages.length}
-        </p>
-        
+      <div className="flex-1 overflow-y-auto p-4 space-y-4" id="conversation-messages">
         {isLoading ? (
           <div className="flex justify-center py-4">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
@@ -714,37 +696,19 @@ function ConversationView() {
             </Button>
           </div>
         ) : (
-          <>
-            <div className="bg-blue-100 p-4 rounded-lg mb-4">
-              <p className="font-bold">Mensagem direta da variável 'messages':</p>
-              {messages.map(msg => (
-                <div key={msg.id} className="border border-blue-300 p-2 my-2 rounded">
-                  ID: {msg.id}, Content: {msg.content}
-                </div>
+          Object.entries(messagesByDate).map(([date, dateMessages]) => (
+            <div key={date} className="space-y-4">
+              <DateSeparator date={new Date(date)} />
+              
+              {dateMessages.map(message => (
+                <MessageBubble 
+                  key={message.id} 
+                  message={message} 
+                  isAgent={Boolean(message.isFromAgent)} 
+                />
               ))}
             </div>
-            
-            <div className="bg-green-100 p-4 rounded-lg">
-              <p className="font-bold">Mensagens agrupadas por data:</p>
-              {Object.entries(messagesByDate).map(([date, dateMessages]) => (
-                <div key={date} className="space-y-4 border border-green-500 p-4 my-2 rounded">
-                  <p className="font-bold">Data: {date}</p>
-                  <DateSeparator date={new Date(date)} />
-                  
-                  {dateMessages.map(message => {
-                    console.log("Renderizando mensagem:", message);
-                    return (
-                      <MessageBubble 
-                        key={message.id} 
-                        message={message} 
-                        isAgent={message.isFromAgent} 
-                      />
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          </>
+          ))
         )}
         
         {/* Always keep this div at the end to enable auto-scrolling */}

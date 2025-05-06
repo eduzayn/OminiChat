@@ -169,11 +169,11 @@ export default function IntegrationsPage() {
   const getChannelsByProvider = (provider: string) => {
     if (!channels || !Array.isArray(channels) || channels.length === 0) return [];
     return channels.filter((channel: any) => {
-      // Para canais Z-API, o provider está dentro do config
-      if (provider === 'zapi' && channel.config && channel.config.provider === 'zapi') {
+      // Para canais com provider dentro do config
+      if (channel.config && channel.config.provider === provider) {
         return true;
       }
-      // Para outros canais, verificar diretamente
+      // Para canais com provider diretamente no objeto
       return channel.provider === provider;
     });
   };
@@ -240,18 +240,6 @@ export default function IntegrationsPage() {
                     </div>
                   ) : (
                     <>
-                      {getChannelsByProvider('zapi').map((channel: any) => (
-                        <IntegrationCard
-                          key={channel.id}
-                          title={channel.name || "WhatsApp (Z-API)"}
-                          description="WhatsApp via Z-API (não oficial) com conexão por QR Code"
-                          icon={MessageSquare}
-                          color="bg-green-100 text-green-600"
-                          status={getChannelStatus(channel)}
-                          onClick={() => handleEditChannel(channel)}
-                        />
-                      ))}
-                      
                       {/* Meta WhatsApp */}
                       {getMetaChannelsByType('whatsapp').map((channel: any) => (
                         <IntegrationCard
@@ -265,22 +253,7 @@ export default function IntegrationsPage() {
                         />
                       ))}
                       
-                      {/* Botões de adição */}
-                      <Card 
-                        className="border border-dashed hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer"
-                        onClick={() => handleNewChannel('zapi')}
-                      >
-                        <CardContent className="p-6 flex flex-col items-center justify-center h-full min-h-[160px]">
-                          <div className="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center mb-3">
-                            <Plus className="h-6 w-6 text-green-600" />
-                          </div>
-                          <h3 className="font-medium mb-1">Adicionar Z-API</h3>
-                          <p className="text-sm text-center text-muted-foreground">
-                            Conecte com WhatsApp via Z-API usando QR Code
-                          </p>
-                        </CardContent>
-                      </Card>
-                      
+                      {/* Botão de adição */}
                       <Card 
                         className="border border-dashed hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer"
                         onClick={() => handleNewChannel('meta')}
@@ -436,17 +409,6 @@ export default function IntegrationsPage() {
       </div>
       
       {/* Diálogos de Configuração */}
-      <ZAPIIntegrationDialog
-        open={zapiDialogOpen}
-        onOpenChange={setZapiDialogOpen}
-        channel={selectedChannel}
-        onChannelCreated={(channelId) => {
-          refetchChannels();
-          setTimeout(() => testChannelConnection(channelId), 1000);
-        }}
-        onChannelUpdated={() => refetchChannels()}
-      />
-      
       <MetaIntegrationDialog
         open={metaDialogOpen}
         onOpenChange={setMetaDialogOpen}

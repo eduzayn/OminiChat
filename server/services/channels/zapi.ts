@@ -539,117 +539,175 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
         };
       }
       
-      console.log(`Instância ${instanceId} não está conectada, solicitando QR code`);
+      console.log(`Instância ${instanceId} não está conectada, solicitando QR code via /qr-code/image`);
       
       try {
         console.log(`Requisitando QR code para instância ${instanceId} com token ${token}`);
-        // Usando o endpoint correto conforme documentação Z-API
+        
+        // Usando o endpoint /qr-code/image conforme documentação Z-API
         const qrResponse = await axios.get(
+          `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code/image`,
+          {
+            headers: {
+              'Client-Token': token,
+              'Accept': 'image/png, application/json'
+            }
+          }
+        );
+        
+        console.log("Resposta da API /qr-code/image recebida com status:", qrResponse.status);
+        
+        // Verificar se a resposta contém dados
+        let qrCodeData = null;
+        
+        // A Z-API pode retornar o base64 diretamente ou encapsulado em um JSON.
+        if (qrResponse.data) {
+          if (typeof qrResponse.data === 'string' && qrResponse.data.startsWith('data:image')) {
+            qrCodeData = qrResponse.data;
+          } else if (typeof qrResponse.data === 'string' && qrResponse.data.length > 100) {
+            // Provável string base64 sem o prefixo
+            qrCodeData = `data:image/png;base64,${qrResponse.data}`;
+          } else if (qrResponse.data.qrcode) {
+            qrCodeData = qrResponse.data.qrcode.startsWith('data:image') 
+              ? qrResponse.data.qrcode 
+              : `data:image/png;base64,${qrResponse.data.qrcode}`;
+          } else if (qrResponse.data.base64) {
+            qrCodeData = qrResponse.data.base64.startsWith('data:image') 
+              ? qrResponse.data.base64 
+              : `data:image/png;base64,${qrResponse.data.base64}`;
+          } else if (qrResponse.data.value && typeof qrResponse.data.value === 'string') {
+            qrCodeData = qrResponse.data.value.startsWith('data:image') 
+              ? qrResponse.data.value 
+              : `data:image/png;base64,${qrResponse.data.value}`;
+          } else if (qrResponse.data.image) {
+            qrCodeData = qrResponse.data.image.startsWith('data:image') 
+              ? qrResponse.data.image 
+              : `data:image/png;base64,${qrResponse.data.image}`;
+          }
+        }
+        
+        if (qrCodeData) {
+          console.log("QR code (base64) obtido com sucesso da Z-API via /qr-code/image");
+          return {
+            status: "waiting_scan",
+            message: "Aguardando leitura do QR Code",
+            qrCode: qrCodeData
+          };
+        }
+        
+        console.error("Resposta da Z-API (/qr-code/image) não contém QR code em formato reconhecível");
+        
+        // Tentar com endpoint alternativo /qr-code
+        console.log("Tentando endpoint alternativo /qr-code");
+        
+        const qrResponseAlt = await axios.get(
           `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code`,
           {
             headers: getHeadersWithToken(token)
           }
         );
         
-        // Log da resposta para verificação
-        console.log("Resposta da API de QR code:", 
-          qrResponse.data ? 
-          `Sucesso: ${!!qrResponse.data.base64}` : 
-          "Sem dados na resposta");
-        
         // Verificar se temos a imagem em base64 na resposta
-        // Debugando a resposta completa para entender sua estrutura
-        console.log("Resposta completa do QR code:", JSON.stringify(qrResponse.data, null, 2));
-        
-        // Verificação mais flexível para capturar diferentes formatos de resposta
-        if (qrResponse.data) {
-          // Verificar vários possíveis formatos de resposta (base64, qrcode, etc.)
-          let qrCodeData = null;
+        if (qrResponseAlt.data) {
+          let qrCodeAltData = null;
           
-          // Verifica se a resposta é uma string HTML (caso em que o Vite interferiu)
-          if (typeof qrResponse.data === 'string' && qrResponse.data.startsWith('<!DOCTYPE html>')) {
-            console.log("Recebido HTML em vez de JSON na resposta do QR Code. Tentando abordagem alternativa.");
-            // Neste caso, tentamos a abordagem alternativa mais adiante no código
-            return null;
+          if (qrResponseAlt.data.base64) {
+            qrCodeAltData = qrResponseAlt.data.base64;
+          } else if (qrResponseAlt.data.qrcode) {
+            qrCodeAltData = qrResponseAlt.data.qrcode;
+          } else if (qrResponseAlt.data.value) {
+            qrCodeAltData = qrResponseAlt.data.value;
+          } else if (typeof qrResponseAlt.data === 'string' && qrResponseAlt.data.startsWith('data:image')) {
+            qrCodeAltData = qrResponseAlt.data;
+          } else if (qrResponseAlt.data.image) {
+            qrCodeAltData = qrResponseAlt.data.image;
           }
           
-          if (qrResponse.data.base64) {
-            qrCodeData = qrResponse.data.base64;
-          } else if (qrResponse.data.qrcode) {
-            qrCodeData = qrResponse.data.qrcode;
-          } else if (qrResponse.data.value) {
-            qrCodeData = qrResponse.data.value;
-          } else if (typeof qrResponse.data === 'string' && qrResponse.data.startsWith('data:image')) {
-            qrCodeData = qrResponse.data;
-          } else if (qrResponse.data.image) {
-            qrCodeData = qrResponse.data.image;
-          }
-          
-          if (qrCodeData) {
-            console.log("QR code obtido com sucesso da Z-API");
+          if (qrCodeAltData) {
+            console.log("QR code obtido com sucesso via endpoint /qr-code");
             return {
               status: "waiting_scan",
               message: "Aguardando leitura do QR Code",
-              qrCode: qrCodeData
+              qrCode: qrCodeAltData
             };
           }
         }
         
-        console.error("Resposta da Z-API não contém QR code em um formato reconhecível", qrResponse.data);
+        // Se chegou aqui, tenta reiniciar a sessão
+        console.log("Tentando gerar um novo QR code via restart da sessão");
+        await axios.get(
+          `${BASE_URL}/instances/${instanceId}/token/${token}/restart`,
+          {
+            headers: getHeadersWithToken(token)
+          }
+        );
+        
+        // Aguardar um pouco para o QR code ser gerado
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Tentar novamente obter o QR code usando /qr-code/image
+        const retryQrResponse = await axios.get(
+          `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code/image`,
+          {
+            headers: {
+              'Client-Token': token,
+              'Accept': 'image/png, application/json'
+            }
+          }
+        );
+        
+        // Verificar se a resposta contém dados
+        let retryQrCodeData = null;
+        
+        if (retryQrResponse.data) {
+          if (typeof retryQrResponse.data === 'string' && retryQrResponse.data.startsWith('data:image')) {
+            retryQrCodeData = retryQrResponse.data;
+          } else if (typeof retryQrResponse.data === 'string' && retryQrResponse.data.length > 100) {
+            retryQrCodeData = `data:image/png;base64,${retryQrResponse.data}`;
+          } else if (retryQrResponse.data.qrcode) {
+            retryQrCodeData = retryQrResponse.data.qrcode.startsWith('data:image') 
+              ? retryQrResponse.data.qrcode 
+              : `data:image/png;base64,${retryQrResponse.data.qrcode}`;
+          } else if (retryQrResponse.data.base64) {
+            retryQrCodeData = retryQrResponse.data.base64.startsWith('data:image') 
+              ? retryQrResponse.data.base64 
+              : `data:image/png;base64,${retryQrResponse.data.base64}`;
+          }
+        }
+        
+        if (retryQrCodeData) {
+          console.log("QR code obtido com sucesso após reiniciar sessão");
+          return {
+            status: "waiting_scan",
+            message: "Aguardando leitura do QR Code",
+            qrCode: retryQrCodeData
+          };
+        }
+        
         return {
           status: "error",
-          message: "QR Code não disponível no momento"
+          message: "QR Code não disponível no momento. Por favor, tente novamente mais tarde."
         };
-      } catch (qrError) {
-        console.error("Erro ao obter QR code da Z-API:", qrError);
+      } catch (qrError: any) {
+        console.error("Erro ao obter QR code da Z-API:", qrError.message);
         
-        // Tentar abordagem alternativa - gerar um novo QR code
-        try {
-          console.log("Tentando gerar um novo QR code via restart da sessão");
-          await axios.get(
-            `${BASE_URL}/instances/${instanceId}/token/${token}/restart`,
-            {
-              headers: getHeadersWithToken(token)
-            }
-          );
-          
-          // Aguardar um pouco para o QR code ser gerado
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          // Tentar novamente obter o QR code (usando endpoint correto)
-          const retryQrResponse = await axios.get(
-            `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code`,
-            {
-              headers: getHeadersWithToken(token)
-            }
-          );
-          
-          if (retryQrResponse.data && retryQrResponse.data.base64) {
-            console.log("QR code obtido com sucesso após reiniciar sessão");
-            return {
-              status: "waiting_scan",
-              message: "Aguardando leitura do QR Code",
-              qrCode: retryQrResponse.data.base64
-            };
-          }
-        } catch (retryError) {
-          console.error("Falha na segunda tentativa de obter QR code:", retryError);
-        }
+        // Capturar detalhes do erro para retornar ao cliente
+        const errorDetails = qrError.response?.data?.message || qrError.response?.data || qrError.message || "Erro desconhecido";
         
         return {
           status: "error",
-          message: "Não foi possível obter o QR Code para conexão"
+          message: `Não foi possível obter o QR Code para conexão: ${errorDetails}`
         };
       }
-    } catch (statusError) {
-      console.error("Erro ao verificar status da instância Z-API:", statusError);
+    } catch (statusError: any) {
+      console.error("Erro ao verificar status da instância Z-API:", statusError.message);
       return {
         status: "error",
         message: "Falha ao verificar status da instância Z-API"
       };
     }
-  } catch (error) {
-    console.error("Erro geral ao obter QR code Z-API:", error);
+  } catch (error: any) {
+    console.error("Erro geral ao obter QR code Z-API:", error.message);
     return {
       status: "error",
       message: "Erro interno ao processar requisição de QR Code"

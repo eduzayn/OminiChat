@@ -39,7 +39,7 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
       
       // Verificar se o canal existe
       const channel = await db.query.channels.findFirst({
-        where: eq(channels.id, channelId)
+        where: eq(schema.channels.id, channelId)
       });
       
       if (!channel) {
@@ -297,7 +297,7 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
       
       // Verificar se o canal existe
       const channel = await db.query.channels.findFirst({
-        where: eq(channels.id, channelId)
+        where: eq(schema.channels.id, channelId)
       });
       
       if (!channel) {

@@ -883,8 +883,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
         }
         
         // Check if channel has conversations
-        const conversation = await db.query.conversations.findFirst({
-          where: eq(conversations.channelId, channelId)
+        const conversation = await db.query.schema.conversations.findFirst({
+          where: eq(schema.conversations.channelId, channelId)
         });
         
         if (conversation) {
@@ -949,7 +949,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       const conversationCount = await db
         .select({ count: sql<number>`count(*)` })
         .from(conversations)
-        .where(eq(conversations.channelId, channelId));
+        .where(eq(schema.conversations.channelId, channelId));
       
       // Get active conversations count
       const activeConversations = await db
@@ -957,8 +957,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
         .from(conversations)
         .where(
           and(
-            eq(conversations.channelId, channelId),
-            eq(conversations.status, 'active')
+            eq(schema.conversations.channelId, channelId),
+            eq(schema.conversations.status, 'active')
           )
         );
       
@@ -968,8 +968,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
         .from(conversations)
         .where(
           and(
-            eq(conversations.channelId, channelId),
-            eq(conversations.status, 'closed')
+            eq(schema.conversations.channelId, channelId),
+            eq(schema.conversations.status, 'closed')
           )
         );
       
@@ -1056,7 +1056,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
           }
           
           // Buscar ou criar conversa
-          let conversation = await db.query.conversations.findFirst({
+          let conversation = await db.query.schema.conversations.findFirst({
             where: and(
               eq(schema.conversations.contactId, contact.id),
               eq(schema.conversations.channelId, channelId),

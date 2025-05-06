@@ -296,6 +296,7 @@ export default function IntegrationsPage() {
                       {getMetaChannelsByType('whatsapp').map((channel: any) => (
                         <IntegrationCard
                           key={channel.id}
+                          id={channel.id}
                           title={channel.name || "WhatsApp Business"}
                           description="WhatsApp via API oficial (Meta Business)"
                           icon={MessageSquare}
@@ -378,6 +379,7 @@ export default function IntegrationsPage() {
                       {getMetaChannelsByType('messenger').map((channel: any) => (
                         <IntegrationCard
                           key={channel.id}
+                          id={channel.id}
                           title={channel.name || "Facebook Messenger"}
                           description="Mensagens via Facebook Messenger API"
                           icon={MessageSquare}
@@ -391,6 +393,7 @@ export default function IntegrationsPage() {
                       {getMetaChannelsByType('instagram').map((channel: any) => (
                         <IntegrationCard
                           key={channel.id}
+                          id={channel.id}
                           title={channel.name || "Instagram Direct"}
                           description="Mensagens diretas do Instagram via Graph API"
                           icon={MessageSquare}

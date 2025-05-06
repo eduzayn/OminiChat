@@ -232,7 +232,7 @@ export default function IntegrationsPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* ZAPI (não oficial) */}
+                  {/* WhatsApp Integrations */}
                   {isLoadingChannels ? (
                     <div className="flex justify-center items-center py-8">
                       <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />

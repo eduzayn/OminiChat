@@ -339,7 +339,7 @@ function WhatsAppQRCode({ channelId }: { channelId: number }) {
   return (
     <div className="flex flex-col items-center justify-center p-6">
       {qrCode ? (
-        <>
+        <div>
           <div className="border border-gray-200 rounded-lg p-4 mb-4">
             <img 
               src={`data:image/png;base64,${qrCode}`} 
@@ -359,7 +359,7 @@ function WhatsAppQRCode({ channelId }: { channelId: number }) {
               Gerar Novo QR Code
             </Button>
           </div>
-        </>
+        </div>
       ) : (
         <div className="flex flex-col items-center justify-center p-4">
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">

@@ -13,7 +13,7 @@ import { setupChannel } from "../services/channels/whatsapp";
 import { setupInstagramChannel } from "../services/channels/instagram";
 import { setupFacebookChannel } from "../services/channels/facebook";
 import { broadcastToClients } from "../services/socket";
-import { ZAPIClient } from "../services/channels/zapi";
+import { ZAPIClient, ZAPIResponse } from "../services/channels/zapi";
 import axios from "axios";
 
 // Middleware to check if user is authenticated
@@ -304,6 +304,25 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
         
         if (qrCodeResponse.error) {
           console.error("Erro ao obter QR Code da Z-API:", qrCodeResponse.error);
+          
+          // Tratamento específico para o erro NOT_FOUND
+          if (qrCodeResponse.error.includes('NOT_FOUND')) {
+            return res.status(500).json({ 
+              success: false,
+              error_code: 'NOT_FOUND', 
+              message: `Erro ao obter QR Code: NOT_FOUND. Este erro geralmente indica que a API Z-API não encontrou o recurso solicitado. Possíveis causas:
+              1. O endpoint de QR Code pode ter mudado na sua versão da Z-API
+              2. Sua instância pode não suportar geração de QR Code por este método
+              3. O dispositivo pode já estar conectado ou em outro estado que não permite geração de QR Code
+              
+              Recomendações:
+              - Verifique se sua instância está ativa no painel da Z-API
+              - Tente desconectar o dispositivo no painel da Z-API e solicitar um novo QR Code
+              - Contate o suporte da Z-API para confirmar o endpoint correto para sua versão da API` 
+            });
+          }
+          
+          // Tratamento para outros erros
           return res.status(500).json({ 
             success: false, 
             message: `Erro ao obter QR Code: ${qrCodeResponse.error}` 
@@ -468,6 +487,161 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       console.error("Erro ao realizar diagnóstico Z-API:", error);
       return res.status(500).json({ 
         message: "Erro interno ao realizar diagnóstico",
+        error: error instanceof Error ? error.message : "Erro desconhecido"
+      });
+    }
+  });
+
+  // Endpoint para verificar o status completo da instância Z-API
+  app.get(`${apiPrefix}/channels/:id/status`, isAuthenticated, async (req, res) => {
+    try {
+      const channelId = parseInt(req.params.id);
+      
+      const channel = await db.query.channels.findFirst({
+        where: eq(channels.id, channelId)
+      });
+      
+      if (!channel) {
+        return res.status(404).json({ message: "Canal não encontrado" });
+      }
+      
+      if (channel.type !== "whatsapp") {
+        return res.status(400).json({ message: "Apenas canais WhatsApp suportam esta operação" });
+      }
+      
+      const config = channel.config as ChannelConfig;
+      
+      if (!config || !config.provider || !config.instanceId || !config.token) {
+        return res.status(400).json({ 
+          message: "Configuração do canal incompleta" 
+        });
+      }
+      
+      if (config.provider === "zapi") {
+        const instanceId = config.instanceId as string;
+        const token = config.token as string;
+        
+        console.log(`Verificando status completo da instância Z-API: ${instanceId}`);
+        
+        const zapiClient = new ZAPIClient(instanceId, token);
+        
+        // Coletar diversos tipos de informações da API
+        const report = {
+          channel: {
+            id: channel.id,
+            name: channel.name,
+            type: channel.type,
+            provider: config.provider,
+            createdAt: channel.createdAt
+          },
+          instance: {
+            instanceId,
+            baseUrl: `https://api.z-api.io/instances/${instanceId}`
+          },
+          status: {} as any,
+          session: {} as any,
+          device: {} as any,
+          webhook: {} as any,
+          recommendations: [] as string[]
+        };
+        
+        // 1. Verificar status principal
+        try {
+          const statusResponse = await zapiClient.getStatus();
+          report.status = {
+            success: !statusResponse.error,
+            connected: !!statusResponse.connected,
+            data: statusResponse
+          };
+        } catch (error: any) {
+          report.status = {
+            success: false,
+            error: error.message || "Erro ao verificar status"
+          };
+        }
+        
+        // 2. Verificar informações da sessão
+        try {
+          const sessionResponse = await zapiClient.makeRequest('GET', '/session');
+          report.session = {
+            success: !sessionResponse.error,
+            data: sessionResponse
+          };
+        } catch (error: any) {
+          report.session = {
+            success: false,
+            error: error.message || "Erro ao verificar sessão"
+          };
+        }
+        
+        // 3. Verificar informações do dispositivo
+        try {
+          const deviceResponse = await zapiClient.makeRequest('GET', '/device');
+          report.device = {
+            success: !deviceResponse.error,
+            data: deviceResponse
+          };
+        } catch (error: any) {
+          report.device = {
+            success: false,
+            error: error.message || "Erro ao verificar dispositivo"
+          };
+        }
+        
+        // 4. Verificar configuração de webhook
+        try {
+          const webhookResponse = await zapiClient.getWebhook();
+          
+          // Verificar se a resposta tem a propriedade webhook
+          const webhookUrl = webhookResponse.webhook || 
+                            (webhookResponse.value ? webhookResponse.value : null);
+          
+          report.webhook = {
+            success: !webhookResponse.error,
+            configured: !!webhookUrl,
+            webhook: webhookUrl,
+            data: webhookResponse
+          };
+          
+          // Se o webhook não estiver configurado, adicione uma recomendação
+          if (!webhookUrl) {
+            const recommendedWebhookUrl = process.env.BASE_URL 
+              ? `${process.env.BASE_URL}/api/webhooks/zapi/${channel.id}` 
+              : `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}/api/webhooks/zapi/${channel.id}`;
+            
+            report.webhook.recommendedUrl = recommendedWebhookUrl;
+            report.recommendations.push("É recomendado configurar o webhook para receber mensagens em tempo real");
+          }
+        } catch (error: any) {
+          report.webhook = {
+            success: false,
+            error: error.message || "Erro ao verificar webhook"
+          };
+        }
+        
+        // Gerar recomendações baseadas no relatório
+        if (!report.status.connected) {
+          report.recommendations.push("O dispositivo não está conectado. Escaneie o QR Code para conectar o WhatsApp");
+        }
+        
+        if (report.status.error && report.status.error.includes("NOT_FOUND")) {
+          report.recommendations.push("Erro NOT_FOUND indica problemas com a API. Verifique se sua instância Z-API está ativa e as credenciais estão corretas");
+        }
+        
+        if (report.webhook && !report.webhook.configured) {
+          report.recommendations.push("Configure o webhook para receber notificações de novas mensagens em tempo real");
+        }
+        
+        return res.json(report);
+      } else {
+        return res.status(400).json({ 
+          message: "Esta operação só é suportada para canais Z-API" 
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao verificar status do canal:", error);
+      return res.status(500).json({ 
+        message: "Erro interno ao verificar status",
         error: error instanceof Error ? error.message : "Erro desconhecido"
       });
     }

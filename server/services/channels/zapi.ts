@@ -1,7 +1,8 @@
 import { Channel, ChannelConfig } from "@shared/schema";
 import axios from "axios";
 
-interface ZAPIResponse {
+export interface ZAPIResponse {
+  // Propriedades básicas
   phone?: string;
   connected?: boolean;
   error?: string;
@@ -11,9 +12,21 @@ interface ZAPIResponse {
   id?: string;
   messageId?: string;
   chatId?: string;
+  
+  // Arrays de dados
   messages?: any[];
   chats?: any[];
+  
+  // Propriedades adicionais
   source?: string;
+  webhook?: string;      // URL do webhook configurado
+  value?: string;        // Campo alternativo para webhook em algumas versões da API
+  battery?: number;      // Nível de bateria
+  plugged?: boolean;     // Dispositivo carregando
+  device?: string;       // Modelo do dispositivo
+  
+  // Qualquer propriedade extra que a API possa retornar
+  [key: string]: any;    // Permite propriedades adicionais não documentadas
 }
 
 // Z-API Wrapper class
@@ -28,7 +41,8 @@ export class ZAPIClient {
     this.baseUrl = `https://api.z-api.io/instances/${instanceId}`;
   }
 
-  private async makeRequest(
+  // Método público para permitir acesso em outros componentes
+  async makeRequest(
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     endpoint: string,
     data?: any

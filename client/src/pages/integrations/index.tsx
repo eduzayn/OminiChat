@@ -188,8 +188,10 @@ export default function IntegrationsPage() {
   const getMetaChannelsByType = (type: string) => {
     if (!channels || !Array.isArray(channels) || channels.length === 0) return [];
     return channels.filter((channel: any) => {
+      // Filtra apenas canais Meta que NÃO são Z-API
       return (channel.provider === 'meta' || 
-             (channel.config && channel.config.provider === 'meta')) && 
+             (channel.config && channel.config.provider === 'meta' && 
+              channel.config.provider !== 'zapi')) && 
              channel.type === type;
     });
   };

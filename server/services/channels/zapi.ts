@@ -15,8 +15,11 @@ const BASE_URL = 'https://api.z-api.io';
 
 // Função de ajuda para garantir que incluímos sempre o Client-Token nos headers
 function getHeadersWithToken(token: string) {
+  // Muito importante! De acordo com a documentação Z-API, o Client-Token é crucial
+  // para autenticação das requisições e deve estar presente em todos os headers
   return {
     'Client-Token': token,
+    'client-token': token, // Adicionando em lowercase também por segurança
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   };
@@ -538,7 +541,6 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
       
       console.log(`Instância ${instanceId} não está conectada, solicitando QR code`);
       
-      // Obter o QR code usando o endpoint específico para isso
       try {
         console.log(`Requisitando QR code para instância ${instanceId} com token ${token}`);
         // Usando o endpoint correto conforme documentação Z-API
@@ -556,20 +558,41 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
           "Sem dados na resposta");
         
         // Verificar se temos a imagem em base64 na resposta
-        if (qrResponse.data && qrResponse.data.base64) {
-          console.log("QR code obtido com sucesso da Z-API");
-          return {
-            status: "waiting_scan",
-            message: "Aguardando leitura do QR Code",
-            qrCode: qrResponse.data.base64
-          };
-        } else {
-          console.error("Resposta da Z-API não contém QR code em base64", qrResponse.data);
-          return {
-            status: "error",
-            message: "QR Code não disponível no momento"
-          };
+        // Debugando a resposta completa para entender sua estrutura
+        console.log("Resposta completa do QR code:", JSON.stringify(qrResponse.data, null, 2));
+        
+        // Verificação mais flexível para capturar diferentes formatos de resposta
+        if (qrResponse.data) {
+          // Verificar vários possíveis formatos de resposta (base64, qrcode, etc.)
+          let qrCodeData = null;
+          
+          if (qrResponse.data.base64) {
+            qrCodeData = qrResponse.data.base64;
+          } else if (qrResponse.data.qrcode) {
+            qrCodeData = qrResponse.data.qrcode;
+          } else if (qrResponse.data.value) {
+            qrCodeData = qrResponse.data.value;
+          } else if (typeof qrResponse.data === 'string' && qrResponse.data.startsWith('data:image')) {
+            qrCodeData = qrResponse.data;
+          } else if (qrResponse.data.image) {
+            qrCodeData = qrResponse.data.image;
+          }
+          
+          if (qrCodeData) {
+            console.log("QR code obtido com sucesso da Z-API");
+            return {
+              status: "waiting_scan",
+              message: "Aguardando leitura do QR Code",
+              qrCode: qrCodeData
+            };
+          }
         }
+        
+        console.error("Resposta da Z-API não contém QR code em um formato reconhecível", qrResponse.data);
+        return {
+          status: "error",
+          message: "QR Code não disponível no momento"
+        };
       } catch (qrError) {
         console.error("Erro ao obter QR code da Z-API:", qrError);
         
@@ -579,10 +602,7 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
           await axios.get(
             `${BASE_URL}/instances/${instanceId}/token/${token}/restart`,
             {
-              headers: {
-                'Client-Token': token,
-                'Content-Type': 'application/json'
-              }
+              headers: getHeadersWithToken(token)
             }
           );
           
@@ -593,11 +613,7 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
           const retryQrResponse = await axios.get(
             `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code`,
             {
-              headers: {
-                'Client-Token': token,
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-              }
+              headers: getHeadersWithToken(token)
             }
           );
           
@@ -655,10 +671,7 @@ export async function disconnectSession(channel: Channel): Promise<{ status: str
     const response = await axios.get(
       `${BASE_URL}/instances/${instanceId}/token/${token}/disconnect`,
       {
-        headers: {
-          'Client-Token': token,
-          'Content-Type': 'application/json'
-        }
+        headers: getHeadersWithToken(token)
       }
     );
     
@@ -696,10 +709,7 @@ export async function restartSession(channel: Channel): Promise<{ status: string
     const response = await axios.get(
       `${BASE_URL}/instances/${instanceId}/token/${token}/restart`,
       {
-        headers: {
-          'Client-Token': token,
-          'Content-Type': 'application/json'
-        }
+        headers: getHeadersWithToken(token)
       }
     );
     

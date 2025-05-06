@@ -566,6 +566,13 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
           // Verificar vários possíveis formatos de resposta (base64, qrcode, etc.)
           let qrCodeData = null;
           
+          // Verifica se a resposta é uma string HTML (caso em que o Vite interferiu)
+          if (typeof qrResponse.data === 'string' && qrResponse.data.startsWith('<!DOCTYPE html>')) {
+            console.log("Recebido HTML em vez de JSON na resposta do QR Code. Tentando abordagem alternativa.");
+            // Neste caso, tentamos a abordagem alternativa mais adiante no código
+            return null;
+          }
+          
           if (qrResponse.data.base64) {
             qrCodeData = qrResponse.data.base64;
           } else if (qrResponse.data.qrcode) {

@@ -534,7 +534,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
   });
   
   // Delete a channel
-  app.delete(`${apiPrefix}/channels/:id`, isAuthenticated, isAdmin, async (req, res) => {
+  app.delete(`${apiPrefix}/channels/:id`, isAuthenticated, async (req, res) => {
     try {
       const channelId = parseInt(req.params.id);
       
@@ -543,19 +543,49 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       });
       
       if (!channel) {
-        return res.status(404).json({ message: "Channel not found" });
+        return res.status(404).json({ 
+          success: false,
+          message: "Canal não encontrado" 
+        });
       }
       
-      // Check if channel has conversations
-      const conversation = await db.query.conversations.findFirst({
-        where: eq(conversations.channelId, channelId)
-      });
+      // Verificar se é um canal Z-API
+      const isZapiChannel = channel.type === "whatsapp" && 
+                           channel.config && 
+                           (channel.config as any).provider === "zapi";
       
-      if (conversation) {
-        return res.status(400).json({ 
-          message: "Cannot delete channel with existing conversations",
-          details: "You must delete all conversations associated with this channel first."
+      // Para canais que não são Z-API, verificar se têm conversas associadas
+      if (!isZapiChannel) {
+        // Verificar se tem permissão de admin para canais não Z-API
+        if (req.session.userRole !== "admin") {
+          return res.status(403).json({ 
+            success: false,
+            message: "Permissão negada. Apenas administradores podem excluir canais não Z-API." 
+          });
+        }
+        
+        // Check if channel has conversations
+        const conversation = await db.query.conversations.findFirst({
+          where: eq(conversations.channelId, channelId)
         });
+        
+        if (conversation) {
+          return res.status(400).json({ 
+            success: false,
+            message: "Não é possível excluir canal com conversas existentes",
+            details: "Você deve excluir todas as conversas associadas a este canal primeiro."
+          });
+        }
+      } else {
+        // Para canais Z-API, tenta desconectar a sessão antes de excluir
+        try {
+          console.log("Desconectando sessão Z-API antes de excluir canal:", channelId);
+          const zapiService = await import("../services/channels/zapi");
+          await zapiService.disconnectSession(channel);
+        } catch (error) {
+          console.error("Erro ao desconectar sessão Z-API:", error);
+          // Continuar com a exclusão mesmo se a desconexão falhar
+        }
       }
       
       // Delete channel
@@ -571,12 +601,16 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       
       return res.json({ 
         success: true,
-        message: "Channel deleted successfully" 
+        message: "Canal excluído com sucesso" 
       });
       
     } catch (error) {
-      console.error("Error deleting channel:", error);
-      return res.status(500).json({ message: "Internal server error" });
+      console.error("Erro ao excluir canal:", error);
+      return res.status(500).json({ 
+        success: false,
+        message: "Erro ao excluir canal",
+        error: error instanceof Error ? error.message : "Erro desconhecido"
+      });
     }
   });
   

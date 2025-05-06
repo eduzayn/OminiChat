@@ -309,12 +309,14 @@ export default function IntegrationsPage() {
                       {getChannelsByProvider('zapi').map((channel: any) => (
                         <IntegrationCard
                           key={channel.id}
+                          id={channel.id}
                           title={channel.name || "WhatsApp via Z-API"}
                           description="WhatsApp via Z-API (QR Code)"
                           icon={MessageSquare}
                           color="bg-green-100 text-green-700"
                           status={getChannelStatus(channel)}
                           onClick={() => handleEditChannel(channel)}
+                          onDelete={() => handleDeleteChannel(channel.id)}
                         />
                       ))}
                       

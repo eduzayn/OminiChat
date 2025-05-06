@@ -862,6 +862,15 @@ export async function checkWebhookStatus(channel: Channel): Promise<{
   message?: string; 
   configured?: boolean;
   webhookUrl?: string;
+  webhookFeatures?: {
+    receiveAllNotifications?: boolean;
+    messageReceived?: boolean;
+    messageCreate?: boolean;
+    statusChange?: boolean;
+    presenceChange?: boolean;
+    deviceConnected?: boolean;
+    receiveByEmail?: boolean;
+  };
 }> {
   try {
     const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
@@ -884,14 +893,28 @@ export async function checkWebhookStatus(channel: Channel): Promise<{
     
     console.log("Resposta da verificação de webhook:", JSON.stringify(response.data));
     
-    const isConfigured = response.data && response.data.value && response.data.value.length > 0;
+    // Compatibilidade com APIs antigas da Z-API que retornam 'value' em vez de 'url'
+    const webhookUrl = response.data?.url || response.data?.value || '';
+    const isConfigured = webhookUrl && webhookUrl.length > 0;
+    
+    // Extrair features do webhook se existirem
+    const webhookFeatures = response.data?.webhookFeatures || {};
     
     return {
       status: "success",
       configured: isConfigured,
-      webhookUrl: isConfigured ? response.data.value : '',
+      webhookUrl: webhookUrl,
+      webhookFeatures: {
+        receiveAllNotifications: webhookFeatures.receiveAllNotifications || false,
+        messageReceived: webhookFeatures.messageReceived || false,
+        messageCreate: webhookFeatures.messageCreate || false,
+        statusChange: webhookFeatures.statusChange || false,
+        presenceChange: webhookFeatures.presenceChange || false,
+        deviceConnected: webhookFeatures.deviceConnected || false,
+        receiveByEmail: webhookFeatures.receiveByEmail || false
+      },
       message: isConfigured 
-        ? `Webhook configurado para: ${response.data.value}` 
+        ? `Webhook configurado para: ${webhookUrl}` 
         : 'Webhook não configurado'
     };
   } catch (error) {

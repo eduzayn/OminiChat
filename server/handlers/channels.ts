@@ -1187,6 +1187,15 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
           success: true,
           configured: result.configured || false,
           webhookUrl: result.webhookUrl || null,
+          webhookFeatures: result.webhookFeatures || {
+            receiveAllNotifications: false,
+            messageReceived: false,
+            messageCreate: false,
+            statusChange: false,
+            presenceChange: false,
+            deviceConnected: false,
+            receiveByEmail: false
+          },
           message: result.message || "Status verificado"
         });
       } else {

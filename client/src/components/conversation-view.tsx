@@ -609,11 +609,20 @@ function ConversationView() {
   
   // Group messages by date for date separators
   const messagesByDate: { [date: string]: Message[] } = {};
+  console.log("Total de mensagens a serem organizadas:", messages.length);
+  
   messages.forEach(message => {
+    if (!message || !message.createdAt) {
+      console.error("Mensagem inválida encontrada:", message);
+      return;
+    }
+    
     const date = new Date(message.createdAt).toDateString();
     if (!messagesByDate[date]) messagesByDate[date] = [];
     messagesByDate[date].push(message);
   });
+  
+  console.log("Mensagens agrupadas por data:", Object.keys(messagesByDate).length, "grupos");
   
   return (
     <div className="flex-1 flex flex-col h-screen max-h-screen bg-neutral-50">
@@ -694,19 +703,32 @@ function ConversationView() {
             </Button>
           </div>
         ) : (
-          Object.entries(messagesByDate).map(([date, dateMessages]) => (
-            <div key={date} className="space-y-4">
-              <DateSeparator date={new Date(date)} />
-              
-              {dateMessages.map(message => (
-                <MessageBubble 
-                  key={message.id} 
-                  message={message} 
-                  isAgent={message.isFromAgent} 
-                />
-              ))}
+          <>
+            {/* Diagnóstico de problemas de exibição */}
+            <div className="mb-4 p-3 border border-yellow-300 bg-yellow-50 rounded-md text-xs">
+              <p className="font-semibold mb-1">Informações de Diagnóstico:</p>
+              <p>Total de mensagens: {messages.length}</p>
+              <p>Grupos de data: {Object.keys(messagesByDate).length}</p>
+              <p>Datas: {Object.keys(messagesByDate).join(', ')}</p>
             </div>
-          ))
+          
+            {Object.entries(messagesByDate).map(([date, dateMessages]) => (
+              <div key={date} className="space-y-4">
+                <DateSeparator date={new Date(date)} />
+                <p className="text-xs text-gray-500">Mensagens neste grupo: {dateMessages.length}</p>
+                
+                {dateMessages.map((message, index) => (
+                  <div key={`${message.id || index}`}>
+                    <MessageBubble 
+                      key={message.id || index} 
+                      message={message} 
+                      isAgent={!!message.isFromAgent} 
+                    />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </>
         )}
         
         {/* Always keep this div at the end to enable auto-scrolling */}

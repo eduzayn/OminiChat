@@ -269,6 +269,174 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
     }
   });
   
+  // Endpoint público para obter QR Code (sem autenticação)
+  app.get(`${apiPrefix}/qr-test`, async (req, res) => {
+    try {
+      console.log("Solicitação de QR code de teste recebida");
+      
+      // Pegar o ID do canal dos parâmetros da consulta
+      const channelId = parseInt(req.query.channel as string) || 23;
+      
+      // Importar funções necessárias
+      const zapiService = await import("../services/channels/zapi");
+      
+      // Buscar o canal, ou criar o canal 23 se não existir
+      let channel = await db.query.channels.findFirst({
+        where: eq(channels.id, channelId)
+      });
+      
+      if (!channel && channelId === 23) {
+        console.log("Canal 23 não encontrado. Criando automaticamente...");
+        
+        try {
+          // Usar variáveis de ambiente
+          const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID;
+          const ZAPI_TOKEN = process.env.ZAPI_TOKEN;
+          const CLIENT_TOKEN_ZAPI = process.env.CLIENT_TOKEN_ZAPI;
+          
+          if (!ZAPI_INSTANCE_ID || !ZAPI_TOKEN) {
+            console.error("Variáveis de ambiente ZAPI_INSTANCE_ID e/ou ZAPI_TOKEN não definidas");
+            return res.send(`
+              <html>
+                <body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
+                  <h1>Configuração incompleta</h1>
+                  <p>As variáveis de ambiente necessárias para a Z-API não estão configuradas.</p>
+                </body>
+              </html>
+            `);
+          }
+          
+          // Criar o canal com ID 23 fixo
+          const [newChannel] = await db.insert(channels)
+            .values({
+              id: 23,
+              name: "WhatsApp Z-API (Teste)",
+              type: "whatsapp",
+              isActive: true,
+              config: {
+                provider: "zapi",
+                instanceId: ZAPI_INSTANCE_ID,
+                token: ZAPI_TOKEN,
+                clientToken: CLIENT_TOKEN_ZAPI
+              }
+            })
+            .returning();
+          
+          console.log("Canal 23 criado com sucesso:", newChannel.name);
+          channel = newChannel;
+        } catch (createError) {
+          console.error("Erro ao criar canal 23:", createError);
+          return res.send(`
+            <html>
+              <body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
+                <h1>Erro ao criar canal</h1>
+                <p>Não foi possível criar o canal 23 automaticamente.</p>
+                <p>Erro: ${createError instanceof Error ? createError.message : "Desconhecido"}</p>
+              </body>
+            </html>
+          `);
+        }
+      } else if (!channel) {
+        return res.send(`
+          <html>
+            <body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
+              <h1>Canal não encontrado</h1>
+              <p>O canal com ID ${channelId} não existe.</p>
+            </body>
+          </html>
+        `);
+      }
+      
+      // Tentar obter QR code
+      console.log("Obtendo QR code para canal ID:", channel.id, channel.name);
+      const qrCodeResult = await zapiService.getQRCodeForChannel(channel);
+      
+      // Log completo da resposta
+      console.log("Resposta do getQRCodeForChannel:", 
+        qrCodeResult.status, 
+        qrCodeResult.message, 
+        qrCodeResult.qrCode ? "QR Code obtido (não exibido no log)" : "Sem QR Code"
+      );
+      
+      if (qrCodeResult.qrCode) {
+        // Verificar se o QR code parece ser válido (começa com data:image)
+        const isValidQrCode = qrCodeResult.qrCode.startsWith('data:image');
+        const qrCodeLength = qrCodeResult.qrCode.length;
+        console.log(`Diagnóstico do QR Code: Válido=${isValidQrCode}, Tamanho=${qrCodeLength}, Primeiros 50 caracteres: ${qrCodeResult.qrCode.substring(0, 50)}...`);
+      }
+      
+      // Se foi obtido um QR code
+      if (qrCodeResult.status === "waiting_scan" && qrCodeResult.qrCode) {
+        return res.send(`
+          <html>
+            <head>
+              <title>QR Code para conexão WhatsApp</title>
+              <style>
+                body { 
+                  font-family: Arial, sans-serif; 
+                  text-align: center; 
+                  margin-top: 50px; 
+                  background-color: #f5f5f5;
+                }
+                .container {
+                  max-width: 600px;
+                  margin: 0 auto;
+                  padding: 20px;
+                  background-color: white;
+                  border-radius: 10px;
+                  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                }
+                .qr-code {
+                  margin: 20px auto;
+                  padding: 20px;
+                  background-color: white;
+                  display: inline-block;
+                  border-radius: 10px;
+                }
+                h1 { color: #075E54; }
+                p { margin-bottom: 20px; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <h1>QR Code para conexão WhatsApp</h1>
+                <p>Escaneie o QR code abaixo com o WhatsApp para conectar:</p>
+                <div class="qr-code">
+                  <img src="${qrCodeResult.qrCode}" alt="QR Code" style="max-width: 300px;" />
+                </div>
+                <p>Canal: ${channel.name} (ID: ${channel.id})</p>
+                <p><small>Atualize a página se o QR code expirar.</small></p>
+              </div>
+            </body>
+          </html>
+        `);
+      } else {
+        return res.send(`
+          <html>
+            <body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
+              <h1>Erro ao obter QR Code</h1>
+              <p>${qrCodeResult.message || "Falha ao obter QR code"}</p>
+              <p>Status: ${qrCodeResult.status}</p>
+              <p><a href="javascript:location.reload()">Tentar novamente</a></p>
+            </body>
+          </html>
+        `);
+      }
+    } catch (error) {
+      console.error("Erro ao obter QR code de teste:", error);
+      return res.send(`
+        <html>
+          <body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
+            <h1>Erro interno</h1>
+            <p>Ocorreu um erro ao processar a requisição</p>
+            <p>${error instanceof Error ? error.message : "Erro desconhecido"}</p>
+            <p><a href="javascript:location.reload()">Tentar novamente</a></p>
+          </body>
+        </html>
+      `);
+    }
+  });
+
   // Endpoint de diagnóstico da integração Z-API (público, para debug)
   app.get(`${apiPrefix}/zapi-diagnostic`, async (req, res) => {
     try {

@@ -518,7 +518,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
               isActive: false,
               config: updatedConfig
             })
-            .where(eq(schema.channels.id, channelId))
+            .where(eq(channels.id, channelId))
             .returning();
             
           const responseChannel = {
@@ -578,7 +578,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
           success: false, 
           message: "Canal não encontrado", 
           details: `O canal com ID ${channelId} não existe no banco de dados.`,
-          technical_details: `DB query: channels.findFirst({where: eq(schema.channels.id, ${channelId})})`
+          technical_details: `DB query: channels.findFirst({where: eq(channels.id, ${channelId})})`
         });
       }
       
@@ -863,8 +863,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
     try {
       const channelId = parseInt(req.params.id);
       
-      const channel = await db.query.schema.channels.findFirst({
-        where: eq(schema.channels.id, channelId)
+      const channel = await db.query.channels.findFirst({
+        where: eq(channels.id, channelId)
       });
       
       if (!channel) {
@@ -944,7 +944,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
     try {
       const channelId = parseInt(req.params.id);
       
-      const channel = await db.query.schema.channels.findFirst({
+      const channel = await db.query.channels.findFirst({
         where: eq(schema.channels.id, channelId)
       });
       

@@ -116,6 +116,18 @@ export function ZAPITestPanel() {
     }
   };
 
+  // Referência para o intervalo de verificação de status
+  const [statusCheckInterval, setStatusCheckInterval] = useState<NodeJS.Timeout | null>(null);
+  
+  // Função para limpar o intervalo de verificação quando o componente for desmontado
+  useEffect(() => {
+    return () => {
+      if (statusCheckInterval) {
+        clearInterval(statusCheckInterval);
+      }
+    };
+  }, [statusCheckInterval]);
+  
   // Função para obter o QR code
   const getQrCode = async () => {
     if (!selectedChannel) {
@@ -127,8 +139,15 @@ export function ZAPITestPanel() {
       return;
     }
     
+    // Limpar qualquer intervalo existente
+    if (statusCheckInterval) {
+      clearInterval(statusCheckInterval);
+      setStatusCheckInterval(null);
+    }
+    
     setQrCodeLoading(true);
     setQrCodeUrl(null);
+    setConnectionStatus('unknown');
     
     try {
       const response = await apiRequest<any>(
@@ -142,10 +161,53 @@ export function ZAPITestPanel() {
       if (response.success && response.qrcode) {
         setQrCodeUrl(response.qrcode);
         setConnectionStatus(response.connected ? 'connected' : 'disconnected');
-        toast({
-          title: 'QR Code obtido',
-          description: 'Escaneie com o WhatsApp para conectar.',
-        });
+        
+        // Se não estiver conectado, configurar intervalo para verificar status
+        if (!response.connected) {
+          toast({
+            title: 'QR Code obtido',
+            description: 'Escaneie com o WhatsApp para conectar.',
+          });
+          
+          // Iniciar intervalo para verificar o status a cada 5 segundos
+          const interval = setInterval(async () => {
+            try {
+              console.log("Verificando automaticamente status da conexão...");
+              const statusResponse = await apiRequest<any>(
+                'POST',
+                `/api/channels/${selectedChannel}/test-connection`,
+                null
+              );
+              
+              if (statusResponse.success) {
+                console.log("Status da conexão atualizado:", statusResponse);
+                setConnectionStatus('connected');
+                
+                // Se estiver conectado, limpar o QR code e o intervalo
+                setQrCodeUrl(null);
+                toast({
+                  title: 'Conectado',
+                  description: 'WhatsApp conectado com sucesso!',
+                });
+                
+                // Limpar intervalo
+                clearInterval(interval);
+                setStatusCheckInterval(null);
+              }
+            } catch (error) {
+              console.error("Erro ao verificar status:", error);
+            }
+          }, 5000); // Verificar a cada 5 segundos
+          
+          setStatusCheckInterval(interval);
+        } else {
+          // Já está conectado, não precisa mostrar QR code
+          setQrCodeUrl(null);
+          toast({
+            title: 'Já conectado',
+            description: 'Este WhatsApp já está conectado.',
+          });
+        }
       } else {
         toast({
           title: 'Erro',

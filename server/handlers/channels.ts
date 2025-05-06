@@ -1,10 +1,9 @@
 import { Express } from "express";
 import { db } from "@db";
+import * as schema from "@shared/schema";
 import { 
-  channels, 
   insertChannelSchema,
   InsertChannel,
-  conversations,
   ChannelConfig
 } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
@@ -1037,12 +1036,12 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
         try {
           // Buscar ou criar contato
           let contact = await db.query.contacts.findFirst({
-            where: eq(contacts.phone, phone)
+            where: eq(schema.contacts.phone, phone)
           });
           
           if (!contact) {
             // Criar novo contato se não existir
-            const [newContact] = await db.insert(contacts)
+            const [newContact] = await db.insert(schema.contacts)
               .values({
                 name: `Contato ${phone}`,
                 phone: phone,
@@ -1059,15 +1058,15 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
           // Buscar ou criar conversa
           let conversation = await db.query.conversations.findFirst({
             where: and(
-              eq(conversations.contactId, contact.id),
-              eq(conversations.channelId, channelId),
-              eq(conversations.status, "active")
+              eq(schema.conversations.contactId, contact.id),
+              eq(schema.conversations.channelId, channelId),
+              eq(schema.conversations.status, "active")
             )
           });
           
           if (!conversation) {
             // Criar nova conversa
-            const [newConversation] = await db.insert(conversations)
+            const [newConversation] = await db.insert(schema.conversations)
               .values({
                 contactId: contact.id,
                 channelId: channelId,
@@ -1081,13 +1080,13 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
           }
           
           // Registrar a mensagem enviada
-          const [newMessage] = await db.insert(messages)
+          const [newMessage] = await db.insert(schema.messages)
             .values({
               conversationId: conversation.id,
               content: message,
               direction: "outbound",
               status: "delivered",
-              agentId: req.session.userId,
+              agentId: req.session?.userId || null, // Verificação de segurança
               metadata: { 
                 messageId: result.messageId,
                 testMessage: true

@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { IntegrationCard } from './components/integration-card';
 import { MetaIntegrationDialog } from './components/meta-integration';
 import { ZAPIIntegrationDialog } from './components/zapi-integration';
+import { ZAPITestPanel } from './components/zapi-test';
 import { toast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 
@@ -274,6 +275,19 @@ export default function IntegrationsPage() {
               </Button>
             </div>
             
+            {/* Teste de Instâncias Z-API */}
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center">
+                  <CircuitBoard className="h-5 w-5 mr-2 text-blue-600" />
+                  Diagnóstico Z-API
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ZAPITestPanel />
+              </CardContent>
+            </Card>
+
             {/* Integrações de WhatsApp */}
             <Card className="mb-8">
               <CardHeader>

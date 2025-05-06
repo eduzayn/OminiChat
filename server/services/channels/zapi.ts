@@ -9,11 +9,18 @@ import { Channel } from '@shared/schema';
  */
 
 // Configuração global
-const ZAPI_TOKEN = process.env.ZAPI_TOKEN;
-const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID;
+// Configurações da instância web (valores das variáveis de ambiente ou valores padrão se não definidos)
+const ZAPI_TOKEN = process.env.ZAPI_TOKEN || "A4E4203C24887ZDA084747";
+const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID || "3DF871A7ADF830F8499BE6006CECDC1";
+
+// Configurações alternativas da instância mobile para testes
+const ZAPI_MOBILE_TOKEN = "8A82365003962876A3574828";
+const ZAPI_MOBILE_INSTANCE_ID = "3D0C1D6E493402738F4C266504411D32";
+
 const BASE_URL = 'https://api.z-api.io';
 
 // Z-API Security Token (Token de Segurança da conta, diferente do token da instância)
+// Este token é usado em todas as instâncias
 const ZAPI_SECURITY_TOKEN = "Fa427b12e188a433292a658fe45a07714S";
 
 // Função de ajuda para garantir que incluímos sempre o Client-Token nos headers
@@ -27,6 +34,94 @@ function getHeadersWithToken(token: string) {
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   };
+}
+
+/**
+ * Testa a conexão com as instâncias Z-API (web e mobile)
+ * Esta função é útil para diagnóstico das credenciais da Z-API
+ */
+export async function testZapiInstances(): Promise<{
+  webInstance: {
+    success: boolean;
+    message: string;
+    data?: any;
+  },
+  mobileInstance: {
+    success: boolean;
+    message: string;
+    data?: any;
+  }
+}> {
+  const result = {
+    webInstance: {
+      success: false,
+      message: "Não testado"
+    },
+    mobileInstance: {
+      success: false,
+      message: "Não testado"
+    }
+  };
+  
+  // Testar a instância web
+  try {
+    console.log(`Testando instância web Z-API (${ZAPI_INSTANCE_ID})...`);
+    const webResponse = await axios.get(
+      `${BASE_URL}/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/status`,
+      { headers: getHeadersWithToken(ZAPI_TOKEN) }
+    );
+    
+    result.webInstance = {
+      success: true,
+      message: "Conexão bem-sucedida",
+      data: webResponse.data
+    };
+  } catch (error) {
+    console.error(`Erro ao testar instância web Z-API:`, error);
+    if (axios.isAxiosError(error)) {
+      result.webInstance = {
+        success: false,
+        message: `Erro ${error.response?.status}: ${error.response?.data?.error || error.message}`,
+        data: error.response?.data
+      };
+    } else {
+      result.webInstance = {
+        success: false,
+        message: error instanceof Error ? error.message : "Erro desconhecido"
+      };
+    }
+  }
+  
+  // Testar a instância mobile
+  try {
+    console.log(`Testando instância mobile Z-API (${ZAPI_MOBILE_INSTANCE_ID})...`);
+    const mobileResponse = await axios.get(
+      `${BASE_URL}/instances/${ZAPI_MOBILE_INSTANCE_ID}/token/${ZAPI_MOBILE_TOKEN}/status`,
+      { headers: getHeadersWithToken(ZAPI_MOBILE_TOKEN) }
+    );
+    
+    result.mobileInstance = {
+      success: true,
+      message: "Conexão bem-sucedida",
+      data: mobileResponse.data
+    };
+  } catch (error) {
+    console.error(`Erro ao testar instância mobile Z-API:`, error);
+    if (axios.isAxiosError(error)) {
+      result.mobileInstance = {
+        success: false,
+        message: `Erro ${error.response?.status}: ${error.response?.data?.error || error.message}`,
+        data: error.response?.data
+      };
+    } else {
+      result.mobileInstance = {
+        success: false,
+        message: error instanceof Error ? error.message : "Erro desconhecido"
+      };
+    }
+  }
+  
+  return result;
 }
 
 /**

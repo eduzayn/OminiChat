@@ -14,6 +14,11 @@ import { setupInstagramChannel } from "../services/channels/instagram";
 import { setupFacebookChannel } from "../services/channels/facebook";
 import { broadcastToClients } from "../services/socket";
 import axios from "axios";
+import { 
+  setupZAPIChannel, 
+  getQRCodeForChannel, 
+  testZapiInstances 
+} from "../services/channels/zapi";
 
 // Middleware to check if user is authenticated
 function isAuthenticated(req: any, res: any, next: any) {

@@ -20,6 +20,7 @@ import { IntegrationCard } from './components/integration-card';
 import { MetaIntegrationDialog } from './components/meta-integration';
 import { ZAPIIntegrationDialog } from './components/zapi-integration';
 import { ZAPITestPanel } from './components/zapi-test';
+import { ZAPIWebhookConfig } from './components/zapi-webhook-config';
 import { toast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 
@@ -285,6 +286,36 @@ export default function IntegrationsPage() {
               </CardHeader>
               <CardContent>
                 <ZAPITestPanel />
+              </CardContent>
+            </Card>
+
+            {/* Configuração de Webhooks Z-API */}
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center">
+                  <Webhook className="h-5 w-5 mr-2 text-blue-600" />
+                  Configuração de Webhooks Z-API
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {getChannelsByProvider('zapi').length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <Webhook className="h-12 w-12 text-gray-400 mb-4" />
+                    <h3 className="font-medium text-lg">Nenhum canal Z-API encontrado</h3>
+                    <p className="text-neutral-500 mb-4">
+                      Adicione um canal WhatsApp via Z-API para configurar webhooks
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    {getChannelsByProvider('zapi').map((channel) => (
+                      <div key={channel.id} className="mb-6 last:mb-0">
+                        <h3 className="font-medium text-lg mb-4">{channel.name}</h3>
+                        <ZAPIWebhookConfig channelId={channel.id} />
+                      </div>
+                    ))}
+                  </>
+                )}
               </CardContent>
             </Card>
 

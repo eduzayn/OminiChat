@@ -433,38 +433,78 @@ function ConversationView() {
   const sendMessage = async () => {
     if (!messageInput.trim() || !activeConversation) return;
     
+    // Salvar o texto da mensagem antes de limpar o campo
+    const currentMessage = messageInput;
+    
+    // Otimizar a experiência do usuário limpando o campo imediatamente
+    setMessageInput("");
+    
+    // Adicionar mensagem temporária com um ID temporário
+    const tempId = `temp-${Date.now()}`;
+    const tempMessage: Message = {
+      id: tempId as any,
+      conversationId: activeConversation.id,
+      content: currentMessage,
+      isFromAgent: true,
+      agentId: user?.id,
+      status: "sending",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      agent: user ? {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        role: user.role,
+        avatarUrl: user.avatarUrl
+      } : undefined
+    };
+    
+    // Adicionar a mensagem temporária à lista
+    setMessages(prev => [...prev, tempMessage]);
+    
     try {
+      // Enviar a mensagem para o servidor
       const response = await apiRequest("POST", `/api/conversations/${activeConversation.id}/messages`, {
-        content: messageInput,
+        content: currentMessage,
         isFromAgent: true,
         agentId: user?.id
       });
       
+      // Processar a resposta bem-sucedida
       const newMessage = await response.json();
       
-      // Adicionar a mensagem à UI apenas se ela não existir já
+      // Atualizar as mensagens - remover a temporária e adicionar a real
       setMessages(prev => {
-        // Verificar se a mensagem já existe na lista para evitar duplicação
-        const messageExists = prev.some(m => m.id === newMessage.id);
+        // Filtrar a mensagem temporária e verificar duplicação
+        const filteredMessages = prev.filter(m => m.id !== tempId);
+        const messageExists = filteredMessages.some(m => m.id === newMessage.id);
+        
         if (messageExists) {
-          return prev;
+          return filteredMessages;
         }
-        return [...prev, newMessage];
+        return [...filteredMessages, newMessage];
       });
       
-      // Clear the input
-      setMessageInput("");
-      
-      // Invalidate the conversations query to update the last message preview
+      // Atualizar a lista de conversas para mostrar a última mensagem
       queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
       
     } catch (error) {
       console.error("Error sending message:", error);
+      
+      // Mostrar erro na UI
       toast({
         variant: "destructive",
-        title: "Error sending message",
-        description: "Your message could not be sent. Please try again."
+        title: "Erro ao enviar mensagem",
+        description: "Não foi possível enviar sua mensagem. Tente novamente."
       });
+      
+      // Remover a mensagem temporária
+      setMessages(prev => prev.filter(m => m.id !== tempId));
+      
+      // Se o usuário tinha começado a digitar uma nova mensagem, recoloque-a no campo
+      if (messageInput.trim() === "") {
+        setMessageInput(currentMessage);
+      }
     }
   };
   

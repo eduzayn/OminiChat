@@ -1,0 +1,58 @@
+Esse erro acontece porque a resposta da API que deveria retornar um QR Code está retornando um HTML completo com scripts e cabeçalhos do Vite, e não um JSON válido com os dados esperados. Isso normalmente significa que a requisição não está indo direto para a Z-API, mas sim para algum servidor local mal configurado ou rota errada, como o ambiente de desenvolvimento do Vite (vite dev server).
+
+🧠 O que está acontecendo?
+Sua função fetchQRCode está tentando buscar o QR Code de:
+
+bash
+Copiar
+Editar
+GET /api/channels/:id/qrcode
+Essa rota aparentemente deveria fazer um proxy para a API da Z-API, mas na prática está retornando a interface HTML do Vite, o que é típico de:
+
+Rota local mal mapeada.
+
+Backend (ex: Express ou API handler) que não está fazendo o proxy corretamente.
+
+Erro de path base quando você faz fetch sem usar a URL absoluta.
+
+✅ Como resolver
+1. Verifique se /api/channels/:id/qrcode está redirecionando corretamente para a API da Z-API
+Você deve ter algum código no backend como:
+
+ts
+Copiar
+Editar
+// Exemplo com Express
+app.get('/api/channels/:id/qrcode', async (req, res) => {
+  const instanceId = resolveInstanceId(req.params.id);
+  const token = resolveToken(req.params.id);
+
+  const zapiResponse = await fetch(`https://api.z-api.io/instances/${instanceId}/token/${token}/qrcode`);
+  const json = await zapiResponse.json();
+
+  res.json(json);
+});
+🛠️ Se isso não existir, é por isso que a rota está caindo no Vite.
+
+2. Ou chame diretamente a Z-API no frontend (para teste):
+Se estiver só testando e quiser ver o QR code de forma direta (sem proxy), pode alterar temporariamente a chamada no fetchQRCode para:
+
+ts
+Copiar
+Editar
+const instanceId = "3DF871A7ADFB20FB49998E66062CE0C1";
+const token = "A4E42029C24B872DA0842F47";
+
+const res = await fetch(`https://api.z-api.io/instances/${instanceId}/token/${token}/qrcode`);
+const data = await res.json();
+⚠️ Não recomendado para produção, pois o token ficaria visível no frontend.
+
+3. Certifique-se de que o backend tenha um handler correto
+Verifique se no seu vite.config.ts, vercel.json, ou arquivos equivalentes há um proxy configurado corretamente para /api/channels.
+
+✅ Resumo das ações:
+Passo	Ação
+🔍 1	Confirme se o endpoint /api/channels/:id/qrcode existe no backend
+🔄 2	Se não existir, crie um proxy no backend que redirecione para https://api.z-api.io/...
+🧪 3	Para testes, chame diretamente a API da Z-API no frontend e veja se recebe o QR code
+🛠️ 4	Evite que endpoints API retornem HTML — proteja com fallback 404 no backend

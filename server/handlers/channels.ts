@@ -307,6 +307,15 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       }
       
       console.log(`[QRCode Handler] Provedor do canal: ${config.provider}`);
+      console.log(`[QRCode Handler] Detalhes do canal: `, {
+        id: channel.id,
+        name: channel.name,
+        type: channel.type,
+        providerId: config.provider,
+        // Ocultar partes sensíveis e mostrar apenas para debug
+        instanceId: config.instanceId ? `${config.instanceId.substring(0, 4)}...` : undefined,
+        hasToken: !!config.token
+      });
       
       // Verificar se é um canal Z-API
       if (config.provider === "zapi") {
@@ -315,6 +324,37 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
         try {
           // Importar o módulo de serviço Z-API
           const zapiService = await import("../services/channels/zapi");
+          
+          // Verificar e atualizar as credenciais se necessário
+          if (!config.instanceId || !config.token) {
+            console.log("[QRCode Handler] Credenciais incompletas, usando variáveis de ambiente");
+            
+            // Usar variáveis de ambiente se não houver configuração específica
+            const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID;
+            const ZAPI_TOKEN = process.env.ZAPI_TOKEN;
+            
+            if (ZAPI_INSTANCE_ID && ZAPI_TOKEN) {
+              // Atualizar o canal com as credenciais do ambiente
+              await db.update(channels)
+                .set({
+                  config: {
+                    ...config,
+                    instanceId: ZAPI_INSTANCE_ID,
+                    token: ZAPI_TOKEN
+                  }
+                })
+                .where(eq(channels.id, channel.id));
+                
+              // Recarregar o canal com as novas credenciais
+              const updatedChannel = await db.query.channels.findFirst({
+                where: eq(channels.id, channel.id)
+              });
+              
+              if (updatedChannel) {
+                channel = updatedChannel;
+              }
+            }
+          }
           
           // Usar a função específica para obter QR Code
           const qrResult = await zapiService.getQRCodeForChannel(channel);

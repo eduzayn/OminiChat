@@ -17,7 +17,7 @@ import { useAuth } from "./context/auth-context";
 import { AuthProvider } from "./context/auth-context";
 import { SocketProvider } from "./context/socket-context";
 import { ConversationProvider } from "./context/conversation-context";
-import { ZAPINotifications } from "@/components/zapi-notifications";
+
 
 // Página de placeholder para módulos em desenvolvimento
 import PlaceholderPage from "@/pages/placeholder";
@@ -149,13 +149,7 @@ function AppWithProviders() {
   const AuthenticatedApp = () => {
     const { user } = useAuth();
     
-    // Renderizar notificações Z-API apenas quando o usuário estiver autenticado
-    return (
-      <>
-        <Router />
-        {user && <ZAPINotifications />}
-      </>
-    );
+    return <Router />;
   };
 
   return (

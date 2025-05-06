@@ -1,6 +1,5 @@
 import { Channel } from "@shared/schema";
 import axios from "axios";
-import { setupZAPIChannel } from "./zapi";
 
 // Function to set up and configure WhatsApp channel
 export async function setupChannel(channel: Channel): Promise<{ status: string; message?: string; qrCode?: string }> {
@@ -20,8 +19,6 @@ export async function setupChannel(channel: Channel): Promise<{ status: string; 
       return setupMetaWhatsApp(channel);
     } else if (provider === "twilio") {
       return setupTwilioWhatsApp(channel);
-    } else if (provider === "zapi") {
-      return setupZAPIChannel(channel);
     } else {
       return {
         status: "error",
@@ -251,10 +248,6 @@ export async function sendWhatsAppMessage(
       return sendMetaWhatsAppMessage(channel, to, content, type, mediaUrl);
     } else if (provider === "twilio") {
       return sendTwilioWhatsAppMessage(channel, to, content);
-    } else if (provider === "zapi") {
-      // Importamos diretamente aqui para evitar referência circular
-      const { sendZAPIWhatsAppMessage } = require('./zapi');
-      return sendZAPIWhatsAppMessage(channel, to, content, type, mediaUrl, fileName);
     } else {
       return {
         status: "error",

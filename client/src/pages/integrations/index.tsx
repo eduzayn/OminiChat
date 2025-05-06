@@ -17,7 +17,6 @@ import { Sidebar } from '@/components/sidebar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { IntegrationCard } from './components/integration-card';
-import { ZAPIIntegrationDialog } from './components/zapi-integration';
 import { MetaIntegrationDialog } from './components/meta-integration';
 import { toast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
@@ -30,7 +29,6 @@ import { apiRequest } from '@/lib/queryClient';
  */
 export default function IntegrationsPage() {
   // Estados para diálogos de configuração
-  const [zapiDialogOpen, setZapiDialogOpen] = useState(false);
   const [metaDialogOpen, setMetaDialogOpen] = useState(false);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [webhookDialogOpen, setWebhookDialogOpen] = useState(false);
@@ -56,9 +54,7 @@ export default function IntegrationsPage() {
     // Verificar provider no objeto principal ou dentro do config
     const provider = channel.provider || (channel.config && channel.config.provider);
     
-    if (provider === 'zapi' || (channel.config && channel.config.provider === 'zapi')) {
-      setZapiDialogOpen(true);
-    } else if (provider === 'meta' || (channel.config && channel.config.provider === 'meta')) {
+    if (provider === 'meta' || (channel.config && channel.config.provider === 'meta')) {
       setMetaDialogOpen(true);
     } else if (provider === 'smtp') {
       setEmailDialogOpen(true);
@@ -78,9 +74,7 @@ export default function IntegrationsPage() {
   const handleNewChannel = (provider: string) => {
     setSelectedChannel(null);
     
-    if (provider === 'zapi') {
-      setZapiDialogOpen(true);
-    } else if (provider === 'meta') {
+    if (provider === 'meta') {
       setMetaDialogOpen(true);
     } else if (provider === 'smtp') {
       setEmailDialogOpen(true);
@@ -156,8 +150,8 @@ export default function IntegrationsPage() {
       return 'pending';
     }
     
-    // Para canais Z-API, verificar se há mais dados de status
-    if (channel.config && channel.config.provider === 'zapi' && channel.lastConnection) {
+    // Verificação adicional para canais que registram a última conexão
+    if (channel.lastConnection) {
       const lastConnectionTime = new Date(channel.lastConnection).getTime();
       const now = new Date().getTime();
       const diffHours = (now - lastConnectionTime) / (1000 * 60 * 60);

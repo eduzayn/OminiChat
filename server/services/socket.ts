@@ -304,39 +304,7 @@ export function sendToUser(userId: number, data: any): void {
   }
 }
 
-// Envia notificação sobre mensagem Z-API
-export function sendZAPINotification(message: any, channel: any, contact: any): void {
-  console.log('Enviando notificação Z-API via WebSocket');
-  
-  // Incluir mais detalhes da mensagem e contato na notificação
-  const notificationData = {
-    type: "zapi_notification",
-    data: {
-      message: message,
-      channel: {
-        id: channel.id,
-        name: channel.name,
-        type: channel.type,
-        provider: 'zapi'
-      },
-      contact: {
-        id: contact.id,
-        name: contact.name,
-        phone: contact.phone
-      },
-      timestamp: new Date().toISOString()
-    }
-  };
-  
-  // Registrar nos logs para depuração
-  console.log('Enviando notificação com dados:', JSON.stringify(notificationData, null, 2));
-  
-  // Broadcast da notificação para todos os clientes conectados
-  broadcastToClients(notificationData);
-  
-  // Log do número de clientes conectados
-  console.log(`Notificação enviada para ${clients.size} cliente(s) conectado(s)`);
-}
+
 
 // Get active clients count
 export function getActiveClientsCount(): number {

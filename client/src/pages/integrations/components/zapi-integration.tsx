@@ -117,8 +117,8 @@ export function ZAPIIntegrationDialog({
       // Se for um canal existente, verifica o status usando o ID
       if (channelForm.id) {
         const response = await apiRequest<any>(
-          `/api/channels/${channelForm.id}/test-connection`,
           'POST',
+          `/api/channels/${channelForm.id}/test-connection`,
           { provider: 'zapi' }
         );
         
@@ -178,7 +178,7 @@ export function ZAPIIntegrationDialog({
       
       const method = channelForm.id ? 'PUT' : 'POST';
       
-      const response = await apiRequest<any>(url, method, payload);
+      const response = await apiRequest<any>(method, url, payload);
       
       if (response.success) {
         toast({

@@ -310,8 +310,7 @@ function ConversationView() {
   const messageTemplatesQuery = useQuery({
     queryKey: ['/api/message-templates'],
     queryFn: async () => {
-      const response = await apiRequest("GET", '/api/message-templates');
-      const data = await response.json();
+      const data = await apiRequest("GET", '/api/message-templates');
       return data as MessageTemplate[];
     }
   });
@@ -322,9 +321,10 @@ function ConversationView() {
   useEffect(() => {
     if (activeConversation) {
       setIsLoading(true);
-      fetch(`/api/conversations/${activeConversation.id}/messages`)
-        .then(res => res.json())
+      
+      apiRequest("GET", `/api/conversations/${activeConversation.id}/messages`)
         .then(data => {
+          console.log("Mensagens carregadas:", data);
           setMessages(data);
           setIsLoading(false);
         })
@@ -366,11 +366,11 @@ function ConversationView() {
       }
       
       // Processar a mensagem se pertence à conversa ativa
-      if (message.conversationId === activeConversation.id) {
+      if (Number(message.conversationId) === Number(activeConversation.id)) {
         // Verificar se a mensagem já existe para evitar duplicação
         setMessages(prev => {
           // Se a mensagem já existe na lista, não adicione novamente
-          const messageExists = prev.some(m => m.id === message.id);
+          const messageExists = prev.some(m => Number(m.id) === Number(message.id));
           if (messageExists) {
             return prev;
           }
@@ -476,8 +476,7 @@ function ConversationView() {
         // Filtrar a mensagem temporária e verificar duplicação
         const filteredMessages = prev.filter(m => m.id !== tempId);
         // Verifica se a mensagem já existe usando o ID como número
-        const messageExists = typeof newMessage.id === 'number' && 
-                             filteredMessages.some(m => m.id === newMessage.id);
+        const messageExists = filteredMessages.some(m => Number(m.id) === Number(newMessage.id));
         
         if (messageExists) {
           return filteredMessages;

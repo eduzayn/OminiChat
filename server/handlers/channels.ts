@@ -376,7 +376,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
               technical_info: {
                 instanceId: config.instanceId,
                 error_details: statusResponse.message || 'Unable to find matching resource',
-                attempted_endpoints: statusResponse.attempted_endpoints || []
+                failed_attempts: statusResponse.failed_attempts || statusResponse.attempted_endpoints || []
               }
             });
           }
@@ -400,7 +400,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
               technical_info: {
                 instanceId: config.instanceId,
                 error_details: statusResponse.message || 'Falha na verificação de status',
-                attempted_endpoints: statusResponse.attempted_endpoints || []
+                failed_attempts: statusResponse.failed_attempts || statusResponse.attempted_endpoints || []
               }
             });
           }
@@ -414,7 +414,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
             technical_info: {
               error: statusResponse.error,
               message: statusResponse.message,
-              attempted_endpoints: statusResponse.attempted_endpoints || []
+              failed_attempts: statusResponse.failed_attempts || statusResponse.attempted_endpoints || []
             }
           });
         }
@@ -469,7 +469,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
               technical_info: {
                 instanceId: config.instanceId,
                 error_details: qrCodeResponse.message || 'Credenciais inválidas ou instância inexistente',
-                attempted_endpoints: qrCodeResponse.attempted_endpoints || []
+                failed_attempts: qrCodeResponse.failed_attempts || qrCodeResponse.attempted_endpoints || []
               }
             });
           }
@@ -489,7 +489,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
               technical_info: {
                 instanceId: config.instanceId,
                 attempted_urls: qrCodeResponse.attempted_urls,
-                attempted_endpoints: qrCodeResponse.attempted_endpoints || []
+                failed_attempts: qrCodeResponse.failed_attempts || qrCodeResponse.attempted_endpoints || []
               }
             });
           }
@@ -512,7 +512,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
               ],
               technical_info: {
                 instanceId: config.instanceId,
-                attempted_endpoints: qrCodeResponse.attempted_endpoints || []
+                failed_attempts: qrCodeResponse.failed_attempts || qrCodeResponse.attempted_endpoints || []
               }
             });
           }
@@ -526,7 +526,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
             technical_info: {
               error: qrCodeResponse.error,
               message: qrCodeResponse.message,
-              attempted_endpoints: qrCodeResponse.attempted_endpoints || []
+              failed_attempts: qrCodeResponse.failed_attempts || qrCodeResponse.attempted_endpoints || []
             }
           });
         }

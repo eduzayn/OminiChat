@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   CircuitBoard, 
   MessageSquare, 
@@ -29,6 +29,9 @@ import { apiRequest } from '@/lib/queryClient';
  * Permite configuração e gerenciamento de todas as integrações com canais de comunicação.
  */
 export default function IntegrationsPage() {
+  // Acessar o query client para invalidar cache
+  const queryClient = useQueryClient();
+  
   // Estados para diálogos de configuração
   const [metaDialogOpen, setMetaDialogOpen] = useState(false);
   const [zapiDialogOpen, setZapiDialogOpen] = useState(false);
@@ -48,6 +51,36 @@ export default function IntegrationsPage() {
     queryKey: ['/api/channels'],
     retry: false
   });
+
+  // Função para excluir um canal
+  const handleDeleteChannel = async (channelId: number) => {
+    if (!confirm("Tem certeza que deseja excluir este canal? Esta ação não pode ser desfeita.")) {
+      return;
+    }
+    
+    try {
+      const response = await apiRequest('DELETE', `/api/channels/${channelId}`);
+      
+      if (response.success) {
+        toast({
+          title: "Canal excluído",
+          description: "O canal foi excluído com sucesso.",
+        });
+        
+        // Recarregar lista de canais
+        queryClient.invalidateQueries({ queryKey: ['/api/channels'] });
+      } else {
+        throw new Error(response.message || 'Erro ao excluir canal');
+      }
+    } catch (error) {
+      console.error("Erro ao excluir canal:", error);
+      toast({
+        title: "Erro",
+        description: error instanceof Error ? error.message : 'Erro ao excluir canal',
+        variant: "destructive"
+      });
+    }
+  };
 
   // Função para abrir dialog de configuração do canal com dados pré-carregados
   const handleEditChannel = (channel: any) => {

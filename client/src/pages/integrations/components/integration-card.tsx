@@ -1,5 +1,5 @@
 import React from 'react';
-import { LucideIcon } from 'lucide-react';
+import { LucideIcon, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -11,7 +11,9 @@ interface IntegrationCardProps {
   color: string;
   status?: 'connected' | 'disconnected' | 'pending' | 'error';
   onClick: () => void;
+  onDelete?: () => void;
   buttonText?: string;
+  id: number;
 }
 
 export function IntegrationCard({
@@ -21,7 +23,9 @@ export function IntegrationCard({
   color,
   status = 'disconnected',
   onClick,
-  buttonText = 'Configurar'
+  onDelete,
+  buttonText = 'Configurar',
+  id
 }: IntegrationCardProps) {
   const statusText = {
     connected: 'Conectado',
@@ -55,13 +59,29 @@ export function IntegrationCard({
             
             <p className="text-sm text-muted-foreground mb-4">{description}</p>
             
-            <Button 
-              onClick={onClick}
-              variant={status === 'connected' ? 'outline' : 'default'}
-              size="sm"
-            >
-              {status === 'connected' ? 'Gerenciar' : buttonText}
-            </Button>
+            <div className="flex space-x-2">
+              <Button 
+                onClick={onClick}
+                variant={status === 'connected' ? 'outline' : 'default'}
+                size="sm"
+              >
+                {status === 'connected' ? 'Gerenciar' : buttonText}
+              </Button>
+              
+              {onDelete && (
+                <Button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete();
+                  }}
+                  variant="destructive"
+                  size="sm"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Excluir
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </CardContent>

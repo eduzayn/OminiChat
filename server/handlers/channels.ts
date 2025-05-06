@@ -14,6 +14,7 @@ import { setupInstagramChannel } from "../services/channels/instagram";
 import { setupFacebookChannel } from "../services/channels/facebook";
 import { broadcastToClients } from "../services/socket";
 import { ZAPIClient } from "../services/channels/zapi";
+import axios from "axios";
 
 // Middleware to check if user is authenticated
 function isAuthenticated(req: any, res: any, next: any) {
@@ -384,7 +385,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
         instance_id: instanceId,
         token_length: token.length,
         token_preview: token.substring(0, 4) + '...',
-        results: {} as Record<string, any>
+        results: {} as Record<string, any>,
+        solutions: [] as string[]
       };
       
       // Testar o endpoint de status
@@ -448,7 +450,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       }
       
       // Adicionar informações de solução ao diagnóstico
-      const possibleSolutions = [
+      diagnostic.solutions = [
         "Verificar se o instanceId e token estão corretos",
         "Confirmar que sua instância Z-API está ativa e dentro da validade",
         "Verificar se a versão da API Z-API que você está usando suporta este endpoint",
@@ -456,8 +458,6 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
         "Verificar se sua instância Z-API requer endpoints diferentes (consultar documentação específica da sua versão)",
         "Entrar em contato com o suporte da Z-API para obter ajuda adicional"
       ];
-      
-      diagnostic.solutions = possibleSolutions;
       
       return res.json({
         channel_id: channelId,

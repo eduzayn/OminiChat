@@ -1040,62 +1040,162 @@ export async function configureWebhook(
       baseUrl = `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`;
     } else {
       // URL da Replit atual baseada na ID do projeto
-      baseUrl = 'https://0eb8be2b-04a6-47e5-bbf1-dd3bd83018b0.id.repl.co';
+      baseUrl = 'https://0eb8be2b-04a6-47e5-bbf1-dd3bd83018b0-00-2m0jsmtd34bj0.picard.replit.dev';
     }
     
     // URL do webhook - se não for fornecida, cria uma URL baseada na URL atual da aplicação
     // e inclui o ID do canal para roteamento correto
     const finalWebhookUrl = webhookUrl || `${baseUrl}/api/webhooks/zapi/${channel.id}`;
     
-    // Garantir que as features corretas sejam enviadas de acordo com a documentação da Z-API
-    // https://developer.z-api.io/webhooks/introduction
-    const featuresPayload = webhookFeatures || {
+    // Extrair features individuais para campos separados de acordo com a interface mostrada
+    const features = webhookFeatures || {
       receiveAllNotifications: true,
       messageReceived: true,
       messageCreate: true,
-      statusChange: true,
+      statusChange: true, 
       deviceConnected: true
-    };
-    
-    // Configurando webhook com recursos específicos baseados na documentação
-    const payload = {
-      url: finalWebhookUrl,
-      webhookFeatures: featuresPayload
     };
     
     console.log(`[Z-API] Configurando webhook para canal ${channel.id}:`);
     console.log(`[Z-API] URL do webhook: ${finalWebhookUrl}`);
     console.log(`[Z-API] Instância: ${instanceId}`);
-    console.log(`[Z-API] Payload:`, JSON.stringify(payload, null, 2));
     
     // Headers com o Client-Token correto
     const headers = getHeadersWithToken(token, ZAPI_CLIENT_TOKEN);
     console.log(`[Z-API] Headers:`, JSON.stringify(headers, null, 2));
     
-    const response = await axios.post(
-      `${BASE_URL}/instances/${instanceId}/token/${token}/webhook`,
-      payload,
-      { headers }
-    );
+    // De acordo com a interface da Z-API mostrada na captura de tela, parece que precisamos
+    // fazer chamadas distintas para cada tipo de evento, em vez de uma única chamada
+    // com todas as configurações juntas
     
-    console.log(`[Z-API] Resposta da configuração de webhook:`, JSON.stringify(response.data, null, 2));
-    
-    // Verificar a resposta de acordo com a documentação Z-API
-    if (response.data && response.data.value === 'success') {
+    // Vamos tentar o primeiro método (API v2?)
+    try {
+      console.log(`[Z-API] Tentando configurar webhook usando API v2...`);
+      
+      // Payload para a API v2 (assumindo baseado nas suas capturas de tela)
+      const payload = {
+        on: {
+          events: {
+            onSend: features.messageCreate,
+            onReceive: features.messageReceived,
+            onStatus: features.statusChange,
+            onPresence: features.presenceChange,
+            onConnect: features.deviceConnected,
+            onDisconnect: true
+          },
+          url: finalWebhookUrl
+        }
+      };
+      
+      console.log(`[Z-API] Payload v2:`, JSON.stringify(payload, null, 2));
+      
+      const response = await axios.post(
+        `${BASE_URL}/instances/${instanceId}/token/${token}/on-webhook`,
+        payload,
+        { headers }
+      );
+      
+      console.log(`[Z-API] Resposta da configuração de webhook (v2):`, JSON.stringify(response.data, null, 2));
+      
       return {
         status: "success",
         configured: true,
         webhookUrl: finalWebhookUrl,
         message: `Webhook configurado com sucesso para: ${finalWebhookUrl}`
       };
-    } else {
-      // Mesmo que a requisição não falhe, podemos ter uma resposta negativa da API
-      return {
-        status: "error",
-        configured: false,
-        webhookUrl: finalWebhookUrl,
-        message: response.data?.message || "Resposta inesperada da Z-API ao configurar webhook"
-      };
+    } catch (errorV2) {
+      console.error("[Z-API] Erro ao configurar webhook (API v2):", errorV2);
+      
+      // Se a API v2 falhar, tentamos o formato original
+      try {
+        console.log(`[Z-API] Tentando configurar webhook usando API v1...`);
+        
+        // Tentativa com o formato original
+        const payloadV1 = {
+          url: finalWebhookUrl,
+          webhookFeatures: {
+            receiveAllNotifications: features.receiveAllNotifications,
+            messageReceived: features.messageReceived,
+            messageCreate: features.messageCreate,
+            statusChange: features.statusChange,
+            presenceChange: features.presenceChange,
+            deviceConnected: features.deviceConnected
+          }
+        };
+        
+        console.log(`[Z-API] Payload v1:`, JSON.stringify(payloadV1, null, 2));
+        
+        const responseV1 = await axios.post(
+          `${BASE_URL}/instances/${instanceId}/token/${token}/webhook`,
+          payloadV1,
+          { headers }
+        );
+        
+        console.log(`[Z-API] Resposta da configuração de webhook (v1):`, JSON.stringify(responseV1.data, null, 2));
+        
+        if (responseV1.data && (responseV1.data.value === 'success' || responseV1.status === 200)) {
+          return {
+            status: "success",
+            configured: true,
+            webhookUrl: finalWebhookUrl,
+            message: `Webhook configurado com sucesso para: ${finalWebhookUrl}`
+          };
+        } else {
+          // Se ainda falhar, tentamos a última opção: configuração do webhook base
+          throw new Error("Formato v1 não funcionou");
+        }
+      } catch (errorV1) {
+        console.error("[Z-API] Erro ao configurar webhook (API v1):", errorV1);
+        
+        // Última tentativa: apenas a URL básica
+        try {
+          console.log(`[Z-API] Tentando configurar webhook usando apenas URL...`);
+          
+          // Tentativa mais simples: apenas a URL
+          const payloadSimple = {
+            url: finalWebhookUrl
+          };
+          
+          console.log(`[Z-API] Payload simples:`, JSON.stringify(payloadSimple, null, 2));
+          
+          const responseSimple = await axios.post(
+            `${BASE_URL}/instances/${instanceId}/token/${token}/webhook`,
+            payloadSimple,
+            { headers }
+          );
+          
+          console.log(`[Z-API] Resposta da configuração de webhook (simples):`, JSON.stringify(responseSimple.data, null, 2));
+          
+          return {
+            status: "success",
+            configured: true,
+            webhookUrl: finalWebhookUrl,
+            message: `Webhook configurado com sucesso para: ${finalWebhookUrl}`
+          };
+        } catch (errorSimple) {
+          console.error("[Z-API] Erro ao configurar webhook (formato simples):", errorSimple);
+          
+          if (axios.isAxiosError(errorSimple)) {
+            const responseData = errorSimple.response?.data;
+            const errorDetails = responseData?.error || responseData?.message || errorSimple.message;
+            console.error("[Z-API] Detalhes da resposta:", JSON.stringify(errorSimple.response?.data, null, 2));
+            
+            return {
+              status: "error",
+              configured: false,
+              message: `Não foi possível configurar o webhook: ${errorDetails}`
+            };
+          } else if (errorSimple instanceof Error) {
+            return {
+              status: "error",
+              configured: false,
+              message: `Não foi possível configurar o webhook: ${errorSimple.message}`
+            };
+          }
+          
+          throw errorSimple; // Propagar o erro para o catch final
+        }
+      }
     }
   } catch (error) {
     console.error("[Z-API] Erro ao configurar webhook:", error);

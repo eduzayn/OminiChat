@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { IntegrationCard } from './components/integration-card';
 import { MetaIntegrationDialog } from './components/meta-integration';
+import { ZAPIIntegrationDialog } from './components/zapi-integration';
 import { toast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 
@@ -30,6 +31,7 @@ import { apiRequest } from '@/lib/queryClient';
 export default function IntegrationsPage() {
   // Estados para diálogos de configuração
   const [metaDialogOpen, setMetaDialogOpen] = useState(false);
+  const [zapiDialogOpen, setZapiDialogOpen] = useState(false);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [webhookDialogOpen, setWebhookDialogOpen] = useState(false);
   const [asaasDialogOpen, setAsaasDialogOpen] = useState(false);
@@ -56,6 +58,8 @@ export default function IntegrationsPage() {
     
     if (provider === 'meta' || (channel.config && channel.config.provider === 'meta')) {
       setMetaDialogOpen(true);
+    } else if (provider === 'zapi' || (channel.config && channel.config.provider === 'zapi')) {
+      setZapiDialogOpen(true);
     } else if (provider === 'smtp') {
       setEmailDialogOpen(true);
     } else if (provider === 'asaas') {
@@ -76,6 +80,8 @@ export default function IntegrationsPage() {
     
     if (provider === 'meta') {
       setMetaDialogOpen(true);
+    } else if (provider === 'zapi') {
+      setZapiDialogOpen(true);
     } else if (provider === 'smtp') {
       setEmailDialogOpen(true);
     } else if (provider === 'webhook') {
@@ -253,7 +259,20 @@ export default function IntegrationsPage() {
                         />
                       ))}
                       
-                      {/* Botão de adição */}
+                      {/* Z-API WhatsApp */}
+                      {getChannelsByProvider('zapi').map((channel: any) => (
+                        <IntegrationCard
+                          key={channel.id}
+                          title={channel.name || "WhatsApp via Z-API"}
+                          description="WhatsApp via Z-API (QR Code)"
+                          icon={MessageSquare}
+                          color="bg-green-100 text-green-700"
+                          status={getChannelStatus(channel)}
+                          onClick={() => handleEditChannel(channel)}
+                        />
+                      ))}
+                      
+                      {/* Botão de adição Meta */}
                       <Card 
                         className="border border-dashed hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer"
                         onClick={() => handleNewChannel('meta')}
@@ -265,6 +284,22 @@ export default function IntegrationsPage() {
                           <h3 className="font-medium mb-1">Adicionar WhatsApp Business</h3>
                           <p className="text-sm text-center text-muted-foreground">
                             Conecte com WhatsApp via API oficial da Meta
+                          </p>
+                        </CardContent>
+                      </Card>
+                      
+                      {/* Botão de adição Z-API */}
+                      <Card 
+                        className="border border-dashed hover:border-primary/50 hover:bg-primary/5 transition-colors cursor-pointer"
+                        onClick={() => handleNewChannel('zapi')}
+                      >
+                        <CardContent className="p-6 flex flex-col items-center justify-center h-full min-h-[160px]">
+                          <div className="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center mb-3">
+                            <Plus className="h-6 w-6 text-green-700" />
+                          </div>
+                          <h3 className="font-medium mb-1">Adicionar WhatsApp via Z-API</h3>
+                          <p className="text-sm text-center text-muted-foreground">
+                            Conecte com WhatsApp via Z-API (conexão por QR Code)
                           </p>
                         </CardContent>
                       </Card>
@@ -412,9 +447,13 @@ export default function IntegrationsPage() {
       <MetaIntegrationDialog
         open={metaDialogOpen}
         onOpenChange={setMetaDialogOpen}
-        channel={selectedChannel}
-        onChannelCreated={() => refetchChannels()}
-        onChannelUpdated={() => refetchChannels()}
+        existingChannel={selectedChannel}
+      />
+
+      <ZAPIIntegrationDialog
+        open={zapiDialogOpen}
+        onOpenChange={setZapiDialogOpen}
+        existingChannel={selectedChannel}
       />
     </>
   );

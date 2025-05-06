@@ -247,23 +247,46 @@ export async function sendWhatsAppMessage(
   fileName?: string
 ): Promise<{ status: string; message?: string; messageId?: string }> {
   try {
-    const provider = channel.config.provider as string || "twilio";
+    const provider = channel.config?.provider as string || "twilio";
     
     if (provider === "meta") {
       return sendMetaWhatsAppMessage(channel, to, content, type, mediaUrl);
     } else if (provider === "twilio") {
       return sendTwilioWhatsAppMessage(channel, to, content);
+    } else if (provider === "zapi") {
+      // Usar o tipo de mensagem para determinar qual função do serviço Z-API chamar
+      switch (type) {
+        case 'text':
+          return zapiService.sendTextMessage(channel, to, content);
+        case 'image':
+          if (!mediaUrl) {
+            return { status: "error", message: "URL de mídia obrigatória para mensagens de imagem" };
+          }
+          return zapiService.sendImageMessage(channel, to, content, mediaUrl);
+        case 'file':
+          if (!mediaUrl) {
+            return { status: "error", message: "URL de mídia obrigatória para documentos" };
+          }
+          return zapiService.sendDocumentMessage(channel, to, content, mediaUrl, fileName || 'arquivo');
+        case 'voice':
+          if (!mediaUrl) {
+            return { status: "error", message: "URL de mídia obrigatória para mensagens de áudio" };
+          }
+          return zapiService.sendAudioMessage(channel, to, mediaUrl);
+        default:
+          return zapiService.sendTextMessage(channel, to, content);
+      }
     } else {
       return {
         status: "error",
-        message: `Unsupported WhatsApp provider: ${provider}`
+        message: `Provedor WhatsApp não suportado: ${provider}`
       };
     }
   } catch (error) {
-    console.error("Error sending WhatsApp message:", error);
+    console.error("Erro ao enviar mensagem WhatsApp:", error);
     return {
       status: "error",
-      message: error instanceof Error ? error.message : "Unknown error sending WhatsApp message"
+      message: error instanceof Error ? error.message : "Erro desconhecido ao enviar mensagem WhatsApp"
     };
   }
 }

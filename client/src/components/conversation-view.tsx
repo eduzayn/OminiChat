@@ -682,12 +682,53 @@ function ConversationView() {
               <DateSeparator date={new Date(date)} />
               
               {dateMessages.map(message => {
-                console.log(`Passando mensagem ${message.id} para MessageBubble com conteúdo "${message.content}" e isFromAgent=${message.isFromAgent}`);
+                const isAgent = Boolean(message.isFromAgent);
+                console.log(`Renderizando mensagem ${message.id} - Conteúdo: "${message.content}" - É do agente: ${isAgent}`);
+                
                 return (
-                  <div key={message.id} className="border border-dashed border-gray-300 p-2 mb-2 rounded">
-                    <p className="font-bold text-xs">ID: {message.id} | Agente: {message.isFromAgent ? 'Sim' : 'Não'}</p>
-                    <p className="text-sm">{message.content || "<Sem conteúdo>"}</p>
-                    <p className="text-xs text-gray-500">Enviado em: {new Date(message.createdAt).toLocaleString()}</p>
+                  <div 
+                    key={message.id} 
+                    className={`flex mb-3 ${isAgent ? 'justify-end' : 'justify-start'}`}
+                  >
+                    {/* Avatar do contato (aparece apenas para mensagens do cliente) */}
+                    {!isAgent && (
+                      <div className="flex-shrink-0 mr-2">
+                        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-sm">
+                          {message.contact?.name?.charAt(0) || "C"}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Conteúdo da mensagem */}
+                    <div className={`max-w-[70%]`}>
+                      <div className={`p-3 rounded-lg shadow-sm ${
+                        isAgent 
+                          ? 'bg-green-100 rounded-tr-none' 
+                          : 'bg-white rounded-tl-none'
+                      }`}>
+                        <p className="text-sm whitespace-pre-wrap break-words">
+                          {message.content || "<Sem conteúdo>"}
+                        </p>
+                      </div>
+                      
+                      <div className={`flex mt-1 text-xs text-gray-500 ${isAgent ? 'justify-end' : 'justify-start'}`}>
+                        {format(new Date(message.createdAt), 'HH:mm')}
+                        {isAgent && (
+                          <span className="ml-1 text-green-500">
+                            ✓✓
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Avatar do agente (aparece apenas para mensagens do agente) */}
+                    {isAgent && (
+                      <div className="flex-shrink-0 ml-2">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-sm">
+                          {message.agent?.name?.charAt(0) || "A"}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

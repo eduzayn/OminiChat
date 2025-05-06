@@ -596,16 +596,80 @@ export function ZAPIIntegrationDialog({
                   name="instanceId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>
-                        ID da Instância
+                      <FormLabel className="flex items-center">
+                        <span>ID da Instância</span>
                         <span className="text-red-500 ml-1">*</span>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-4 w-4 ml-2 text-muted-foreground cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-sm">
+                              <p>Pode colar a URL completa da Z-API e clicar em "Extrair ID"</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Exemplo: https://api.z-api.io/instances/3DF871A7ADFB20FB49998E66062CE0C1/token/...
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ex: 3E0C1D8649343073F64C266509411D32" {...field} />
-                      </FormControl>
+                      <div className="flex space-x-2">
+                        <FormControl>
+                          <Input 
+                            placeholder="Cole a URL completa ou ID direto: 3DF871A7ADFB20FB49998E66062CE0C1" 
+                            {...field} 
+                          />
+                        </FormControl>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => {
+                            const currentValue = field.value;
+                            if (!currentValue) {
+                              toast({
+                                title: "Campo vazio",
+                                description: "Insira uma URL ou ID para extrair",
+                                variant: "destructive"
+                              });
+                              return;
+                            }
+                            
+                            // Extrair ID da instância
+                            const extractedId = extractZAPIInstanceId(currentValue);
+                            if (extractedId !== currentValue) {
+                              form.setValue('instanceId', extractedId);
+                              
+                              // Tentar extrair token também
+                              const extractedToken = extractZAPIToken(currentValue);
+                              if (extractedToken && !form.getValues('token')) {
+                                form.setValue('token', extractedToken);
+                                toast({
+                                  title: "Dados extraídos com sucesso",
+                                  description: "ID da instância e token foram extraídos automaticamente",
+                                  variant: "default"
+                                });
+                              } else {
+                                toast({
+                                  title: "ID extraído com sucesso",
+                                  description: "O ID da instância foi extraído da URL fornecida",
+                                  variant: "default"
+                                });
+                              }
+                            } else {
+                              toast({
+                                title: "Nenhuma alteração necessária",
+                                description: "O valor já parece ser um ID válido",
+                                variant: "default"
+                              });
+                            }
+                          }}
+                        >
+                          Extrair ID
+                        </Button>
+                      </div>
                       <FormDescription>
-                        Encontre o ID da instância no painel da Z-API em "Detalhes da Instância".
-                        É um código alfanumérico longo, geralmente em maiúsculas.
+                        Encontre o ID da instância no painel da Z-API em "Detalhes da Instância", ou cole a URL completa e use o botão "Extrair ID".
                       </FormDescription>
                       <FormMessage />
                     </FormItem>

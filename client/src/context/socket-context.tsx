@@ -235,6 +235,11 @@ export function SocketProvider({ children }: { children: ReactNode }) {
             // Atualizar estatísticas de conexão (clientes ativos, etc)
             console.log('Estatísticas de conexão:', data);
           }
+          else if (data.type === "new_message") {
+            console.log('Recebida nova mensagem via WebSocket:', data);
+            // Não processamos aqui, deixamos os componentes específicos lidarem com isso
+            // usando o addListener que configuram quando são montados
+          }
         } catch (e) {
           console.error("Erro ao processar mensagem do servidor:", e);
         }

@@ -290,18 +290,37 @@ export function setupWebSocketServer(wss: WebSocketServer, db: any): void {
 
 // Broadcast message to all connected clients
 export function broadcastToClients(data: any): void {
+  console.log(`Broadcasting to ${clients.size} clients:`, JSON.stringify(data).substring(0, 200) + "...");
+  
   clients.forEach((client, userId) => {
     if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify(data));
+      try {
+        client.send(JSON.stringify(data));
+        console.log(`Mensagem enviada para cliente ${userId}`);
+      } catch (error) {
+        console.error(`Erro ao enviar para cliente ${userId}:`, error);
+      }
+    } else {
+      console.log(`Cliente ${userId} não está pronto para receber (readyState: ${client.readyState})`);
     }
   });
 }
 
 // Send message to specific user
 export function sendToUser(userId: number, data: any): void {
+  console.log(`Tentando enviar mensagem para usuário ${userId}:`, 
+              JSON.stringify(data).substring(0, 200) + "...");
+              
   const client = clients.get(userId);
   if (client && client.readyState === WebSocket.OPEN) {
-    client.send(JSON.stringify(data));
+    try {
+      client.send(JSON.stringify(data));
+      console.log(`Mensagem enviada para usuário ${userId} com sucesso`);
+    } catch (error) {
+      console.error(`Erro ao enviar mensagem para usuário ${userId}:`, error);
+    }
+  } else {
+    console.log(`Usuário ${userId} não está conectado ou não está pronto para receber mensagens`);
   }
 }
 

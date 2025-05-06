@@ -406,6 +406,7 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
       };
       
       // Broadcast new message to all connected clients
+      console.log("Enviando nova mensagem via WebSocket broadcast:", messageWithDetails);
       broadcastToClients({
         type: "new_message",
         data: messageWithDetails

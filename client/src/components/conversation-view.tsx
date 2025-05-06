@@ -348,7 +348,7 @@ function ConversationView() {
     
     // Criação de handlers para diferentes tipos de eventos
     const handleNewMessage = (data: any) => {
-      console.log("Dados de nova mensagem recebidos:", data);
+      console.log("ConversationView - Dados de nova mensagem recebidos:", data);
       
       // Verificar se os dados são válidos
       if (!data) {
@@ -358,6 +358,14 @@ function ConversationView() {
       
       // Usar o próprio objeto data como mensagem, já que o socket-context já faz o processamento
       const message = data;
+      
+      // Log adicional para debug
+      console.log("Estado atual da conversa:", { 
+        activeConversationId: activeConversation?.id,
+        messageConversationId: message?.conversationId,
+        messageId: message?.id,
+        messageContent: message?.content?.substring(0, 30)
+      });
       
       // Verificar se a mensagem tem os campos necessários
       if (!message || !message.conversationId) {

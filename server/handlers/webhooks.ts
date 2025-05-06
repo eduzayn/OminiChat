@@ -39,7 +39,7 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
       
       // Verificar se o canal existe
       const channel = await db.query.channels.findFirst({
-        where: eq(schema.channels.id, channelId)
+        where: eq(channels.id, channelId)
       });
       
       if (!channel) {
@@ -47,8 +47,8 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
       }
       
       // Verificar se o contato existe
-      const contact = await db.query.schema.contacts.findFirst({
-        where: eq(schema.contacts.id, contactId)
+      const contact = await db.query.contacts.findFirst({
+        where: eq(contacts.id, contactId)
       });
       
       if (!contact) {
@@ -56,11 +56,11 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
       }
       
       // Buscar ou criar uma conversa para o contato e canal
-      let conversation = await db.query.schema.conversations.findFirst({
+      let conversation = await db.query.conversations.findFirst({
         where: and(
-          eq(schema.conversations.contactId, contactId),
-          eq(schema.conversations.channelId, channelId),
-          eq(schema.conversations.status, "open")
+          eq(conversations.contactId, contactId),
+          eq(conversations.channelId, channelId),
+          eq(conversations.status, "open")
         )
       });
       
@@ -79,16 +79,16 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
         conversation = newConversation;
       } else {
         // Atualizar conversa existente
-        await db.update(schema.conversations)
+        await db.update(conversations)
           .set({ 
             lastMessageAt: new Date(),
             unreadCount: sql`${conversations.unreadCount} + 1` 
           })
-          .where(eq(schema.conversations.id, conversation.id));
+          .where(eq(conversations.id, conversation.id));
       }
       
       // Inserir a mensagem do cliente
-      const [newMessage] = await db.insert(schema.messages)
+      const [newMessage] = await db.insert(messages)
         .values({
           conversationId: conversation.id,
           contactId,

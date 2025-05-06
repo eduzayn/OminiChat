@@ -41,28 +41,24 @@ export class ZAPIClient {
     
     // A Z-API possui várias versões e URLs base diferentes
     // De acordo com a documentação mais recente: https://developer.z-api.io/
-    // A versão mais recente (v4) usa um novo formato de URL
-    this.baseUrl = `https://api.z-api.io/instances/${instanceId}`;
+    // A versão mais recente usa um novo formato de URL com o token no caminho
+    this.baseUrl = `https://api.z-api.io/instances/${instanceId}/token/${token}`;
   }
   
   // Método para obter URLs alternativas que podem ser usadas em caso de falha
   private getAlternativeBaseUrls(): string[] {
     return [
-      // Nova URL base da v4 (2024) - ver https://developer.z-api.io/
-      `https://api.z-api.io/v4/instances/${this.instanceId}`,  // Versão mais recente v4
+      // URLs com token no path (formato mais recente da API)
+      `https://api.z-api.io/instances/${this.instanceId}/token/${this.token}`,
       
-      // URL base alternativa da API
-      `https://api.z-api.io/instances/${this.instanceId}`,     // Sem versão (padrão)
+      // URLs alternativas versões mais recentes
+      `https://api.z-api.io/v4/instances/${this.instanceId}/token/${this.token}`,
       
-      // URLs da documentação alternativa
-      `https://sandbox.z-api.io/instances/${this.instanceId}`, // URL de sandbox
-      `https://api.z-api.io/v1/instances/${this.instanceId}`,  // Versão v1
-      `https://api.z-api.io/v2/instances/${this.instanceId}`,  // Versão v2
-      `https://api.z-api.io/v3/instances/${this.instanceId}`,  // Versão v3
+      // Alteração do path para instância
+      `https://api.z-api.io/${this.instanceId}/token/${this.token}`,
       
-      // Alguns clientes podem estar usando este formato sem o "instances" no path
-      `https://api.z-api.io/${this.instanceId}`,               // URL sem "instances"
-      `https://api.z-api.io/v4/${this.instanceId}`             // URL v4 sem "instances"
+      // Alteração de domínio
+      `https://sandbox.z-api.io/instances/${this.instanceId}/token/${this.token}`
     ];
   }
 
@@ -446,25 +442,30 @@ export class ZAPIClient {
       }
       
       // Lista de todos os endpoints de QR code a serem tentados, em ordem
+      // Baseado na URL na documentação Z-API mais recente
       const qrEndpointsToTry = [
-        { path: '/qrcode-image', description: 'latest documented QR code endpoint' },  // Documentação mais recente 2024
-        { path: '/qrcode', description: 'alternative QR code endpoint' },              // Endpoint alternativo
-        { path: '/qr-code', description: 'alternative QR code endpoint (hyphenated)' }, // Endpoint alternativo com hífen
-        { path: '/connection', description: 'v4 API connection endpoint' }             // Endpoint de conexão v4
+        { path: '/qrcode', description: 'main QR code endpoint' },              // Principal endpoint de QR code
+        { path: '/qr-code', description: 'hyphenated QR code endpoint' },      // Endpoint com hífen
+        { path: '/qrcode-image', description: 'image QR code endpoint' }      // Endpoint alternativo com sufixo image
       ];
+      
+      // Evitar adicionar cabeçalho Client-Token quando o token já está na URL
+      const options = { skipTokenHeader: true };
       
       const errors = [];
       
       // Tenta cada endpoint
       for (const endpoint of qrEndpointsToTry) {
         try {
-          console.log(`Trying ${endpoint.description}: ${endpoint.path}`);
-          const response = await this.makeRequest('GET', endpoint.path);
+          console.log(`Trying Z-API QR code from ${endpoint.description}: ${endpoint.path}`);
+          
+          // Acessa diretamente sem passar pelos headers
+          const response = await this.makeRequest('GET', endpoint.path, undefined);
           
           // Se não tem erro, verificar se tem QR code na resposta
           if (!response.error) {
             // Verificar os diferentes formatos possíveis do QR code
-            const qrCodeValue = response.qrcode || response.base64 || response.image || response.qrCode;
+            const qrCodeValue = response.qrcode || response.base64 || response.image || response.qrCode || response.value;
             
             if (qrCodeValue) {
               console.log(`Successfully retrieved QR code from ${endpoint.path}`);
@@ -498,6 +499,40 @@ export class ZAPIClient {
             error: endpointError instanceof Error ? endpointError.message : 'Unknown error'
           });
         }
+      }
+      
+      // Se todas as tentativas falharam, vamos fazer uma requisição direta para demonstração
+      try {
+        console.log('Trying direct API call to Z-API QR code endpoint without client library...');
+        
+        // Construir URL diretamente conforme documentação Z-API
+        const directUrl = `https://api.z-api.io/instances/${this.instanceId}/token/${this.token}/qrcode`;
+        console.log(`Making direct GET request to: ${directUrl}`);
+        
+        const directResponse = await axios.get(directUrl);
+        
+        if (directResponse?.data) {
+          const qrCodeValue = directResponse.data.qrcode || 
+                        directResponse.data.base64 || 
+                        directResponse.data.image || 
+                        directResponse.data.qrCode || 
+                        directResponse.data.value;
+          
+          if (qrCodeValue) {
+            console.log('Successfully retrieved QR code from direct API call');
+            return {
+              qrcode: qrCodeValue,
+              status: 'success',
+              endpoint_used: 'direct-call'
+            };
+          }
+        }
+      } catch (directError) {
+        console.error('Error with direct API call:', directError);
+        errors.push({
+          endpoint: 'direct-call',
+          error: directError instanceof Error ? directError.message : 'Unknown error with direct call'
+        });
       }
       
       // Se todas as tentativas falharam, retornar erro detalhado

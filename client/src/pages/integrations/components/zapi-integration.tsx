@@ -216,11 +216,87 @@ function WhatsAppQRCode({ channelId }: { channelId: number }) {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center p-8">
-        <p className="text-red-500 mb-4">{error}</p>
-        <Button onClick={fetchQRCode} variant="outline">
-          <RefreshCcw className="h-4 w-4 mr-2" />
-          Tentar Novamente
-        </Button>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 mb-4 max-w-xl w-full">
+          <h3 className="text-red-800 font-medium mb-2">Erro ao conectar WhatsApp</h3>
+          <div className="text-gray-700 text-sm whitespace-pre-wrap max-h-64 overflow-y-auto mb-4">
+            {error.split('\n').map((line, index) => (
+              <React.Fragment key={index}>
+                {line}
+                <br />
+              </React.Fragment>
+            ))}
+          </div>
+          
+          {error.includes('credenciais') || error.includes('instanceId') || error.includes('token') ? (
+            <div className="bg-yellow-50 p-3 mb-3 rounded border border-yellow-200">
+              <p className="text-yellow-800 text-sm font-medium mb-1">Verifique suas credenciais Z-API</p>
+              <p className="text-sm">O erro parece estar relacionado às credenciais da Z-API. Verifique se:</p>
+              <ul className="list-disc text-sm pl-5 mt-1 text-gray-600">
+                <li>O ID da instância está correto e ativo no painel da Z-API</li>
+                <li>O token de acesso está correto e não expirou</li>
+                <li>Você tem permissões suficientes para esta instância</li>
+              </ul>
+            </div>
+          ) : null}
+          
+          {error.includes('NOT_FOUND') ? (
+            <div className="bg-blue-50 p-3 mb-3 rounded border border-blue-200">
+              <p className="text-blue-800 text-sm font-medium mb-1">Problema de compatibilidade de API</p>
+              <p className="text-sm">O erro NOT_FOUND geralmente indica problemas de compatibilidade com a API da Z-API. Tente:</p>
+              <ul className="list-disc text-sm pl-5 mt-1 text-gray-600">
+                <li>Verificar se a instância existe e está ativa no painel da Z-API</li>
+                <li>Atualizar o token e ID da instância nos detalhes do canal</li>
+                <li>Contatar o suporte da Z-API para verificar se há mudanças nos endpoints</li>
+              </ul>
+            </div>
+          ) : null}
+        </div>
+        
+        <div className="flex gap-2">
+          <Button onClick={fetchQRCode} variant="outline">
+            <RefreshCcw className="h-4 w-4 mr-2" />
+            Tentar Novamente
+          </Button>
+          
+          <Button 
+            variant="default"
+            onClick={async () => {
+              try {
+                toast({
+                  title: "Executando diagnóstico...",
+                  description: "Verificando a conexão com a Z-API",
+                });
+                const result = await apiRequest("GET", `/api/channels/${channelId}/status`);
+                console.log("Diagnóstico Z-API:", result);
+                
+                // Mostrar resultado diagnóstico em toast
+                const recommendations = result.recommendations || [];
+                toast({
+                  title: "Diagnóstico Z-API",
+                  description: 
+                    recommendations.length > 0 
+                      ? `${recommendations.length} ${recommendations.length === 1 ? 'recomendação' : 'recomendações'} encontrada${recommendations.length === 1 ? '' : 's'}.`
+                      : "Nenhum problema crítico encontrado",
+                  variant: recommendations.length > 0 ? "destructive" : "default",
+                });
+                
+                // Se há problemas no diagnóstico, mostrar erro informativo
+                if (recommendations.length > 0) {
+                  setError(`Diagnóstico Z-API:\n\n${recommendations.join('\n\n')}`);
+                }
+              } catch (error) {
+                console.error("Erro ao executar diagnóstico:", error);
+                toast({
+                  title: "Erro no diagnóstico",
+                  description: "Não foi possível obter diagnóstico da integração",
+                  variant: "destructive"
+                });
+              }
+            }}
+          >
+            Diagnóstico Detalhado
+          </Button>
+        </div>
       </div>
     );
   }
@@ -428,18 +504,36 @@ export function ZAPIIntegrationDialog({
         <IntegrationTabContent value="config">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-5">
+                <h4 className="text-blue-800 font-medium mb-1 text-sm">Configuração da Z-API</h4>
+                <p className="text-sm text-gray-700 mb-2">
+                  Para integrar com WhatsApp, você precisará de uma conta Z-API e os dados abaixo.
+                  Todas estas informações estão disponíveis no <a href="https://app.z-api.io/" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">painel da Z-API</a>.
+                </p>
+                <ul className="text-xs text-gray-600 list-disc pl-5">
+                  <li>Acesse sua conta na Z-API</li>
+                  <li>Crie uma instância ou selecione uma existente</li>
+                  <li>Copie o ID da instância e o token</li>
+                  <li>Utilize o formato internacional para o número de telefone</li>
+                </ul>
+              </div>
+
               <div className="grid gap-6">
                 <FormField
                   control={form.control}
                   name="instanceId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>ID da Instância</FormLabel>
+                      <FormLabel>
+                        ID da Instância
+                        <span className="text-red-500 ml-1">*</span>
+                      </FormLabel>
                       <FormControl>
-                        <Input placeholder="ID da sua instância Z-API" {...field} />
+                        <Input placeholder="Ex: 3E0C1D8649343073F64C266509411D32" {...field} />
                       </FormControl>
                       <FormDescription>
-                        Encontre o ID da instância no painel da Z-API.
+                        Encontre o ID da instância no painel da Z-API em "Detalhes da Instância".
+                        É um código alfanumérico longo, geralmente em maiúsculas.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -451,12 +545,16 @@ export function ZAPIIntegrationDialog({
                   name="token"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Token</FormLabel>
+                      <FormLabel>
+                        Token
+                        <span className="text-red-500 ml-1">*</span>
+                      </FormLabel>
                       <FormControl>
-                        <Input placeholder="Token de autenticação" {...field} />
+                        <Input placeholder="Ex: D0QAF9X80EJDJTFG59BC17EC25D6JFHY" {...field} />
                       </FormControl>
                       <FormDescription>
-                        Token da sua instância Z-API, usado para autenticação.
+                        Token de autenticação da sua instância Z-API, encontrado na seção "Detalhes da Instância".
+                        É um código longo único para cada instância.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -468,12 +566,16 @@ export function ZAPIIntegrationDialog({
                   name="phone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Telefone</FormLabel>
+                      <FormLabel>
+                        Telefone
+                        <span className="text-red-500 ml-1">*</span>
+                      </FormLabel>
                       <FormControl>
-                        <Input placeholder="5511999999999" {...field} />
+                        <Input placeholder="Ex: 5511999999999" {...field} />
                       </FormControl>
                       <FormDescription>
-                        Número do telefone conectado no formato internacional sem espaços ou caracteres especiais.
+                        Número do telefone conectado ao WhatsApp desta instância no formato internacional.
+                        Use apenas números, sem espaços, hífens ou outros caracteres (Ex: 5511999999999).
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -515,24 +617,73 @@ export function ZAPIIntegrationDialog({
               <h3 className="text-lg font-medium mb-4">Configuração de Webhooks</h3>
               {channel?.id ? (
                 <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    Configure estes webhooks no painel da Z-API para receber notificações:
+                  <p className="text-sm text-gray-700">
+                    Configure o webhook da Z-API para receber notificações em tempo real de mensagens, status de conexão e outros eventos.
                   </p>
-                  <div className="bg-gray-50 p-4 rounded-md">
-                    <p className="font-mono text-sm break-all">
-                      {`${window.location.origin}/api/webhooks/zapi/${channel.id}`}
-                    </p>
+                  
+                  <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
+                    <p className="text-xs text-gray-500 mb-1">URL do Webhook:</p>
+                    <div className="flex items-center">
+                      <p className="font-mono text-sm break-all mr-2 bg-white p-2 rounded border border-gray-200 flex-1">
+                        {`${window.location.origin}/api/webhooks/zapi/${channel.id}`}
+                      </p>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(`${window.location.origin}/api/webhooks/zapi/${channel.id}`);
+                          toast({
+                            title: "URL copiada",
+                            description: "URL do webhook copiada para a área de transferência",
+                            duration: 3000
+                          });
+                        }}
+                      >
+                        Copiar
+                      </Button>
+                    </div>
                   </div>
-                  <div className="pt-2">
-                    <p className="text-sm text-muted-foreground">
-                      O webhook deve ser ativado para todos os eventos para garantir o funcionamento completo do sistema.
+                  
+                  <div className="bg-blue-50 p-4 rounded-md border border-blue-200">
+                    <h4 className="text-blue-800 font-medium text-sm mb-2">Instruções de Configuração</h4>
+                    <ol className="text-sm text-gray-700 list-decimal pl-5 space-y-2">
+                      <li>Acesse o painel da Z-API e selecione sua instância</li>
+                      <li>Navegue até a seção "Webhooks" ou "Configurações"</li>
+                      <li>Insira a URL acima no campo "URL do Webhook"</li>
+                      <li>Certifique-se de ativar <span className="font-medium">todos os eventos</span> para o funcionamento completo</li>
+                      <li>Salve as configurações no painel da Z-API</li>
+                    </ol>
+                    
+                    <div className="mt-3 pt-3 border-t border-blue-200">
+                      <p className="text-sm text-blue-700">
+                        <strong>Importante:</strong> A Z-API enviará notificações para esta URL sempre que houver novos eventos no WhatsApp.
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-yellow-50 p-4 rounded-md border border-yellow-200">
+                    <h4 className="text-yellow-800 font-medium text-sm mb-1">Resolução de Problemas</h4>
+                    <p className="text-sm text-gray-700 mb-2">
+                      Se as mensagens não estiverem chegando em tempo real:
                     </p>
+                    <ul className="text-sm text-gray-700 list-disc pl-5">
+                      <li>Verifique se o webhook está configurado corretamente na Z-API</li>
+                      <li>Confirme se a URL tem acesso público (não está em localhost)</li>
+                      <li>Certifique-se de que todos os eventos estão habilitados</li>
+                      <li>Teste a conexão enviando uma mensagem de teste</li>
+                    </ul>
                   </div>
                 </div>
               ) : (
-                <p className="text-muted-foreground">
-                  Primeiro configure e salve as informações do canal para obter a URL do webhook.
-                </p>
+                <div className="flex flex-col items-center justify-center p-8">
+                  <div className="bg-gray-100 rounded-full p-3 mb-4 text-gray-400">
+                    <MessageSquare className="h-8 w-8" />
+                  </div>
+                  <h3 className="text-lg font-medium mb-2">Configuração Pendente</h3>
+                  <p className="text-muted-foreground text-center">
+                    Primeiro configure e salve as informações do canal para obter a URL do webhook.
+                  </p>
+                </div>
               )}
             </CardContent>
           </Card>

@@ -76,17 +76,23 @@ export default function IntegrationsPage() {
 
   // Função para abrir dialog de criação de novo canal
   const handleNewChannel = (provider: string) => {
+    console.log(`Abrindo dialog para novo canal: ${provider}`);
     setSelectedChannel(null);
     
     if (provider === 'meta') {
+      console.log('Abrindo dialog para Meta');
       setMetaDialogOpen(true);
     } else if (provider === 'zapi') {
+      console.log('Abrindo dialog para Z-API');
       setZapiDialogOpen(true);
     } else if (provider === 'smtp') {
+      console.log('Abrindo dialog para SMTP');
       setEmailDialogOpen(true);
     } else if (provider === 'webhook') {
+      console.log('Abrindo dialog para Webhook');
       setWebhookDialogOpen(true);
     } else if (provider === 'asaas') {
+      console.log('Abrindo dialog para Asaas');
       setAsaasDialogOpen(true);
     }
   };
@@ -175,6 +181,11 @@ export default function IntegrationsPage() {
   const getChannelsByProvider = (provider: string) => {
     if (!channels || !Array.isArray(channels) || channels.length === 0) return [];
     return channels.filter((channel: any) => {
+      // Verificar se o tipo é compatible (WhatsApp para Z-API)
+      if (provider === 'zapi' && channel.type !== 'whatsapp') {
+        return false;
+      }
+      
       // Para canais com provider dentro do config
       if (channel.config && channel.config.provider === provider) {
         return true;

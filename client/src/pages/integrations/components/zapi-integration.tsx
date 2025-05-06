@@ -159,8 +159,12 @@ export function ZAPIIntegrationDialog({
     
     try {
       // Preparar dados para envio
+      const { id, ...channelDataWithoutId } = channelForm;
+      
       const payload = {
-        ...channelForm,
+        // Se tiver ID (edição), incluir o ID
+        ...(id ? { id } : {}),
+        ...channelDataWithoutId,
         config: {
           provider: 'zapi',
           // Se usar predefinido, enviar apenas o provider para usar as variáveis de ambiente
@@ -171,6 +175,8 @@ export function ZAPIIntegrationDialog({
         },
       };
       
+      console.log("Enviando payload:", JSON.stringify(payload));
+      
       // Requisição para criar/atualizar canal
       const url = channelForm.id 
         ? `/api/channels/${channelForm.id}` 
@@ -180,17 +186,21 @@ export function ZAPIIntegrationDialog({
       
       const response = await apiRequest<any>(method, url, payload);
       
-      if (response.success) {
+      console.log("Resposta recebida:", JSON.stringify(response));
+      
+      // A API retorna o objeto do canal diretamente, não envolto em { success: true }
+      // Verificamos se temos um ID no retorno, o que indica sucesso
+      if (response && response.id) {
         toast({
           title: channelForm.id ? 'Canal atualizado' : 'Canal criado',
           description: `Canal de WhatsApp via Z-API ${channelForm.id ? 'atualizado' : 'criado'} com sucesso.`,
         });
         
         // Atualizar o ID do canal se for novo
-        if (!channelForm.id && response.channel?.id) {
+        if (!channelForm.id) {
           setChannelForm({
             ...channelForm,
-            id: response.channel.id,
+            id: response.id,
           });
         }
         
@@ -203,7 +213,7 @@ export function ZAPIIntegrationDialog({
         // Verificar status de conexão
         checkConnectionStatus();
       } else {
-        throw new Error(response.message || 'Erro ao salvar canal');
+        throw new Error(response.message || 'Erro ao salvar canal. Resposta inválida da API.');
       }
     } catch (error) {
       console.error("Erro ao salvar canal:", error);

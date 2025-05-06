@@ -16,38 +16,35 @@ function Dashboard() {
   const { activeConversation } = useConversation();
   const { toast } = useToast();
 
-  // Set up notifications for new messages
+  // Set up notifications for new messages using the proper socket addListener API
   useEffect(() => {
     if (socket && user) {
       const handleNewMessage = (message: Message) => {
+        // Log para diagnóstico
+        console.log("Dashboard: Notificação de nova mensagem recebida:", message);
+        
         // If the message is not from an agent and not in the active conversation
         if (!message.isFromAgent && 
-            (!activeConversation || message.conversationId !== activeConversation.id)) {
+            (!activeConversation || Number(message.conversationId) !== Number(activeConversation.id))) {
           // Show a notification
           toast({
-            title: `New message from ${message.contact?.name || "Customer"}`,
+            title: `Nova mensagem de ${message.contact?.name || "Cliente"}`,
             description: message.content,
             duration: 5000
           });
         }
       };
       
-      socket.addEventListener("message", (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === "new_message" && data.data) {
-            handleNewMessage(data.data);
-          }
-        } catch (error) {
-          console.error("Erro ao processar mensagem WebSocket:", error);
-        }
-      });
+      // Usar a API addListener em vez do addEventListener direto no socket
+      // Isso garante que não tenhamos problemas de processamento duplicado
+      const removeListener = useSocket().addListener("new_message", handleNewMessage);
       
       return () => {
-        socket.removeEventListener("message", () => {});
+        // Limpar listener ao desmontar
+        removeListener();
       };
     }
-  }, [socket, user, activeConversation, toast]);
+  }, [socket, user, activeConversation, toast, useSocket]);
 
   return (
     <>

@@ -414,6 +414,7 @@ function ConversationView() {
     };
     
     // Usar a nova API de addListener do socket-context
+    console.log("ConversationView: Registrando listener para new_message");
     const removeNewMessageListener = addListener("new_message", handleNewMessage);
     const removeTypingListener = addListener("typing_status", handleTypingStatus);
     

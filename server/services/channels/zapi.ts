@@ -38,7 +38,21 @@ export class ZAPIClient {
   constructor(instanceId: string, token: string) {
     this.instanceId = instanceId;
     this.token = token;
+    
+    // A Z-API possui várias versões e URLs base diferentes
+    // Alguns clientes usam api.z-api.io e outros usam sandbox.z-api.io
+    // Vamos definir a URL base principal, mas também tentaremos URLs alternativas se necessário
     this.baseUrl = `https://api.z-api.io/instances/${instanceId}`;
+  }
+  
+  // Método para obter URLs alternativas que podem ser usadas em caso de falha
+  private getAlternativeBaseUrls(): string[] {
+    return [
+      `https://sandbox.z-api.io/instances/${this.instanceId}`, // URL sandbox (ambientes de teste)
+      `https://api.z-api.io/v1/instances/${this.instanceId}`,  // URL com versão explícita v1
+      `https://api.z-api.io/v2/instances/${this.instanceId}`,  // URL com versão explícita v2
+      `https://api.z-api.io/v3/instances/${this.instanceId}`   // URL com versão explícita v3
+    ];
   }
 
   // Método público para permitir acesso em outros componentes
@@ -47,41 +61,109 @@ export class ZAPIClient {
     endpoint: string,
     data?: any
   ): Promise<ZAPIResponse> {
-    try {
-      const url = `${this.baseUrl}${endpoint}`;
-      const headers = {
-        'Content-Type': 'application/json',
-        'Client-Token': this.token
-      };
+    // Função auxiliar para fazer a requisição com uma URL base específica
+    const executeRequest = async (baseUrl: string): Promise<ZAPIResponse> => {
+      try {
+        const url = `${baseUrl}${endpoint}`;
+        const headers = {
+          'Content-Type': 'application/json',
+          'Client-Token': this.token
+        };
+        
+        console.log(`Tentando ${method} para Z-API: ${url}`);
 
-      let response;
-      switch (method) {
-        case 'GET':
-          response = await axios.get(url, { headers });
-          break;
-        case 'POST':
-          response = await axios.post(url, data, { headers });
-          break;
-        case 'PUT':
-          response = await axios.put(url, data, { headers });
-          break;
-        case 'DELETE':
-          response = await axios.delete(url, { headers, data });
-          break;
-      }
+        let response;
+        switch (method) {
+          case 'GET':
+            response = await axios.get(url, { headers });
+            break;
+          case 'POST':
+            response = await axios.post(url, data, { headers });
+            break;
+          case 'PUT':
+            response = await axios.put(url, data, { headers });
+            break;
+          case 'DELETE':
+            response = await axios.delete(url, { headers, data });
+            break;
+        }
 
-      return response?.data;
-    } catch (error) {
-      console.error(`Error in Z-API ${method} request to ${endpoint}:`, error);
-      if (axios.isAxiosError(error) && error.response) {
+        console.log(`Resposta Z-API para ${url}: ${JSON.stringify(response.data).substring(0, 200)}...`);
+        return response?.data;
+      } catch (error) {
+        if (axios.isAxiosError(error) && error.response) {
+          // Se é NOT_FOUND, vamos fazer um log específico para identificar o problema
+          if (error.response.status === 404 || 
+             (error.response.data && 
+              typeof error.response.data === 'object' && 
+              'message' in error.response.data && 
+              error.response.data.message && 
+              error.response.data.message.includes('NOT_FOUND'))) {
+            console.error(`Z-API NOT_FOUND error for ${baseUrl}${endpoint}:`, error.response.data);
+            return {
+              error: 'NOT_FOUND',
+              message: error.response.data.message || 'Unable to find matching resource',
+              status: 'error'
+            };
+          }
+          
+          return {
+            error: `Z-API Error: ${error.response.status} - ${JSON.stringify(error.response.data)}`,
+            status: 'error'
+          };
+        }
+        
         return {
-          error: `Z-API Error: ${error.response.status} - ${JSON.stringify(error.response.data)}`
+          error: error instanceof Error ? error.message : 'Unknown error in Z-API request',
+          status: 'error'
         };
       }
+    };
+
+    // Primeiro tenta com a URL base padrão
+    const mainResponse = await executeRequest(this.baseUrl);
+    
+    // Se a resposta principal não contém erro, retorna imediatamente
+    if (!mainResponse.error) {
+      return mainResponse;
+    }
+    
+    // Se recebemos NOT_FOUND, tentamos com URLs alternativas
+    if (mainResponse.error === 'NOT_FOUND' || 
+        (typeof mainResponse.error === 'string' && mainResponse.error.includes('NOT_FOUND'))) {
+      console.log('Recebido NOT_FOUND, tentando URLs alternativas para Z-API...');
+      
+      // Tentar cada URL alternativa
+      const alternativeUrls = this.getAlternativeBaseUrls();
+      for (const altBaseUrl of alternativeUrls) {
+        console.log(`Tentando URL alternativa para Z-API: ${altBaseUrl}`);
+        const altResponse = await executeRequest(altBaseUrl);
+        
+        // Se alguma URL alternativa funcionar sem erro, retorna o resultado
+        if (!altResponse.error) {
+          console.log(`URL alternativa funcionou: ${altBaseUrl}`);
+          
+          // Atualiza a URL base para usar esta que funcionou nas próximas chamadas
+          this.baseUrl = altBaseUrl;
+          
+          return altResponse;
+        }
+      }
+      
+      // Se chegamos aqui, nenhuma URL alternativa funcionou
+      console.error('Todas as URLs alternativas falharam com NOT_FOUND');
+      
+      // Retornamos a resposta original com informação adicional
       return {
-        error: error instanceof Error ? error.message : 'Unknown error in Z-API request'
+        ...mainResponse,
+        error: 'API_COMPATIBILITY_ERROR',
+        message: 'Nenhuma versão da API Z-API conseguiu processar esta solicitação. Verifique suas credenciais e a documentação da versão atual da Z-API.',
+        attempted_urls: [this.baseUrl, ...alternativeUrls]
       };
     }
+    
+    // Para outros tipos de erro, retorna a resposta original
+    return mainResponse;
   }
 
   // Instance Status

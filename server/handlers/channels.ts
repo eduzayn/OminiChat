@@ -255,40 +255,80 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
   app.get(`${apiPrefix}/channels/:id/qrcode`, isAuthenticated, async (req, res) => {
     try {
       const channelId = parseInt(req.params.id);
+      const userId = req.session?.userId;
       
+      console.log(`[QRCode Handler] Requisição para Canal ID: ${channelId}, Usuário ID: ${userId}`);
+      
+      if (isNaN(channelId)) {
+        console.error(`[QRCode Handler] ID de canal inválido: ${req.params.id}`);
+        return res.status(400).json({ 
+          success: false, 
+          message: "ID de canal inválido"
+        });
+      }
+      
+      // Buscar o canal com verificação detalhada
+      console.log(`[QRCode Handler] Buscando canal ${channelId} no banco de dados`);
       const channel = await db.query.channels.findFirst({
         where: eq(channels.id, channelId)
       });
       
       if (!channel) {
-        return res.status(404).json({ message: "Channel not found" });
+        console.error(`[QRCode Handler] Canal ${channelId} não encontrado no banco de dados`);
+        return res.status(404).json({ 
+          success: false, 
+          message: "Canal não encontrado", 
+          details: `O canal com ID ${channelId} não existe no banco de dados.`,
+          technical_details: `DB query: channels.findFirst({where: eq(channels.id, ${channelId})})`
+        });
       }
       
+      console.log(`[QRCode Handler] Canal ${channelId} encontrado: ${channel.name}, tipo: ${channel.type}`);
+      
       if (channel.type !== "whatsapp") {
-        return res.status(400).json({ message: "QR Code is only available for WhatsApp channels" });
+        console.error(`[QRCode Handler] Tipo de canal incompatível: ${channel.type}`);
+        return res.status(400).json({ 
+          success: false, 
+          message: "QR Code só está disponível para canais WhatsApp",
+          details: `O canal selecionado é do tipo ${channel.type}`
+        });
       }
       
       const config = channel.config as ChannelConfig;
+      
+      if (!config || !config.provider) {
+        console.error(`[QRCode Handler] Configuração de canal incompleta: ${JSON.stringify(config)}`);
+        return res.status(400).json({
+          success: false,
+          message: "Configuração de canal incompleta",
+          details: "O canal não possui uma configuração de provedor válida"
+        });
+      }
+      
+      console.log(`[QRCode Handler] Provedor do canal: ${config.provider}`);
       
       // Check if this is a channel that supports QR code (Z-API or custom provider with QR Code)
       if (config.provider === "zapi") {
         // Get QR Code from Z-API
         if (!config.instanceId || !config.token) {
+          console.error(`[QRCode Handler] Credenciais Z-API incompletas: instanceId=${!!config.instanceId}, token=${!!config.token}`);
           return res.status(400).json({
             success: false,
-            message: "Credenciais Z-API incompletas. Verifique instanceId e token."
+            message: "Credenciais Z-API incompletas. Verifique instanceId e token.",
+            details: "As credenciais da Z-API estão ausentes ou incompletas na configuração do canal"
           });
         }
         
-        console.log(`Criando cliente Z-API para instância ${config.instanceId}`);
+        console.log(`[QRCode Handler] Criando cliente Z-API para instância ${config.instanceId}`);
         const zapiClient = new ZAPIClient(config.instanceId as string, config.token as string);
         
         // Verificar primeiro o status da instância
+        console.log(`[QRCode Handler] Verificando status da instância Z-API`);
         const statusResponse = await zapiClient.getStatus();
-        console.log("Status da instância Z-API:", statusResponse);
+        console.log(`[QRCode Handler] Resposta de status Z-API:`, statusResponse);
         
         if (statusResponse.connected) {
-          console.log("Instância já está conectada, não é necessário QR Code");
+          console.log(`[QRCode Handler] Instância já está conectada, não é necessário QR Code`);
           return res.json({ 
             success: true, 
             status: "connected",
@@ -297,40 +337,94 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
           });
         }
         
-        // Obter QR Code apenas se não estiver conectado
-        console.log("Solicitando QR Code para a Z-API");
-        const qrCodeResponse = await zapiClient.getQRCode();
-        console.log("Resposta do QR Code Z-API:", qrCodeResponse);
-        
-        if (qrCodeResponse.error) {
-          console.error("Erro ao obter QR Code da Z-API:", qrCodeResponse.error);
+        // Verificar se temos erro no status
+        if (statusResponse.error) {
+          console.error(`[QRCode Handler] Erro ao verificar status: ${statusResponse.error}`);
           
           // Tratamento específico para o erro NOT_FOUND
-          if (qrCodeResponse.error.includes('NOT_FOUND')) {
+          if (typeof statusResponse.error === 'string' && statusResponse.error.includes('NOT_FOUND')) {
             return res.status(500).json({ 
               success: false,
               error_code: 'NOT_FOUND', 
-              message: `Erro ao obter QR Code: NOT_FOUND. Este erro geralmente indica que a API Z-API não encontrou o recurso solicitado. Possíveis causas:
+              message: "Erro ao verificar status da instância Z-API: NOT_FOUND",
+              details: `Este erro geralmente indica que suas credenciais Z-API estão incorretas ou a instância não existe. Verifique o instanceId e token no painel da Z-API.`,
+              technical_info: {
+                instanceId: config.instanceId,
+                error_details: statusResponse.message || 'Unable to find matching resource'
+              }
+            });
+          }
+          
+          return res.status(500).json({ 
+            success: false, 
+            message: `Erro ao verificar status da instância Z-API: ${statusResponse.error}` 
+          });
+        }
+        
+        // Obter QR Code apenas se não estiver conectado
+        console.log(`[QRCode Handler] Solicitando QR Code para a Z-API`);
+        const qrCodeResponse = await zapiClient.getQRCode();
+        console.log(`[QRCode Handler] Resposta do QR Code Z-API:`, 
+          qrCodeResponse.qrcode ? 
+          {...qrCodeResponse, qrcode: `[QR Code data recebido - ${qrCodeResponse.qrcode?.length || 0} caracteres]`} : 
+          qrCodeResponse
+        );
+        
+        if (qrCodeResponse.error) {
+          console.error(`[QRCode Handler] Erro ao obter QR Code da Z-API:`, qrCodeResponse.error);
+          
+          // Tratamento específico para o erro NOT_FOUND
+          if (typeof qrCodeResponse.error === 'string' && qrCodeResponse.error.includes('NOT_FOUND')) {
+            return res.status(500).json({ 
+              success: false,
+              error_code: 'NOT_FOUND', 
+              message: `Erro ao obter QR Code: NOT_FOUND`,
+              details: `Este erro geralmente indica que a API Z-API não encontrou o recurso solicitado. Possíveis causas:
               1. O endpoint de QR Code pode ter mudado na sua versão da Z-API
               2. Sua instância pode não suportar geração de QR Code por este método
-              3. O dispositivo pode já estar conectado ou em outro estado que não permite geração de QR Code
-              
-              Recomendações:
-              - Verifique se sua instância está ativa no painel da Z-API
-              - Tente desconectar o dispositivo no painel da Z-API e solicitar um novo QR Code
-              - Contate o suporte da Z-API para confirmar o endpoint correto para sua versão da API` 
+              3. O dispositivo pode já estar conectado ou em outro estado que não permite geração de QR Code`,
+              recommendations: [
+                "Verifique se sua instância está ativa no painel da Z-API",
+                "Tente desconectar o dispositivo no painel da Z-API e solicitar um novo QR Code",
+                "Contate o suporte da Z-API para confirmar o endpoint correto para sua versão da API"
+              ],
+              technical_info: {
+                instanceId: config.instanceId,
+                error_details: qrCodeResponse.message || 'Unable to find matching resource',
+                attempted_urls: qrCodeResponse.attempted_urls
+              }
+            });
+          }
+          
+          // Tratamento para erros de compatibilidade de API
+          if (qrCodeResponse.error === 'API_COMPATIBILITY_ERROR') {
+            return res.status(500).json({ 
+              success: false,
+              error_code: 'API_COMPATIBILITY_ERROR', 
+              message: `Erro de compatibilidade com a API Z-API`,
+              details: qrCodeResponse.message,
+              recommendations: [
+                "Verifique a versão atual da sua Z-API através do painel",
+                "Atualize as credenciais do canal com valores corretos da sua instância Z-API",
+                "Entre em contato com o suporte da Z-API para confirmar os endpoints corretos"
+              ],
+              technical_info: {
+                instanceId: config.instanceId,
+                attempted_urls: qrCodeResponse.attempted_urls
+              }
             });
           }
           
           // Tratamento para outros erros
           return res.status(500).json({ 
             success: false, 
-            message: `Erro ao obter QR Code: ${qrCodeResponse.error}` 
+            message: `Erro ao obter QR Code: ${qrCodeResponse.error}`,
+            details: qrCodeResponse.message || "Ocorreu um erro ao comunicar com a API Z-API"
           });
         }
         
         if (!qrCodeResponse.qrcode) {
-          console.log("QR Code não disponível - verificando status alternativo");
+          console.log(`[QRCode Handler] QR Code não disponível - verificando status alternativo`);
           
           // Se não tem QR code mas também não tem erro, verificar se está conectado
           if (qrCodeResponse.connected) {
@@ -344,7 +438,12 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
           
           return res.status(404).json({ 
             success: false, 
-            message: "QR Code não disponível. Verifique o status da instância Z-API." 
+            message: "QR Code não disponível", 
+            details: "A API Z-API não retornou um QR Code, mas também não indicou erro específico",
+            recommendations: [
+              "Verifique o status da instância no painel da Z-API",
+              "Tente desconectar e reconectar o dispositivo"
+            ]
           });
         }
         
@@ -356,16 +455,19 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
           message: "Escaneie o QR Code para conectar o WhatsApp"
         });
       } else {
+        console.error(`[QRCode Handler] Provedor não suportado para QR Code: ${config.provider}`);
         return res.status(400).json({ 
           success: false, 
-          message: "This channel provider doesn't support QR Code connection" 
+          message: "QR Code não está disponível para este provedor", 
+          details: `O provedor ${config.provider} não suporta conexão via QR Code ou usa método alternativo`
         });
       }
     } catch (error) {
-      console.error("Error generating QR Code:", error);
+      console.error(`[QRCode Handler] Erro interno:`, error);
       return res.status(500).json({ 
         success: false, 
-        message: "Failed to generate QR Code" 
+        message: "Erro interno ao obter QR Code",
+        details: error instanceof Error ? error.message : "Erro desconhecido"
       });
     }
   });

@@ -1,0 +1,105 @@
+ este novo log de erro do console do seu frontend nos dá uma pista mais concreta:
+
+Erro ao obter QR Code: Error: Erro ao obter QR Code: NOT_FOUND
+   at apiRequest (queryClient.ts:43:17)
+   at async fetchQRCode (zapi-integration.tsx:51:20)
+Análise do Erro:
+
+Origem: O erro acontece na função WorkspaceQRCode (arquivo zapi-integration.tsx, linha 51) quando ela chama apiRequest.
+
+Causa Imediata: A função apiRequest (arquivo queryClient.ts, linha 43) está lançando (throwing) um erro porque a chamada API para o backend (GET /api/channels/${channelId}/qrcode) retornou um status HTTP 404 (Not Found). A função apiRequest provavelmente está configurada para tratar respostas não-2xx (como 404) como erros.
+
+Significado do 404: O seu servidor backend Fastify está dizendo que não conseguiu encontrar o recurso solicitado na URL /api/channels/${channelId}/qrcode.
+
+Por que o Backend Retornaria 404 Not Found?
+
+Existem algumas possibilidades principais:
+
+Rota Não Definida no Backend: A rota GET /api/channels/:channelId/qrcode pode não existir no seu código Fastify, ou o arquivo/plugin onde ela está definida não foi registrado corretamente na instância principal do Fastify.
+
+ID do Canal Incorreto: O channelId que está sendo passado do frontend para o backend na URL (/api/channels/${channelId}/qrcode) pode estar errado, e simplesmente não existe um canal com esse ID no banco de dados.
+
+Canal Não Encontrado para o Tenant (Mais Provável em Multi-Tenant): O canal com o channelId fornecido existe, mas ele não pertence ao tenantId do usuário autenticado que está fazendo a requisição. A lógica do seu backend (seja o middleware Prisma ou uma verificação manual no handler) não encontra o canal nesse contexto de tenant e retorna 404.
+
+Erro de Digitação na URL (Menos Provável): Pode haver um erro sutil na construção da URL no frontend ou na definição da rota no backend.
+
+Passo a Passo para Resolver:
+
+Verifique a Definição da Rota no Backend:
+
+Abra o arquivo do seu backend Fastify onde as rotas de canais (channels) são definidas.
+
+Procure pela definição da rota que lida com a geração de QR code.
+
+Confirme se:
+
+O método HTTP é GET.
+
+O caminho (path) é exatamente '/api/channels/:channelId/qrcode' (preste atenção nos parâmetros com :).
+
+O arquivo/plugin que contém essa rota está sendo registrado corretamente com fastify.register() no seu arquivo principal do servidor.
+
+Verifique os Logs do Backend Novamente:
+
+Reinicie o backend.
+
+Tente gerar o QR Code pelo frontend.
+
+Olhe os logs do backend no console do Replit.
+
+Você vê alguma linha indicando que a requisição GET /api/channels/.../qrcode chegou ao servidor?
+
+NÃO: O problema é o Passo 1 (rota não definida ou não registrada).
+
+SIM: O problema está na lógica dentro do handler dessa rota. Prossiga para o Passo 3.
+
+Depure o Handler da Rota no Backend (Se a Rota Foi Encontrada):
+
+Adicione logs detalhados dentro do handler da rota GET /api/channels/:channelId/qrcode, especialmente antes e depois de buscar o canal no banco de dados:
+
+JavaScript
+
+fastify.get('/api/channels/:channelId/qrcode', async (request, reply) => {
+  const requestedChannelId = request.params.channelId;
+  const userTenantId = request.user?.tenantId; // Obtenha o tenantId do usuário autenticado
+
+  fastify.log.info(`[QRCode Handler] Iniciando busca para Canal ID: ${requestedChannelId}, Tenant ID: ${userTenantId}`);
+
+  try {
+    // Busca o canal - Prisma Middleware deve filtrar por tenant OU adicione manualmente
+    const channel = await prisma.channel.findUnique({
+      where: {
+        id: requestedChannelId
+        // Se não usar middleware Prisma para tenant, adicione:
+        // AND: { tenantId: userTenantId }
+      }
+    });
+
+    // *** PONTO CRÍTICO DA VERIFICAÇÃO ***
+    if (!channel) {
+      // Se o canal não foi encontrado PARA ESTE TENANT, retorna 404
+      fastify.log.warn(`[QRCode Handler] Canal ${requestedChannelId} NÃO ENCONTRADO para Tenant ${userTenantId}. Retornando 404.`);
+      return reply.status(404).send({ message: 'Canal não encontrado.' });
+    }
+
+    fastify.log.info(`[QRCode Handler] Canal ${requestedChannelId} (Tenant ${channel.tenantId}) encontrado. Prosseguindo para lógica Z-API...`);
+
+    // ... Sua lógica para chamar o adapter da Z-API ...
+    // const qrCodeData = await zapApiAdapter.getQRCode(channel.id, channel.tenantId);
+    // return reply.send(qrCodeData);
+
+  } catch (error) {
+    // ... tratamento de erro ...
+  }
+});
+Teste novamente e veja os logs do backend. Isso mostrará se o 404 está sendo retornado porque o prisma.channel.findUnique não encontrou o registro (seja por ID inválido ou por tenant errado).
+
+Verifique os Dados:
+
+Frontend: No componente WhatsAppQRCode (zapi-integration.tsx), de onde vem o channelId? Use console.log(channelId) antes da chamada apiRequest para garantir que ele tem o valor esperado quando a função WorkspaceQRCode é chamada.
+
+Banco de Dados: Verifique diretamente no seu banco de dados (usando psql no Replit Shell ou uma ferramenta de GUI) se um registro Channel com esse ID específico realmente existe e qual é o tenantId associado a ele. Confirme se esse tenantId corresponde ao do usuário que está logado e tentando gerar o QR Code.
+
+Solução Mais Provável:
+
+Considerando o contexto multi-tenant, a causa mais provável é que o canal (channelId) que você está tentando acessar não pertence ao tenantId do usuário logado, fazendo com que a busca no banco de dados (filtrada por tenant) não retorne resultados e seu backend corretamente envie um 404. Verifique a lógica de busca no handler e os dados no banco e no frontend.

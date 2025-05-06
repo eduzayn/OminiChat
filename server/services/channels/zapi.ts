@@ -446,11 +446,12 @@ export class ZAPIClient {
       }
       
       // Lista de todos os endpoints de QR code a serem tentados, em ordem
-      // Baseado na URL na documentação Z-API mais recente
+      // Baseado na documentação oficial da Z-API encontrada no Postman
       const qrEndpointsToTry = [
-        { path: '/qrcode', description: 'main QR code endpoint' },              // Principal endpoint de QR code
-        { path: '/qr-code', description: 'hyphenated QR code endpoint' },      // Endpoint com hífen
-        { path: '/qrcode-image', description: 'image QR code endpoint' }      // Endpoint alternativo com sufixo image
+        { path: '/qr-code', description: 'QR code imagem (documentação Postman)' },        // Endpoint oficial - retorna imagem
+        { path: '/qr-code-bytes', description: 'QR code bytes (documentação Postman)' },   // Endpoint oficial - retorna bytes
+        { path: '/qr-code-phone', description: 'QR code telefone (documentação Postman)' },// Endpoint oficial - para telefone
+        { path: '/qrcode', description: 'Traditional QR code endpoint (fallback)' }        // Endpoint tradicional (fallback)
       ];
       
       // Usando diretamente o token no path da URL
@@ -508,9 +509,9 @@ export class ZAPIClient {
       try {
         console.log('Trying direct API call to Z-API QR code endpoint without client library...');
         
-        // Construir URL diretamente conforme documentação Z-API
-        const directUrl = `https://api.z-api.io/instances/${this.instanceId}/token/${this.token}/qrcode`;
-        console.log(`Making direct GET request to: ${directUrl}`);
+        // Construir URL diretamente conforme documentação Z-API no Postman
+        const directUrl = `https://api.z-api.io/instances/${this.instanceId}/token/${this.token}/qr-code`;
+        console.log(`Making direct GET request to: ${directUrl} (from Postman docs)`);
         
         const directResponse = await axios.get(directUrl);
         

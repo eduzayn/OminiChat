@@ -273,6 +273,24 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
         return res.status(404).json({ message: "Conversation not found" });
       }
       
+      // Buscar o canal para verificar se é Z-API
+      const channel = await db.query.channels.findFirst({
+        where: eq(channels.id, conversation.channelId)
+      });
+      
+      if (!channel) {
+        return res.status(404).json({ message: "Channel not found" });
+      }
+      
+      // Buscar o contato para obter o número de telefone
+      const contact = await db.query.contacts.findFirst({
+        where: eq(contacts.id, conversation.contactId)
+      });
+      
+      if (!contact) {
+        return res.status(404).json({ message: "Contact not found" });
+      }
+      
       const messageData: Partial<InsertMessage> = {
         conversationId,
         content: req.body.content,
@@ -296,13 +314,44 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
         return res.status(400).json({ message: "Invalid message data: content and conversationId are required" });
       }
       
+      // Status inicial - será atualizado com base no resultado do envio externo
+      let messageStatus = "sent";
+      let externalMessageId = null;
+      
+      // Se a mensagem é de um agente e o canal é Z-API, enviar via Z-API
+      if (messageData.isFromAgent && channel.type === "whatsapp" && 
+          (channel.config?.provider === "zapi" || 
+           (typeof channel.config === "object" && channel.config.provider === "zapi"))) {
+        try {
+          // Importar serviço Z-API dinamicamente
+          const zapiService = await import("../services/channels/zapi");
+          
+          // Enviar mensagem via Z-API
+          console.log(`Enviando mensagem via Z-API para ${contact.phone}: "${messageData.content}"`);
+          const result = await zapiService.sendTextMessage(channel, contact.phone, messageData.content);
+          
+          if (result.status === "success") {
+            messageStatus = "delivered";
+            externalMessageId = result.messageId;
+            console.log(`Mensagem enviada via Z-API com sucesso, ID: ${result.messageId}`);
+          } else {
+            console.error(`Erro ao enviar mensagem via Z-API: ${result.message}`);
+            messageStatus = "failed";
+          }
+        } catch (error) {
+          console.error("Erro ao importar ou usar serviço Z-API:", error);
+          messageStatus = "failed";
+        }
+      }
+      
       const validMessageData = {
         conversationId: messageData.conversationId,
         content: messageData.content,
         isFromAgent: messageData.isFromAgent === true,
         agentId: messageData.agentId || null,
         contactId: messageData.contactId || null,
-        status: "sent"
+        status: messageStatus,
+        metadata: externalMessageId ? { externalMessageId } : {}
       };
       
       const [newMessage] = await db
@@ -339,11 +388,6 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
         });
       }
       
-      // Get contact details
-      const contact = await db.query.contacts.findFirst({
-        where: eq(contacts.id, conversation.contactId)
-      });
-      
       const messageWithDetails = {
         ...newMessage,
         agent: agent 
@@ -355,7 +399,7 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
               avatarUrl: agent.avatarUrl
             } 
           : undefined,
-        contact: contact!
+        contact: contact
       };
       
       // Broadcast new message to all connected clients

@@ -63,7 +63,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       const zapiService = await import("../services/channels/zapi");
       
       // Buscar o canal 23 que já sabemos que existe
-      const channel23 = await db.query.channels.findFirst({
+      const channel23 = await db.query.schema.channels.findFirst({
         where: eq(schema.channels.id, 23)
       });
       
@@ -114,7 +114,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       const zapiService = await import("../services/channels/zapi");
       
       // Buscar o canal 23, ou criar se não existir
-      let channel23 = await db.query.channels.findFirst({
+      let channel23 = await db.query.schema.channels.findFirst({
         where: eq(schema.channels.id, 23)
       });
       
@@ -268,14 +268,14 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       console.log("Iniciando diagnóstico Z-API...");
       
       // 1. Verificar canais disponíveis
-      const availableChannels = await db.query.channels.findMany();
+      const availableChannels = await db.query.schema.channels.findMany();
       const zapiChannels = availableChannels.filter(c => 
         c.type === "whatsapp" && 
         (c.config as any)?.provider === "zapi"
       );
       
       // 2. Verificar canal 23 especificamente
-      const channel23 = await db.query.channels.findFirst({
+      const channel23 = await db.query.schema.channels.findFirst({
         where: eq(schema.channels.id, 23)
       });
       
@@ -328,7 +328,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
   // Get all channels
   app.get(`${apiPrefix}/channels`, isAuthenticated, async (req, res) => {
     try {
-      const allChannels = await db.query.channels.findMany();
+      const allChannels = await db.query.schema.channels.findMany();
       
       return res.json(allChannels);
       
@@ -343,8 +343,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
     try {
       const channelId = parseInt(req.params.id);
       
-      const channel = await db.query.channels.findFirst({
-        where: eq(channels.id, channelId)
+      const channel = await db.query.schema.channels.findFirst({
+        where: eq(schema.channels.id, channelId)
       });
       
       if (!channel) {
@@ -418,7 +418,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
             isActive: false,
             config: updatedConfig
           })
-          .where(eq(channels.id, newChannel.id));
+          .where(eq(schema.channels.id, newChannel.id));
           
         const responseChannel = {
           ...newChannel,
@@ -455,8 +455,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
     try {
       const channelId = parseInt(req.params.id);
       
-      const channel = await db.query.channels.findFirst({
-        where: eq(channels.id, channelId)
+      const channel = await db.query.schema.channels.findFirst({
+        where: eq(schema.channels.id, channelId)
       });
       
       if (!channel) {
@@ -477,7 +477,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
           ...updateData,
           updatedAt: new Date()
         })
-        .where(eq(channels.id, channelId))
+        .where(eq(schema.channels.id, channelId))
         .returning();
       
       // If channel was activated, try to setup
@@ -511,7 +511,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
               isActive: false,
               config: updatedConfig
             })
-            .where(eq(channels.id, channelId))
+            .where(eq(schema.channels.id, channelId))
             .returning();
             
           const responseChannel = {
@@ -561,7 +561,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       
       // Buscar o canal com verificação detalhada
       console.log(`[QRCode Handler] Buscando canal ${channelId} no banco de dados`);
-      let channel = await db.query.channels.findFirst({
+      let channel = await db.query.schema.channels.findFirst({
         where: eq(schema.channels.id, channelId)
       });
       
@@ -571,7 +571,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
           success: false, 
           message: "Canal não encontrado", 
           details: `O canal com ID ${channelId} não existe no banco de dados.`,
-          technical_details: `DB query: channels.findFirst({where: eq(channels.id, ${channelId})})`
+          technical_details: `DB query: channels.findFirst({where: eq(schema.channels.id, ${channelId})})`
         });
       }
       
@@ -637,7 +637,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
                 .where(eq(schema.channels.id, channel.id));
                 
               // Recarregar o canal com as novas credenciais
-              const updatedChannel = await db.query.channels.findFirst({
+              const updatedChannel = await db.query.schema.channels.findFirst({
                 where: eq(schema.channels.id, channel.id)
               });
               
@@ -745,8 +745,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
     try {
       const channelId = parseInt(req.params.id);
       
-      const channel = await db.query.channels.findFirst({
-        where: eq(channels.id, channelId)
+      const channel = await db.query.schema.channels.findFirst({
+        where: eq(schema.channels.id, channelId)
       });
       
       if (!channel) {
@@ -856,8 +856,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
     try {
       const channelId = parseInt(req.params.id);
       
-      const channel = await db.query.channels.findFirst({
-        where: eq(channels.id, channelId)
+      const channel = await db.query.schema.channels.findFirst({
+        where: eq(schema.channels.id, channelId)
       });
       
       if (!channel) {
@@ -909,7 +909,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       // Delete channel
       await db
         .delete(channels)
-        .where(eq(channels.id, channelId));
+        .where(eq(schema.channels.id, channelId));
       
       // Notify clients about the deleted channel
       broadcastToClients({
@@ -937,8 +937,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
     try {
       const channelId = parseInt(req.params.id);
       
-      const channel = await db.query.channels.findFirst({
-        where: eq(channels.id, channelId)
+      const channel = await db.query.schema.channels.findFirst({
+        where: eq(schema.channels.id, channelId)
       });
       
       if (!channel) {
@@ -999,8 +999,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       }
       
       // Buscar canal no banco de dados
-      const channel = await db.query.channels.findFirst({
-        where: eq(channels.id, channelId)
+      const channel = await db.query.schema.channels.findFirst({
+        where: eq(schema.channels.id, channelId)
       });
       
       if (!channel) {

@@ -78,6 +78,9 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       // Tentar obter QR code
       const qrCodeResult = await zapiService.getQRCodeForChannel(channel23);
       
+      // Log completo da resposta
+      console.log("Resposta do getQRCodeForChannel:", JSON.stringify(qrCodeResult));
+      
       // Se foi obtido um QR code
       if (qrCodeResult.status === "waiting_scan" && qrCodeResult.qrCode) {
         return res.json({
@@ -100,6 +103,113 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
         message: "Erro ao obter QR code de teste",
         error: error instanceof Error ? error.message : "Erro desconhecido"
       });
+    }
+  });
+  
+  // Novo endpoint com HTML minimalista para visualizar QR Code diretamente
+  app.get(`${apiPrefix}/test-zapi-qrcode-view`, async (req, res) => {
+    try {
+      console.log("Gerando página HTML para visualização de QR code...");
+      
+      // Importar funções necessárias
+      const zapiService = await import("../services/channels/zapi");
+      
+      // Buscar o canal 23 que já sabemos que existe
+      const channel23 = await db.query.channels.findFirst({
+        where: eq(channels.id, 23)
+      });
+      
+      if (!channel23) {
+        return res.send(`
+          <html>
+            <body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
+              <h1>Erro: Canal não encontrado</h1>
+              <p>O canal com ID 23 não foi encontrado no banco de dados.</p>
+            </body>
+          </html>
+        `);
+      }
+      
+      // Tentar obter QR code
+      console.log("Obtendo QR code para canal ID 23:", channel23.name);
+      const qrCodeResult = await zapiService.getQRCodeForChannel(channel23);
+      
+      // Log completo da resposta
+      console.log("Resposta do getQRCodeForChannel:", 
+        qrCodeResult.status, 
+        qrCodeResult.message, 
+        qrCodeResult.qrCode ? "QR Code obtido (não exibido no log)" : "Sem QR Code"
+      );
+      
+      // Se foi obtido um QR code
+      if (qrCodeResult.status === "waiting_scan" && qrCodeResult.qrCode) {
+        return res.send(`
+          <html>
+            <head>
+              <title>QR Code para conexão WhatsApp</title>
+              <style>
+                body { 
+                  font-family: Arial, sans-serif; 
+                  text-align: center; 
+                  margin-top: 50px; 
+                  background-color: #f5f5f5;
+                }
+                .container {
+                  max-width: 600px;
+                  margin: 0 auto;
+                  padding: 20px;
+                  background-color: white;
+                  border-radius: 10px;
+                  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                }
+                .qr-code {
+                  margin: 20px auto;
+                  padding: 20px;
+                  background-color: white;
+                  display: inline-block;
+                  border-radius: 10px;
+                }
+                h1 { color: #075E54; }
+                p { margin-bottom: 20px; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <h1>QR Code para conexão WhatsApp</h1>
+                <p>Escaneie o QR code abaixo com o WhatsApp para conectar:</p>
+                <div class="qr-code">
+                  <img src="${qrCodeResult.qrCode}" alt="QR Code" style="max-width: 300px;" />
+                </div>
+                <p>Canal: ${channel23.name} (ID: ${channel23.id})</p>
+                <p><small>Atualize a página se o QR code expirar.</small></p>
+              </div>
+            </body>
+          </html>
+        `);
+      } else {
+        return res.send(`
+          <html>
+            <body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
+              <h1>Erro ao obter QR Code</h1>
+              <p>${qrCodeResult.message || "Falha ao obter QR code"}</p>
+              <p>Status: ${qrCodeResult.status}</p>
+              <p><a href="javascript:location.reload()">Tentar novamente</a></p>
+            </body>
+          </html>
+        `);
+      }
+    } catch (error) {
+      console.error("Erro ao obter QR code de teste:", error);
+      return res.send(`
+        <html>
+          <body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
+            <h1>Erro interno</h1>
+            <p>Ocorreu um erro ao processar a requisição</p>
+            <p>${error instanceof Error ? error.message : "Erro desconhecido"}</p>
+            <p><a href="javascript:location.reload()">Tentar novamente</a></p>
+          </body>
+        </html>
+      `);
     }
   });
   

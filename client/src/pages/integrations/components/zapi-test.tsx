@@ -20,7 +20,9 @@ import {
   QrCode, 
   RefreshCw,
   Send,
-  PhoneCall
+  PhoneCall,
+  MessageSquare,
+  Webhook
 } from 'lucide-react';
 import { apiRequest } from '@/lib/queryClient';
 
@@ -331,6 +333,132 @@ export function ZAPITestPanel() {
       return result.message || 'Conectado com sucesso';
     } else {
       return result.message || 'Erro de conexão';
+    }
+  };
+  
+  // Verificar configuração do webhook
+  const verifyWebhookConfiguration = async () => {
+    if (!selectedChannel) {
+      toast({
+        title: 'Erro',
+        description: 'Selecione um canal para verificar o webhook.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    try {
+      const response = await apiRequest<any>(
+        'GET',
+        `/api/channels/${selectedChannel}/webhook-status`,
+        null
+      );
+      
+      console.log("Status do webhook:", response);
+      
+      if (response.success && response.configured) {
+        toast({
+          title: 'Webhook configurado',
+          description: 'O webhook está configurado corretamente.',
+        });
+      } else {
+        toast({
+          title: 'Webhook não configurado',
+          description: response.message || 'O webhook não está configurado.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao verificar webhook:", error);
+      toast({
+        title: 'Erro',
+        description: 'Falha ao verificar configuração do webhook.',
+        variant: 'destructive',
+      });
+    }
+  };
+  
+  // Configurar webhook
+  const configureWebhook = async () => {
+    if (!selectedChannel) {
+      toast({
+        title: 'Erro',
+        description: 'Selecione um canal para configurar o webhook.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    try {
+      const response = await apiRequest<any>(
+        'POST',
+        `/api/channels/${selectedChannel}/configure-webhook`,
+        null
+      );
+      
+      console.log("Configuração do webhook:", response);
+      
+      if (response.success) {
+        toast({
+          title: 'Webhook configurado',
+          description: 'Webhook configurado com sucesso. Mensagens serão recebidas na caixa de entrada.',
+        });
+      } else {
+        toast({
+          title: 'Erro',
+          description: response.message || 'Falha ao configurar webhook.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao configurar webhook:", error);
+      toast({
+        title: 'Erro',
+        description: 'Falha ao configurar webhook.',
+        variant: 'destructive',
+      });
+    }
+  };
+  
+  // Enviar mensagem de teste para caixa de entrada
+  const testInboxMessage = async () => {
+    if (!selectedChannel) {
+      toast({
+        title: 'Erro',
+        description: 'Selecione um canal para testar.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    try {
+      const response = await apiRequest<any>(
+        'POST',
+        `/api/channels/${selectedChannel}/test-inbox-message`,
+        null
+      );
+      
+      console.log("Teste de mensagem para caixa de entrada:", response);
+      
+      if (response.success) {
+        toast({
+          title: 'Mensagem enviada',
+          description: 'Mensagem de teste enviada para a caixa de entrada.',
+        });
+      } else {
+        toast({
+          title: 'Erro',
+          description: response.message || 'Falha ao enviar mensagem para caixa de entrada.',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao testar caixa de entrada:", error);
+      toast({
+        title: 'Erro',
+        description: 'Falha ao testar mensagem na caixa de entrada.',
+        variant: 'destructive',
+      });
     }
   };
 

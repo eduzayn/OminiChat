@@ -683,6 +683,17 @@ function ConversationView() {
       
       {/* Conversation body */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4" id="conversation-messages">
+        <div className="bg-orange-100 p-3 mb-3 rounded">
+          <p className="font-bold">Debug</p>
+          <p>Total de mensagens: {messages.length}</p>
+          <ul className="list-disc pl-5 mt-2">
+            {messages.slice(0, 3).map(msg => (
+              <li key={msg.id} className="text-xs">ID: {msg.id}, Content: {msg.content}</li>
+            ))}
+            {messages.length > 3 && <li className="text-xs">...mais {messages.length - 3} mensagens</li>}
+          </ul>
+        </div>
+        
         {isLoading ? (
           <div className="flex justify-center py-4">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
@@ -696,19 +707,18 @@ function ConversationView() {
             </Button>
           </div>
         ) : (
-          Object.entries(messagesByDate).map(([date, dateMessages]) => (
-            <div key={date} className="space-y-4">
-              <DateSeparator date={new Date(date)} />
-              
-              {dateMessages.map(message => (
-                <MessageBubble 
-                  key={message.id} 
-                  message={message} 
-                  isAgent={Boolean(message.isFromAgent)} 
-                />
-              ))}
-            </div>
-          ))
+          <div className="border-2 border-blue-300 p-2 rounded">
+            {messages.map(message => (
+              <div key={message.id} className="border border-blue-200 p-2 mb-2 rounded">
+                <p className="font-bold text-xs">Mensagem {message.id}:</p>
+                <p className="text-sm">{message.content}</p>
+                <p className="text-xs text-gray-500">
+                  De: {message.isFromAgent ? "Agente" : "Cliente"} | 
+                  Data: {new Date(message.createdAt).toLocaleString()}
+                </p>
+              </div>
+            ))}
+          </div>
         )}
         
         {/* Always keep this div at the end to enable auto-scrolling */}

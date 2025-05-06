@@ -73,27 +73,45 @@ export async function setupZAPIChannel(channel: Channel): Promise<{ status: stri
 
       // Se o status indicar que não está conectado, gera QR Code
       if (statusResponse.data && statusResponse.data.connected === false) {
-        // Gera QR Code
-        const qrResponse = await axios.get(
-          `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code/image`,
-          {
-            headers: {
-              'Client-Token': token,
-              'Content-Type': 'application/json'
+        try {
+          // Gera QR Code - modificando para usar endpoint correto e tratar resposta apropriadamente
+          // De acordo com a documentação, devemos usar o endpoint qr-code
+          const qrResponse = await axios.get(
+            `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code`,
+            {
+              headers: {
+                'Client-Token': token,
+                'Accept': 'image/png, application/json'
+              },
+              // Configurar para receber resposta em formato binário
+              responseType: 'arraybuffer'
             }
-          }
-        );
+          );
 
-        if (qrResponse.data && qrResponse.data.base64) {
-          return {
-            status: "pending",
-            message: "Escaneie o QR Code com o WhatsApp para conectar",
-            qrCode: qrResponse.data.base64
-          };
-        } else {
+          // Verificar se temos uma resposta de imagem
+          if (qrResponse.data) {
+            // Converter o buffer recebido para base64
+            const qrCodeBase64 = Buffer.from(qrResponse.data).toString('base64');
+            
+            console.log("QR Code recebido com sucesso e convertido para base64");
+            
+            return {
+              status: "pending",
+              message: "Escaneie o QR Code com o WhatsApp para conectar",
+              qrCode: qrCodeBase64
+            };
+          } else {
+            console.error("QR Code retornou dados vazios");
+            return {
+              status: "error",
+              message: "Falha ao gerar QR Code para conexão: resposta vazia"
+            };
+          }
+        } catch (error) {
+          console.error("Erro ao obter QR Code:", error);
           return {
             status: "error",
-            message: "Falha ao gerar QR Code para conexão"
+            message: `Falha ao gerar QR Code para conexão: ${error instanceof Error ? error.message : "erro desconhecido"}`
           };
         }
       }
@@ -466,6 +484,89 @@ export async function checkConnectionStatus(channel: Channel): Promise<{ status:
     return {
       status: "error",
       message: error instanceof Error ? error.message : "Erro desconhecido ao verificar status"
+    };
+  }
+}
+
+/**
+ * Obtém o QR Code para conexão de um canal Z-API com o WhatsApp
+ * @param channel Canal Z-API configurado
+ * @returns Objeto com status e QR Code em base64 (se disponível)
+ */
+export async function getQRCodeForChannel(channel: Channel): Promise<{ status: string; message?: string; qrCode?: string }> {
+  try {
+    const instanceId = channel.config.instanceId || ZAPI_INSTANCE_ID;
+    const token = channel.config.token || ZAPI_TOKEN;
+    
+    if (!instanceId || !token) {
+      return {
+        status: "error",
+        message: "Credenciais Z-API não configuradas"
+      };
+    }
+    
+    // Verificar o status atual da conexão
+    const statusResponse = await axios.get(
+      `${BASE_URL}/instances/${instanceId}/token/${token}/status`,
+      {
+        headers: {
+          'Client-Token': token,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    // Se já estiver conectado, retorna o status
+    if (statusResponse.data && statusResponse.data.connected === true) {
+      return {
+        status: "connected",
+        message: "WhatsApp já está conectado"
+      };
+    }
+    
+    // Gerar QR Code usando o endpoint correto e tratando a resposta como binário
+    try {
+      // Usar o método qr-code e não qr-code/image para obter imagem binária diretamente
+      const qrResponse = await axios.get(
+        `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code`,
+        {
+          headers: {
+            'Client-Token': token,
+            'Accept': 'image/png' // Especificar que aceitamos imagem
+          },
+          responseType: 'arraybuffer' // Receber dados binários
+        }
+      );
+      
+      if (qrResponse.data) {
+        // Converter para base64
+        const qrCodeBase64 = Buffer.from(qrResponse.data).toString('base64');
+        console.log("QR Code obtido com sucesso");
+        
+        return {
+          status: "waiting_scan",
+          message: "Aguardando leitura do QR Code",
+          qrCode: qrCodeBase64
+        };
+      } else {
+        console.error("QR Code Z-API retornou resposta vazia");
+        return {
+          status: "error",
+          message: "Falha ao obter QR Code: resposta vazia"
+        };
+      }
+    } catch (error) {
+      console.error("Erro ao obter QR Code Z-API:", error);
+      return {
+        status: "error",
+        message: `Falha ao obter QR Code: ${error instanceof Error ? error.message : "erro desconhecido"}`
+      };
+    }
+  } catch (error) {
+    console.error("Erro ao verificar status Z-API:", error);
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "Erro desconhecido ao verificar status Z-API"
     };
   }
 }

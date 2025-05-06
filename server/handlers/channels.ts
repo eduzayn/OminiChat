@@ -253,7 +253,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
   });
   
   // Get QR Code for WhatsApp channel
-  app.get(`${apiPrefix}/channels/:id/qrcode`, isAuthenticated, async (req, res) => {
+  app.get(`${apiPrefix}/channels/:id/qr-code`, isAuthenticated, async (req, res) => {
     try {
       const channelId = parseInt(req.params.id);
       const userId = req.session?.userId;
@@ -316,43 +316,30 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
           // Importar o módulo de serviço Z-API
           const zapiService = await import("../services/channels/zapi");
           
-          // Verificar status da conexão Z-API
-          const statusResult = await zapiService.checkConnectionStatus(channel);
+          // Usar a função específica para obter QR Code
+          const qrResult = await zapiService.getQRCodeForChannel(channel);
           
-          if (statusResult.connected) {
+          if (qrResult.status === "connected") {
             console.log("[QRCode Handler] Canal Z-API já está conectado");
             return res.json({
               success: true,
               status: "connected",
               connected: true,
-              message: "WhatsApp já está conectado"
+              message: qrResult.message || "WhatsApp já está conectado"
             });
-          }
-          
-          // Gerar QR Code
-          const setupResult = await zapiService.setupZAPIChannel(channel);
-          
-          if (setupResult.status === "pending" && setupResult.qrCode) {
+          } else if (qrResult.status === "waiting_scan" && qrResult.qrCode) {
             console.log("[QRCode Handler] QR Code obtido da Z-API com sucesso");
             return res.json({
               success: true,
               status: "waiting_scan",
-              qrcode: setupResult.qrCode,
+              qrcode: qrResult.qrCode,
               connected: false
             });
-          } else if (setupResult.status === "success") {
-            console.log("[QRCode Handler] Canal Z-API conectado com sucesso");
-            return res.json({
-              success: true,
-              status: "connected",
-              connected: true,
-              message: setupResult.message
-            });
           } else {
-            console.error(`[QRCode Handler] Erro ao obter QR Code da Z-API: ${setupResult.message}`);
+            console.error(`[QRCode Handler] Erro ao obter QR Code da Z-API: ${qrResult.message}`);
             return res.status(500).json({
               success: false,
-              message: setupResult.message || "Erro ao obter QR Code da Z-API",
+              message: qrResult.message || "Erro ao obter QR Code da Z-API",
               details: "O serviço Z-API não retornou um QR Code válido"
             });
           }

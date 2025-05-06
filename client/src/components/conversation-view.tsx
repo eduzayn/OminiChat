@@ -367,13 +367,16 @@ function ConversationView() {
       
       // Processar a mensagem se pertence à conversa ativa
       if (Number(message.conversationId) === Number(activeConversation.id)) {
+        console.log("Mensagem corresponde à conversa ativa. Adicionando à lista...");
         // Verificar se a mensagem já existe para evitar duplicação
         setMessages(prev => {
           // Se a mensagem já existe na lista, não adicione novamente
           const messageExists = prev.some(m => Number(m.id) === Number(message.id));
           if (messageExists) {
+            console.log("Mensagem já existe na lista, ignorando duplicata.");
             return prev;
           }
+          console.log("Adicionando nova mensagem à lista:", message);
           return [...prev, message];
         });
         

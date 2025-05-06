@@ -151,6 +151,7 @@ export function setupWebSocketServer(wss: WebSocketServer, db: any): void {
         
         // Handle new notifications
         else if (messageType === 'notification') {
+          console.log('Recebida notificação:', messageData);
           // Route notification to specific user or broadcast
           if (messageData.targetUserId) {
             sendToUser(messageData.targetUserId, {

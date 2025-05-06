@@ -107,6 +107,7 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
       };
       
       // Broadcast da nova mensagem
+      console.log("Enviando nova mensagem via WebSocket:", messageWithDetails);
       broadcastToClients({
         type: "new_message",
         data: messageWithDetails

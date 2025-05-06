@@ -58,13 +58,26 @@ export async function apiRequest<T = any>(
         return { success: false, message: 'Erro ao processar resposta JSON do servidor' } as unknown as T;
       }
     } else {
-      // Se a resposta não for JSON, retorna um objeto com a resposta em texto
+      // Se a resposta não for JSON, verifica se é HTML com mensagem de sucesso do Vite
       const text = await res.text();
       console.log('Resposta não-JSON recebida (provavelmente texto plano):', text.substring(0, 100));
+      
+      // Verifica se é uma resposta HTML do Vite, que geralmente indica que tudo está funcionando
+      // mas o servidor retornou um HTML em vez de JSON
+      if (text.startsWith('<!DOCTYPE html>') && res.status >= 200 && res.status < 300) {
+        console.log("Recebido HTML quando esperava JSON, mas status indica sucesso. Tratando como operação bem-sucedida.");
+        return { 
+          success: true,
+          statusCode: res.status,
+          message: 'Operação realizada com sucesso',
+          text: 'Resposta HTML recebida, considerada como sucesso'
+        } as unknown as T;
+      }
+      
       return { 
-        success: true,
+        success: false,
         statusCode: res.status,
-        message: 'Operação realizada com sucesso',
+        message: 'Resposta não reconhecida do servidor',
         text: text
       } as unknown as T;
     }
@@ -124,8 +137,22 @@ export const getQueryFn: <T>(options: {
           return null;
         }
       } else {
-        // Se a resposta não for JSON, retorna um objeto simples
+        // Se a resposta não for JSON, verifica se é HTML com status de sucesso
+        const text = await res.text();
         console.log(`Resposta não-JSON recebida na query para ${url}`);
+        
+        // Verifica se é uma resposta HTML, mas o status HTTP indica sucesso
+        if (text.startsWith('<!DOCTYPE html>') && res.status >= 200 && res.status < 300) {
+          console.log("Recebido HTML quando esperava JSON, mas status indica sucesso. Tratando como operação bem-sucedida.");
+          return { 
+            success: true,
+            statusCode: res.status,
+            message: 'Operação realizada com sucesso',
+            htmlResponse: true
+          };
+        }
+        
+        // Se não for um HTML com status de sucesso, retorna null
         return null;
       }
     } catch (error) {

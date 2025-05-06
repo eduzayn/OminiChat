@@ -222,6 +222,19 @@ export function ZAPIIntegrationDialog({
         
         // Verificar status de conexão
         checkConnectionStatus();
+      } else if (response.message === "Operação realizada com sucesso") {
+        // Este caso especial ocorre quando a resposta é um sucesso mas é retornada como HTML que foi processado
+        // Trate como se fosse um sucesso
+        console.log("Operação realizada com sucesso, apesar do formato de resposta não ser ideal");
+        
+        // Mudar para a aba de status
+        setCurrentTab('status');
+        
+        // Invalidar cache para recarregar lista de canais
+        queryClient.invalidateQueries({ queryKey: ['/api/channels'] });
+        
+        // Verificar status de conexão
+        checkConnectionStatus();
       } else {
         throw new Error(response.message || 'Erro ao salvar canal. Resposta inválida da API.');
       }

@@ -47,6 +47,7 @@ function WhatsAppQRCode({ channelId }: { channelId: number }) {
     setError(null);
     
     try {
+      console.log(`Realizando GET para /api/channels/${channelId}/qrcode`);
       const data = await apiRequest<{
         qrcode?: string; 
         qrCode?: string; 
@@ -69,14 +70,29 @@ function WhatsAppQRCode({ channelId }: { channelId: number }) {
       const qrcodeData = data.qrcode || data.qrCode;
       
       if (qrcodeData) {
+        console.log("QR Code obtido com sucesso");
         setQrCode(qrcodeData);
         setStatus(data.status || 'waiting');
       } else {
-        setError(data.message || 'Não foi possível gerar o QR Code. Verifique as credenciais da Z-API.');
+        console.error("QR Code não encontrado na resposta:", data);
+        // Verificar se houve erro específico
+        if (data.message) {
+          setError(data.message);
+        } else {
+          setError('Não foi possível gerar o QR Code. Verifique as credenciais da Z-API e tente novamente.');
+        }
       }
-    } catch (err) {
-      setError('Erro ao obter o QR Code. Tente novamente.');
+    } catch (err: any) {
       console.error('Erro ao obter QR Code:', err);
+      const errorMessage = err?.message || 'Erro ao obter o QR Code. Tente novamente.';
+      setError(errorMessage);
+      
+      // Mostrar toast com erro
+      toast({
+        title: "Erro ao obter QR Code",
+        description: errorMessage,
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }

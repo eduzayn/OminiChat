@@ -186,7 +186,7 @@ export class ZAPIClient {
   // Obter QR Code para autenticação
   async getQRCode(): Promise<ZAPIResponse> {
     console.log('Requesting Z-API QR Code for connection');
-    return this.makeRequest('GET', '/qrcode');
+    return this.makeRequest('GET', '/qr-code');
   }
 }
 

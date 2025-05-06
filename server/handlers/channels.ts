@@ -608,14 +608,26 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       
       const zapiClient = new ZAPIClient(instanceId, token);
       
+      // Interface para tipagem clara do objeto de diagnóstico
+      interface DiagnosticResult {
+        base_url: string;
+        instance_id: string;
+        token_length: number;
+        token_preview: string;
+        results: Record<string, any>;
+        solutions: string[];
+        problem_type: string;
+      }
+      
       // Verificar todos os endpoints disponíveis
-      const diagnostic = {
+      const diagnostic: DiagnosticResult = {
         base_url: `https://api.z-api.io/instances/${instanceId}`,
         instance_id: instanceId,
         token_length: token.length,
         token_preview: token.substring(0, 4) + '...',
-        results: {} as Record<string, any>,
-        solutions: [] as string[]
+        results: {},
+        solutions: [],
+        problem_type: ''
       };
       
       // Testar o endpoint de status

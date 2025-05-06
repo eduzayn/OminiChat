@@ -985,4 +985,157 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       return res.status(500).json({ message: "Internal server error" });
     }
   });
+  
+  // Endpoint para testar o envio de mensagens via Z-API
+  app.post(`${apiPrefix}/channels/:id/send-message-test`, isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const channelId = parseInt(req.params.id);
+      
+      // Validar o corpo da requisição
+      if (!req.body.phone || !req.body.message) {
+        return res.status(400).json({ 
+          success: false,
+          message: "Dados incompletos. É necessário informar 'phone' e 'message'." 
+        });
+      }
+      
+      // Buscar canal no banco de dados
+      const channel = await db.query.channels.findFirst({
+        where: eq(channels.id, channelId)
+      });
+      
+      if (!channel) {
+        return res.status(404).json({ 
+          success: false,
+          message: "Canal não encontrado" 
+        });
+      }
+      
+      // Verificar se o canal é do tipo WhatsApp e provider é zapi
+      if (channel.type !== "whatsapp" || (channel.config as any)?.provider !== "zapi") {
+        return res.status(400).json({ 
+          success: false,
+          message: "Canal não é do tipo WhatsApp Z-API" 
+        });
+      }
+      
+      // Extrair dados do corpo da requisição
+      const { phone, message } = req.body;
+      
+      // Importar serviço Z-API
+      const zapiService = await import("../services/channels/zapi");
+      
+      // Enviar mensagem via Z-API
+      console.log(`Enviando mensagem de teste via Z-API para ${phone}: "${message}"`);
+      const result = await zapiService.sendTextMessage(channel, phone, message);
+      
+      if (result.status === "success") {
+        // Log do sucesso com detalhes
+        console.log(`Mensagem enviada com sucesso para ${phone}, ID da mensagem: ${result.messageId}`);
+        
+        // Registrar mensagem no banco de dados
+        try {
+          // Buscar ou criar contato
+          let contact = await db.query.contacts.findFirst({
+            where: eq(contacts.phone, phone)
+          });
+          
+          if (!contact) {
+            // Criar novo contato se não existir
+            const [newContact] = await db.insert(contacts)
+              .values({
+                name: `Contato ${phone}`,
+                phone: phone,
+                email: null,
+                source: "whatsapp",
+                status: "lead"
+              })
+              .returning();
+              
+            contact = newContact;
+            console.log(`Novo contato criado: ${contact.id} - ${contact.name}`);
+          }
+          
+          // Buscar ou criar conversa
+          let conversation = await db.query.conversations.findFirst({
+            where: and(
+              eq(conversations.contactId, contact.id),
+              eq(conversations.channelId, channelId),
+              eq(conversations.status, "active")
+            )
+          });
+          
+          if (!conversation) {
+            // Criar nova conversa
+            const [newConversation] = await db.insert(conversations)
+              .values({
+                contactId: contact.id,
+                channelId: channelId,
+                status: "active",
+                unreadCount: 0
+              })
+              .returning();
+              
+            conversation = newConversation;
+            console.log(`Nova conversa criada: ${conversation.id}`);
+          }
+          
+          // Registrar a mensagem enviada
+          const [newMessage] = await db.insert(messages)
+            .values({
+              conversationId: conversation.id,
+              content: message,
+              direction: "outbound",
+              status: "delivered",
+              agentId: req.session.userId,
+              metadata: { 
+                messageId: result.messageId,
+                testMessage: true
+              }
+            })
+            .returning();
+            
+          console.log(`Mensagem registrada no banco: ${newMessage.id}`);
+          
+          // Notificar clientes via WebSocket
+          broadcastToClients({
+            type: "new_message",
+            data: {
+              ...newMessage,
+              conversation: {
+                id: conversation.id,
+                channelId: channel.id,
+                contactId: contact.id
+              }
+            }
+          });
+          
+        } catch (dbError) {
+          console.error("Erro ao registrar mensagem no banco:", dbError);
+          // Continuar mesmo se falhar o registro no banco
+        }
+        
+        return res.json({ 
+          success: true,
+          message: "Mensagem enviada com sucesso",
+          messageId: result.messageId
+        });
+      } else {
+        console.error("Erro ao enviar mensagem:", result.message);
+        return res.status(500).json({ 
+          success: false,
+          message: "Erro ao enviar mensagem",
+          details: result.message
+        });
+      }
+      
+    } catch (error) {
+      console.error("Erro ao processar envio de mensagem:", error);
+      return res.status(500).json({ 
+        success: false,
+        message: "Erro interno ao processar envio",
+        details: error instanceof Error ? error.message : "Erro desconhecido"
+      });
+    }
+  });
 }

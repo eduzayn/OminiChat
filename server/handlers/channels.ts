@@ -1044,8 +1044,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       const { webhookUrl } = req.body || {};
       
       // Buscar canal
-      const channel = await db.query.schema.channels.findFirst({
-        where: eq(schema.channels.id, channelId)
+      const channel = await db.query.channels.findFirst({
+        where: eq(channels.id, channelId)
       });
       
       if (!channel) {
@@ -1093,8 +1093,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       const channelId = parseInt(req.params.id);
       
       // Buscar canal
-      const channel = await db.query.schema.channels.findFirst({
-        where: eq(schema.channels.id, channelId)
+      const channel = await db.query.channels.findFirst({
+        where: eq(channels.id, channelId)
       });
       
       if (!channel) {
@@ -1149,8 +1149,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       }
       
       // Buscar canal no banco de dados
-      const channel = await db.query.schema.channels.findFirst({
-        where: eq(schema.channels.id, channelId)
+      const channel = await db.query.channels.findFirst({
+        where: eq(channels.id, channelId)
       });
       
       if (!channel) {
@@ -1186,12 +1186,12 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
         try {
           // Buscar ou criar contato
           let contact = await db.query.contacts.findFirst({
-            where: eq(schema.contacts.phone, phone)
+            where: eq(contacts.phone, phone)
           });
           
           if (!contact) {
             // Criar novo contato se não existir
-            const [newContact] = await db.insert(schema.contacts)
+            const [newContact] = await db.insert(contacts)
               .values({
                 name: `Contato ${phone}`,
                 phone: phone,
@@ -1206,17 +1206,17 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
           }
           
           // Buscar ou criar conversa
-          let conversation = await db.query.schema.conversations.findFirst({
+          let conversation = await db.query.conversations.findFirst({
             where: and(
-              eq(schema.conversations.contactId, contact.id),
-              eq(schema.conversations.channelId, channelId),
-              eq(schema.conversations.status, "active")
+              eq(conversations.contactId, contact.id),
+              eq(conversations.channelId, channelId),
+              eq(conversations.status, "active")
             )
           });
           
           if (!conversation) {
             // Criar nova conversa
-            const [newConversation] = await db.insert(schema.conversations)
+            const [newConversation] = await db.insert(conversations)
               .values({
                 contactId: contact.id,
                 channelId: channelId,
@@ -1230,7 +1230,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
           }
           
           // Registrar a mensagem enviada
-          const [newMessage] = await db.insert(schema.messages)
+          const [newMessage] = await db.insert(messages)
             .values({
               conversationId: conversation.id,
               content: message,

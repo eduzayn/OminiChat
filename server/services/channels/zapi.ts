@@ -1008,6 +1008,62 @@ export async function checkWebhookStatus(channel: Channel): Promise<{
  * @param webhookFeatures Configurações específicas de recursos do webhook
  * @returns Objeto com status da configuração
  */
+/**
+ * Marca uma mensagem como lida no WhatsApp
+ * @param channel Canal configurado
+ * @param messageId ID da mensagem a ser marcada como lida
+ * @returns Status da operação
+ */
+export async function markMessageAsRead(
+  channel: Channel,
+  messageId: string
+): Promise<{ status: string; message?: string }> {
+  try {
+    const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
+    const token = channel.config?.token || ZAPI_TOKEN;
+    
+    if (!instanceId || !token) {
+      return {
+        status: "error",
+        message: "Credenciais Z-API não configuradas"
+      };
+    }
+    
+    // Marcando mensagem como lida na Z-API
+    console.log(`[Z-API] Marcando mensagem ${messageId} como lida`);
+    
+    // Endpoint da API Z-API para marcar como lida
+    const response = await axios.post(
+      `${BASE_URL}/instances/${instanceId}/token/${token}/read-message`,
+      {
+        messageId
+      },
+      {
+        headers: getHeadersWithToken(token)
+      }
+    );
+    
+    // Verificar resposta
+    if (response.data && response.data.success) {
+      return {
+        status: "success",
+        message: "Mensagem marcada como lida com sucesso"
+      };
+    } else {
+      return {
+        status: "error",
+        message: "Falha ao marcar mensagem como lida"
+      };
+    }
+  } catch (error) {
+    console.error("Erro ao marcar mensagem como lida na Z-API:", error);
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "Erro desconhecido ao marcar mensagem como lida"
+    };
+  }
+}
+
 export async function configureWebhook(
   channel: Channel, 
   webhookUrl?: string,

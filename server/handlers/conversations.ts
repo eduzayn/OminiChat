@@ -318,28 +318,31 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
       let messageStatus = "sent";
       let externalMessageId = null;
       
-      // Se a mensagem é de um agente e o canal é Z-API, enviar via Z-API
-      if (messageData.isFromAgent && channel.type === "whatsapp" && 
-          (channel.config?.provider === "zapi" || 
-           (typeof channel.config === "object" && channel.config.provider === "zapi"))) {
+      // Se a mensagem é de um agente e o canal é WhatsApp, enviar para o canal apropriado
+      if (messageData.isFromAgent && channel.type === "whatsapp") {
         try {
-          // Importar serviço Z-API dinamicamente
-          const zapiService = await import("../services/channels/zapi");
+          // Importar serviço WhatsApp que roteará para o provedor correto (Z-API, Meta, etc.)
+          const whatsAppService = await import("../services/channels/whatsapp");
           
-          // Enviar mensagem via Z-API
-          console.log(`Enviando mensagem via Z-API para ${contact.phone}: "${messageData.content}"`);
-          const result = await zapiService.sendTextMessage(channel, contact.phone, messageData.content);
+          console.log(`Enviando mensagem WhatsApp para ${contact.phone} via ${channel.config?.provider || 'padrão'}: "${messageData.content}"`);
+          
+          // Usar o serviço central de WhatsApp que roteia para Z-API ou outro provedor
+          const result = await whatsAppService.sendWhatsAppMessage(
+            channel, 
+            contact.phone, 
+            messageData.content
+          );
           
           if (result.status === "success") {
             messageStatus = "delivered";
             externalMessageId = result.messageId;
-            console.log(`Mensagem enviada via Z-API com sucesso, ID: ${result.messageId}`);
+            console.log(`Mensagem WhatsApp enviada com sucesso, ID: ${result.messageId}`);
           } else {
-            console.error(`Erro ao enviar mensagem via Z-API: ${result.message}`);
+            console.error(`Erro ao enviar mensagem WhatsApp: ${result.message}`);
             messageStatus = "failed";
           }
         } catch (error) {
-          console.error("Erro ao importar ou usar serviço Z-API:", error);
+          console.error("Erro ao enviar mensagem WhatsApp:", error);
           messageStatus = "failed";
         }
       }
@@ -433,7 +436,21 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
         return res.status(404).json({ message: "Message not found" });
       }
       
-      // Update message status
+      // Obter os dados completos da mensagem e da conversa
+      const conversation = await db.query.conversations.findFirst({
+        where: eq(conversations.id, conversationId)
+      });
+      
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      
+      // Buscar o canal para verificar se é WhatsApp
+      const channel = await db.query.channels.findFirst({
+        where: eq(channels.id, conversation.channelId)
+      });
+      
+      // Atualizar status da mensagem localmente
       const [updatedMessage] = await db
         .update(messages)
         .set({ status: "read" })
@@ -443,6 +460,38 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
         ))
         .returning();
         
+      // Se for um canal Z-API e a mensagem tiver ID externo, marcar como lida na Z-API
+      if (channel && 
+          channel.type === "whatsapp" && 
+          channel.config?.provider === "zapi" && 
+          message.metadata && 
+          typeof message.metadata === "object" && 
+          "externalMessageId" in message.metadata && 
+          message.metadata.externalMessageId) {
+            
+        try {
+          // Importar serviço Z-API dinamicamente
+          const zapiService = await import("../services/channels/zapi");
+          
+          // Verificar se a função markMessageAsRead existe no serviço importado
+          if (typeof zapiService.markMessageAsRead === "function") {
+            // Marcar mensagem como lida na Z-API
+            const externalId = String(message.metadata.externalMessageId);
+            console.log(`Marcando mensagem ${externalId} como lida na Z-API`);
+            
+            await zapiService.markMessageAsRead(channel, externalId)
+              .catch((error: Error) => {
+                console.error("Erro ao marcar como lida na Z-API:", error);
+              });
+          } else {
+            console.warn("Função markMessageAsRead não encontrada no serviço Z-API");
+          }
+        } catch (error) {
+          console.error("Erro ao importar serviço Z-API:", error);
+          // Não falhar a requisição se apenas a integração externa falhar
+        }
+      }
+      
       return res.json(updatedMessage);
       
     } catch (error) {

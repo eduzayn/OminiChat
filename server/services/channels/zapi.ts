@@ -532,7 +532,7 @@ export class ZAPIClient {
   
   // Obter QR Code para autenticação
   async getQRCode(): Promise<ZAPIResponse> {
-    console.log('Fetching Z-API QR code using multiple endpoints and authentication methods');
+    console.log('Fetching Z-API QR code using the official endpoint according to documentation');
     
     try {
       // Verificar primeiro o status para não tentar obter QR code se já está conectado
@@ -556,221 +556,136 @@ export class ZAPIClient {
         };
       }
       
-      // Lista de todos os endpoints de QR code a serem tentados, em ordem
-      // Baseado na documentação oficial da Z-API encontrada no Postman
-      const qrEndpointsToTry = [
-        { path: '/qr-code', description: 'QR code imagem (documentação Postman)' },        // Endpoint oficial - retorna imagem
-        { path: '/qr-code-bytes', description: 'QR code bytes (documentação Postman)' },   // Endpoint oficial - retorna bytes
-        { path: '/qr-code-phone', description: 'QR code telefone (documentação Postman)' },// Endpoint oficial - para telefone
-        { path: '/qrcode', description: 'Traditional QR code endpoint (fallback)' }        // Endpoint tradicional (fallback)
-      ];
+      // De acordo com a documentação oficial: https://developer.z-api.io/instance/qrcode
+      // O endpoint correto para QR code é /qrcode
+      const qrcodeEndpoint = '/qrcode';
       
-      // Obter todas as configurações de API (URL + autenticação)
-      const apiConfigurations = this.getApiConfigurations();
-      const errors = [];
+      console.log(`Fazendo requisição para o endpoint oficial de QR code: ${qrcodeEndpoint}`);
       
-      // Para cada combinação de configuração API + endpoint
-      for (const config of apiConfigurations) {
-        const originalBaseUrl = this.baseUrl;
+      // Tentar primeira com a configuração do token no caminho (URL)
+      const urlWithTokenInPath = `https://api.z-api.io/instances/${this.instanceId}/token/${this.token}${qrcodeEndpoint}`;
+      console.log(`Tentando obter QR code com token no path: ${urlWithTokenInPath}`);
+      
+      try {
+        const response = await axios.get(urlWithTokenInPath, {
+          headers: { 'Content-Type': 'application/json' }
+        });
         
-        // Temporariamente muda a baseUrl para testar esta configuração
-        this.baseUrl = config.baseUrl;
+        console.log(`Resposta HTTP ${response.status} obtida do endpoint de QR code`);
         
-        for (const endpoint of qrEndpointsToTry) {
-          try {
-            console.log(`Tentando obter QR code com ${config.description} + ${endpoint.description}: ${endpoint.path}`);
-            
-            // Criar headers conforme configuração
-            const headers = {
-              'Content-Type': 'application/json',
-              ...(config.useHeaderToken ? { 'Client-Token': this.token } : {})
-            };
-            
-            // Construir URL completa
-            const url = `${config.baseUrl}${endpoint.path}`;
-            
-            console.log(`Fazendo requisição GET para: ${url}`);
-            
-            // Fazer chamada direta com axios por mais controle
-            let response;
-            try {
-              response = await axios.get(url, { headers });
-              console.log(`Resposta HTTP ${response.status} de ${url}`);
-            } catch (error) {
-              // Verificar se é um erro do Axios
-              if (axios.isAxiosError(error) && error.response) {
-                console.error(`Erro HTTP ${error.response.status} de ${url}:`, 
-                  error.response.data ? JSON.stringify(error.response.data) : 'Sem dados na resposta');
-                
-                // Caso especial para Instance not found
-                if (error.response.status === 400 && 
-                    error.response.data?.error === 'Instance not found') {
-                  errors.push({
-                    config: config.description,
-                    endpoint: endpoint.path,
-                    error: 'INSTANCE_NOT_FOUND',
-                    message: 'A instância informada não foi encontrada.'
-                  });
-                  
-                  // Pular para o próximo endpoint
-                  continue;
-                }
-              }
-              
-              // Para outros erros, apenas registrar e continuar
-              const errorMessage = axios.isAxiosError(error) ? error.message : 
-                                  (error instanceof Error ? error.message : 'Erro desconhecido');
-              console.error(`Erro ao acessar ${url}:`, errorMessage);
-              errors.push({
-                config: config.description,
-                endpoint: endpoint.path,
-                error: errorMessage
-              });
-              
-              // Pular para o próximo endpoint
-              continue;
-            }
-            
-            // Se chegamos aqui, a requisição foi bem-sucedida em termos HTTP
-            
-            // Verificar se a resposta contém um erro NOT_FOUND
-            if (response.data && response.data.error === 'NOT_FOUND') {
-              console.log(`Resposta contém erro NOT_FOUND: ${response.data.message || 'Sem mensagem'}`);
-              errors.push({
-                config: config.description,
-                endpoint: endpoint.path,
-                error: 'NOT_FOUND',
-                message: response.data.message || 'Endpoint not found'
-              });
-              
-              // Pular para o próximo endpoint
-              continue;
-            }
-            
-            // Verificar se tem QR code na resposta usando vários formatos possíveis
-            const qrCodeValue = response.data?.qrcode || 
-                              response.data?.base64 || 
-                              response.data?.image || 
-                              response.data?.qrCode || 
-                              response.data?.value;
-            
-            if (qrCodeValue) {
-              console.log(`SUCESSO! QR code obtido com ${config.description} + ${endpoint.description}`);
-              
-              // Restaurar URL base original
-              this.baseUrl = originalBaseUrl;
-              
-              return {
-                qrcode: qrCodeValue,
-                status: 'success',
-                endpoint_used: endpoint.path,
-                config_used: config.description
-              };
-            } else if (response.data?.connected === true) {
-              console.log(`Dispositivo já está conectado (config: ${config.description}, endpoint: ${endpoint.path})`);
-              
-              // Restaurar URL base original
-              this.baseUrl = originalBaseUrl;
-              
-              return {
-                connected: true,
-                status: 'connected',
-                message: 'Device already connected',
-                endpoint_used: endpoint.path,
-                config_used: config.description
-              };
-            } else {
-              console.log(`Resposta não contém QR code nem indicação de conectado:`, 
-                JSON.stringify(response.data).substring(0, 200));
-              
-              errors.push({
-                config: config.description,
-                endpoint: endpoint.path,
-                error: 'NO_QR_CODE',
-                message: 'Resposta não contém QR code',
-                data: response.data
-              });
-            }
-          } catch (endpointError) {
-            console.error(`Erro geral com ${config.description} + ${endpoint.path}:`, endpointError);
-            errors.push({
-              config: config.description,
-              endpoint: endpoint.path,
-              error: endpointError instanceof Error ? endpointError.message : 'Erro desconhecido'
-            });
-          }
+        // Verificar se temos QR code na resposta
+        // Conforme a documentação: https://developer.z-api.io/instance/qrcode
+        // A resposta contém a propriedade "value" com o QR code em base64
+        if (response.data && response.data.value) {
+          console.log('SUCESSO! QR code obtido com formato token no path');
+          return {
+            qrcode: response.data.value,
+            status: 'success',
+            message: 'QR code obtido com sucesso'
+          };
         }
         
-        // Restaurar URL base original após testar todos os endpoints com esta configuração
-        this.baseUrl = originalBaseUrl;
+        // Verificar outros possíveis formatos de resposta (diferentes versões da API)
+        const qrCodeValue = response.data?.qrcode || 
+                          response.data?.base64 || 
+                          response.data?.image ||
+                          response.data?.qrCode;
+                          
+        if (qrCodeValue) {
+          console.log('SUCESSO! QR code obtido em formato alternativo');
+          return {
+            qrcode: qrCodeValue,
+            status: 'success',
+            message: 'QR code obtido com sucesso'
+          };
+        }
+        
+        // Se chegamos aqui, a requisição foi bem-sucedida, mas não há QR code na resposta
+        console.log('Requisição bem-sucedida, mas não foi encontrado QR code na resposta');
+        console.log('Resposta:', JSON.stringify(response.data).substring(0, 200));
+        
+        // Verificar se o dispositivo está conectado
+        if (response.data?.connected === true) {
+          return {
+            connected: true,
+            status: 'connected',
+            message: 'Device already connected'
+          };
+        }
+        
+        // Tentar com a configuração alternativa (token no header)
+      } catch (error) {
+        console.error('Erro ao obter QR code com token no path:', 
+          axios.isAxiosError(error) && error.response ? 
+            `HTTP ${error.response.status}: ${JSON.stringify(error.response.data)}` : 
+            error);
       }
       
-      // Se chegamos aqui, nenhuma combinação funcionou
-      console.error('Todas as combinações de configuração e endpoint falharam.');
-      console.error(`Total de ${errors.length} erros:`);
+      // Tentar com a configuração alternativa (token no header)
+      const urlWithTokenInHeader = `https://api.z-api.io/instances/${this.instanceId}${qrcodeEndpoint}`;
+      console.log(`Tentando obter QR code com token no header: ${urlWithTokenInHeader}`);
       
-      // Detectar padrões específicos de erro
-      
-      // Verificar se muitos erros foram "Instance not found"
-      const instanceNotFoundErrors = errors.filter((e: any) => 
-        e.error === 'INSTANCE_NOT_FOUND' || 
-        (typeof e.error === 'string' && e.error.includes('Instance not found'))
-      );
-      
-      if (instanceNotFoundErrors.length > 3) {
-        console.log(`Padrão detectado: ${instanceNotFoundErrors.length} erros de 'Instance not found'`);
-        return {
-          error: 'INVALID_INSTANCE_ID',
-          message: 'O ID da instância informado não foi encontrado. Verifique se o instanceId está correto no painel da Z-API.',
-          status: 'error',
-          detailed_errors: errors.slice(0, 5) // Limitando para não sobrecarregar a resposta
-        };
+      try {
+        const response = await axios.get(urlWithTokenInHeader, {
+          headers: { 
+            'Content-Type': 'application/json',
+            'Client-Token': this.token
+          }
+        });
+        
+        console.log(`Resposta HTTP ${response.status} obtida do endpoint de QR code (token no header)`);
+        
+        // Verificar se temos QR code na resposta
+        if (response.data && response.data.value) {
+          console.log('SUCESSO! QR code obtido com formato token no header');
+          return {
+            qrcode: response.data.value,
+            status: 'success',
+            message: 'QR code obtido com sucesso'
+          };
+        }
+        
+        // Verificar outros possíveis formatos de resposta
+        const qrCodeValue = response.data?.qrcode || 
+                          response.data?.base64 || 
+                          response.data?.image ||
+                          response.data?.qrCode;
+                          
+        if (qrCodeValue) {
+          console.log('SUCESSO! QR code obtido em formato alternativo (token no header)');
+          return {
+            qrcode: qrCodeValue,
+            status: 'success',
+            message: 'QR code obtido com sucesso'
+          };
+        }
+        
+        // Se chegamos aqui, a requisição foi bem-sucedida, mas não há QR code na resposta
+        console.log('Requisição com token no header bem-sucedida, mas não foi encontrado QR code na resposta');
+        
+        // Verificar se o dispositivo está conectado
+        if (response.data?.connected === true) {
+          return {
+            connected: true,
+            status: 'connected',
+            message: 'Device already connected'
+          };
+        }
+      } catch (error) {
+        console.error('Erro ao obter QR code com token no header:', 
+          axios.isAxiosError(error) && error.response ? 
+            `HTTP ${error.response.status}: ${JSON.stringify(error.response.data)}` : 
+            error);
       }
       
-      // Verificar se muitos erros foram relacionados a problemas de autenticação ou token
-      const authErrors = errors.filter((e: any) => 
-        e.error === 'Client-Token is required' || 
-        (typeof e.error === 'string' && (
-          e.error.includes('Token') || 
-          e.error.includes('token') || 
-          e.error.includes('Authentication') || 
-          e.error.includes('authentication') || 
-          e.error.includes('auth')
-        ))
-      );
+      // Se chegamos aqui, ambas as tentativas falharam
+      console.error('Falha ao obter QR code usando ambos os métodos de autenticação');
       
-      if (authErrors.length > 3) {
-        console.log(`Padrão detectado: ${authErrors.length} erros relacionados a autenticação ou token`);
-        return {
-          error: 'AUTH_ERROR',
-          message: 'Problemas de autenticação detectados. Verifique se o token da Z-API está correto e se a autenticação está configurada adequadamente.',
-          status: 'error',
-          detailed_errors: authErrors.slice(0, 5) // Limitando para não sobrecarregar a resposta
-        };
-      }
-      
-      // Verificar se muitos erros foram NOT_FOUND
-      const notFoundErrors = errors.filter((e: any) => 
-        e.error === 'NOT_FOUND' || 
-        (typeof e.error === 'string' && e.error.includes('NOT_FOUND'))
-      );
-      
-      if (notFoundErrors.length > (errors.length / 2)) {
-        console.log(`Padrão detectado: ${notFoundErrors.length} erros 'NOT_FOUND' de ${errors.length} total`);
-        return {
-          error: 'API_COMPATIBILITY_ERROR',
-          message: 'Múltiplos erros "NOT_FOUND" sugerem incompatibilidade com a versão atual da API Z-API. Verifique a documentação atualizada.',
-          status: 'error',
-          detailed_errors: errors.slice(0, 5) // Limitando para não sobrecarregar a resposta
-        };
-      }
-      
-      // Erro genérico quando não identificamos um padrão claro
-      return { 
-        error: 'QR_CODE_UNAVAILABLE',
-        message: 'Não foi possível obter QR code de nenhuma combinação de endpoint da Z-API. Verifique suas credenciais e a documentação atualizada.',
-        status: 'error',
-        detailed_errors: errors.slice(0, 10) // Limitando para não sobrecarregar a resposta
+      // Erro genérico para falha na autenticação
+      return {
+        error: 'AUTH_ERROR',
+        message: 'Falha ao obter QR code. Verifique se as credenciais da Z-API (instanceId e token) estão corretas.',
+        status: 'error'
       };
     } catch (error) {
       console.error('Erro geral ao tentar obter QR code:', error);

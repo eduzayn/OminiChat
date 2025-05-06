@@ -883,46 +883,120 @@ export async function checkWebhookStatus(channel: Channel): Promise<{
       };
     }
     
-    // Verificar webhook configurado
-    const response = await axios.get(
-      `${BASE_URL}/instances/${instanceId}/token/${token}/webhook`,
-      {
-        headers: getHeadersWithToken(token)
+    console.log(`[Z-API] Verificando status do webhook para canal ${channel.id} (instância ${instanceId})...`);
+    
+    // Tentativa alternativa: uso da API de status em vez da API de webhook
+    try {
+      // Verificar webhook configurado 
+      // Obs: Alguns endpoints da Z-API retornam erro 404 (NOT_FOUND) quando o recurso não existe
+      // Vamos tratar isso como uma resposta válida indicando que o webhook não está configurado
+      const headers = getHeadersWithToken(token, ZAPI_CLIENT_TOKEN);
+      
+      console.log(`[Z-API] Fazendo requisição GET para ${BASE_URL}/instances/${instanceId}/token/${token}/webhook`);
+      console.log(`[Z-API] Headers:`, JSON.stringify(headers, null, 2));
+      
+      const response = await axios.get(
+        `${BASE_URL}/instances/${instanceId}/token/${token}/webhook`,
+        { headers }
+      );
+      
+      console.log(`[Z-API] Resposta da verificação de webhook:`, JSON.stringify(response.data, null, 2));
+      
+      // Compatibilidade com APIs antigas da Z-API que retornam 'value' em vez de 'url'
+      const webhookUrl = response.data?.url || response.data?.value || null;
+      const isConfigured = !!webhookUrl && webhookUrl.length > 0;
+      
+      // Extrair features do webhook se existirem
+      const webhookFeatures = response.data?.webhookFeatures || {};
+      
+      return {
+        status: "success",
+        configured: isConfigured,
+        webhookUrl: webhookUrl,
+        webhookFeatures: {
+          receiveAllNotifications: webhookFeatures.receiveAllNotifications || false,
+          messageReceived: webhookFeatures.messageReceived || false,
+          messageCreate: webhookFeatures.messageCreate || false,
+          statusChange: webhookFeatures.statusChange || false,
+          presenceChange: webhookFeatures.presenceChange || false,
+          deviceConnected: webhookFeatures.deviceConnected || false,
+          receiveByEmail: webhookFeatures.receiveByEmail || false
+        },
+        message: isConfigured 
+          ? `Webhook configurado para: ${webhookUrl}` 
+          : 'Webhook não configurado'
+      };
+    } catch (error) {
+      console.error("[Z-API] Erro ao verificar webhook (método GET):", error);
+      
+      // Se o erro for 404, isso pode indicar que o webhook não está configurado
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        return {
+          status: "success",
+          configured: false,
+          webhookUrl: null,
+          webhookFeatures: {
+            receiveAllNotifications: false,
+            messageReceived: false,
+            messageCreate: false,
+            statusChange: false,
+            presenceChange: false,
+            deviceConnected: false,
+            receiveByEmail: false
+          },
+          message: "Webhook não configurado"
+        };
       }
-    );
-    
-    console.log("Resposta da verificação de webhook:", JSON.stringify(response.data));
-    
-    // Compatibilidade com APIs antigas da Z-API que retornam 'value' em vez de 'url'
-    const webhookUrl = response.data?.url || response.data?.value || '';
-    const isConfigured = webhookUrl && webhookUrl.length > 0;
-    
-    // Extrair features do webhook se existirem
-    const webhookFeatures = response.data?.webhookFeatures || {};
-    
-    return {
-      status: "success",
-      configured: isConfigured,
-      webhookUrl: webhookUrl,
-      webhookFeatures: {
-        receiveAllNotifications: webhookFeatures.receiveAllNotifications || false,
-        messageReceived: webhookFeatures.messageReceived || false,
-        messageCreate: webhookFeatures.messageCreate || false,
-        statusChange: webhookFeatures.statusChange || false,
-        presenceChange: webhookFeatures.presenceChange || false,
-        deviceConnected: webhookFeatures.deviceConnected || false,
-        receiveByEmail: webhookFeatures.receiveByEmail || false
-      },
-      message: isConfigured 
-        ? `Webhook configurado para: ${webhookUrl}` 
-        : 'Webhook não configurado'
-    };
+      
+      // Para outros erros, vamos tentar fazer uma verificação de status geral
+      try {
+        // Tentar consultar o status geral da instância
+        console.log(`[Z-API] Tentando método alternativo: verificar status da instância...`);
+        const statusResponse = await axios.get(
+          `${BASE_URL}/instances/${instanceId}/token/${token}/status`,
+          { headers: getHeadersWithToken(token, ZAPI_CLIENT_TOKEN) }
+        );
+        
+        console.log(`[Z-API] Resposta do status:`, JSON.stringify(statusResponse.data, null, 2));
+        
+        // Se conseguimos verificar o status, significa que a API está funcionando
+        // mas o webhook provavelmente não está configurado
+        return {
+          status: "success",
+          configured: false,
+          webhookUrl: null,
+          webhookFeatures: {
+            receiveAllNotifications: false,
+            messageReceived: false,
+            messageCreate: false,
+            statusChange: false,
+            presenceChange: false,
+            deviceConnected: false,
+            receiveByEmail: false
+          },
+          message: "Webhook não configurado (verificado via status da instância)"
+        };
+      } catch (statusError) {
+        console.error("[Z-API] Erro ao verificar status alternativo:", statusError);
+        throw error; // Propagar o erro original
+      }
+    }
   } catch (error) {
-    console.error("Erro ao verificar webhook Z-API:", error);
+    console.error("[Z-API] Erro ao verificar webhook:", error);
+    
+    let errorMessage = "Erro desconhecido ao verificar webhook";
+    if (axios.isAxiosError(error)) {
+      const responseData = error.response?.data;
+      errorMessage = responseData?.error || responseData?.message || error.message;
+      console.error("[Z-API] Detalhes da resposta:", JSON.stringify(error.response?.data, null, 2));
+    } else if (error instanceof Error) {
+      errorMessage = error.message;
+    }
+    
     return {
       status: "error",
       configured: false,
-      message: error instanceof Error ? error.message : "Erro desconhecido ao verificar webhook"
+      message: errorMessage
     };
   }
 }
@@ -958,44 +1032,87 @@ export async function configureWebhook(
       };
     }
     
+    // Determinar a URL base da aplicação
+    let baseUrl = '';
+    if (process.env.APP_URL) {
+      baseUrl = process.env.APP_URL;
+    } else if (process.env.REPLIT_DOMAINS) {
+      baseUrl = `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`;
+    } else {
+      // URL da Replit atual baseada na ID do projeto
+      baseUrl = 'https://0eb8be2b-04a6-47e5-bbf1-dd3bd83018b0.id.repl.co';
+    }
+    
     // URL do webhook - se não for fornecida, cria uma URL baseada na URL atual da aplicação
     // e inclui o ID do canal para roteamento correto
-    const finalWebhookUrl = webhookUrl || 
-      `${process.env.APP_URL || 'https://0eb8be2b-04a6-47e5-bbf1-dd3bd83018b0.id.repl.co'}/api/webhooks/zapi/${channel.id}`;
+    const finalWebhookUrl = webhookUrl || `${baseUrl}/api/webhooks/zapi/${channel.id}`;
     
-    // Configurando webhook com recursos específicos baseados na documentação da Z-API
+    // Garantir que as features corretas sejam enviadas de acordo com a documentação da Z-API
     // https://developer.z-api.io/webhooks/introduction
-    const payload: any = {
-      url: finalWebhookUrl,
-      webhookFeatures: webhookFeatures || {
-        receiveAllNotifications: true
-      }
+    const featuresPayload = webhookFeatures || {
+      receiveAllNotifications: true,
+      messageReceived: true,
+      messageCreate: true,
+      statusChange: true,
+      deviceConnected: true
     };
     
-    console.log("Enviando configuração de webhook:", JSON.stringify(payload));
+    // Configurando webhook com recursos específicos baseados na documentação
+    const payload = {
+      url: finalWebhookUrl,
+      webhookFeatures: featuresPayload
+    };
+    
+    console.log(`[Z-API] Configurando webhook para canal ${channel.id}:`);
+    console.log(`[Z-API] URL do webhook: ${finalWebhookUrl}`);
+    console.log(`[Z-API] Instância: ${instanceId}`);
+    console.log(`[Z-API] Payload:`, JSON.stringify(payload, null, 2));
+    
+    // Headers com o Client-Token correto
+    const headers = getHeadersWithToken(token, ZAPI_CLIENT_TOKEN);
+    console.log(`[Z-API] Headers:`, JSON.stringify(headers, null, 2));
     
     const response = await axios.post(
       `${BASE_URL}/instances/${instanceId}/token/${token}/webhook`,
       payload,
-      {
-        headers: getHeadersWithToken(token)
-      }
+      { headers }
     );
     
-    console.log("Resposta da configuração de webhook:", JSON.stringify(response.data));
+    console.log(`[Z-API] Resposta da configuração de webhook:`, JSON.stringify(response.data, null, 2));
     
-    return {
-      status: "success",
-      configured: true,
-      webhookUrl: finalWebhookUrl,
-      message: `Webhook configurado com sucesso para: ${finalWebhookUrl}`
-    };
+    // Verificar a resposta de acordo com a documentação Z-API
+    if (response.data && response.data.value === 'success') {
+      return {
+        status: "success",
+        configured: true,
+        webhookUrl: finalWebhookUrl,
+        message: `Webhook configurado com sucesso para: ${finalWebhookUrl}`
+      };
+    } else {
+      // Mesmo que a requisição não falhe, podemos ter uma resposta negativa da API
+      return {
+        status: "error",
+        configured: false,
+        webhookUrl: finalWebhookUrl,
+        message: response.data?.message || "Resposta inesperada da Z-API ao configurar webhook"
+      };
+    }
   } catch (error) {
-    console.error("Erro ao configurar webhook Z-API:", error);
+    console.error("[Z-API] Erro ao configurar webhook:", error);
+    let errorDetails = "Erro desconhecido ao configurar webhook";
+    
+    if (axios.isAxiosError(error)) {
+      const responseData = error.response?.data;
+      errorDetails = responseData?.error || responseData?.message || error.message;
+      console.error("[Z-API] Detalhes da resposta:", JSON.stringify(error.response?.data, null, 2));
+    } else if (error instanceof Error) {
+      errorDetails = error.message;
+    }
+    
     return {
       status: "error",
       configured: false,
-      message: error instanceof Error ? error.message : "Erro desconhecido ao configurar webhook"
+      message: errorDetails
     };
   }
 }

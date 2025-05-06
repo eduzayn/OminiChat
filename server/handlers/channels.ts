@@ -16,7 +16,10 @@ import axios from "axios";
 import { 
   setupZAPIChannel, 
   getQRCodeForChannel, 
-  testZapiInstances 
+  testZapiInstances,
+  checkWebhookStatus,
+  configureWebhook,
+  sendTestMessageToInbox
 } from "../services/channels/zapi";
 
 // Middleware to check if user is authenticated
@@ -986,6 +989,149 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
   });
   
   // Endpoint para testar o envio de mensagens via Z-API
+  // Endpoint para verificar status do webhook
+  app.get(`${apiPrefix}/channels/:id/webhook-status`, isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const channelId = parseInt(req.params.id);
+      
+      // Buscar canal
+      const channel = await db.query.schema.channels.findFirst({
+        where: eq(schema.channels.id, channelId)
+      });
+      
+      if (!channel) {
+        return res.status(404).json({
+          success: false,
+          message: "Canal não encontrado"
+        });
+      }
+      
+      // Verificar o tipo de canal e provider
+      if (channel.type === "whatsapp" && channel.config?.provider === "zapi") {
+        // Verificar status do webhook
+        const result = await checkWebhookStatus(channel);
+        
+        return res.json({
+          success: true,
+          configured: result.configured || false,
+          webhookUrl: result.webhookUrl || null,
+          message: result.message || "Status verificado"
+        });
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: `Tipo de canal (${channel.type}) ou provedor não suporta verificação de webhook`
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao verificar status do webhook:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Erro interno ao processar solicitação",
+        error: error instanceof Error ? error.message : "Erro desconhecido"
+      });
+    }
+  });
+  
+  // Endpoint para configurar webhook
+  app.post(`${apiPrefix}/channels/:id/configure-webhook`, isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const channelId = parseInt(req.params.id);
+      const { webhookUrl } = req.body || {};
+      
+      // Buscar canal
+      const channel = await db.query.schema.channels.findFirst({
+        where: eq(schema.channels.id, channelId)
+      });
+      
+      if (!channel) {
+        return res.status(404).json({
+          success: false,
+          message: "Canal não encontrado"
+        });
+      }
+      
+      // Verificar o tipo de canal e provider
+      if (channel.type === "whatsapp" && channel.config?.provider === "zapi") {
+        // Configurar webhook
+        const result = await configureWebhook(channel, webhookUrl);
+        
+        if (result.status === "success") {
+          return res.json({
+            success: true,
+            message: result.message || "Webhook configurado com sucesso"
+          });
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: result.message || "Erro ao configurar webhook"
+          });
+        }
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: `Tipo de canal (${channel.type}) ou provedor não suporta configuração de webhook`
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao configurar webhook:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Erro interno ao processar solicitação",
+        error: error instanceof Error ? error.message : "Erro desconhecido"
+      });
+    }
+  });
+  
+  // Endpoint para testar mensagem na caixa de entrada
+  app.post(`${apiPrefix}/channels/:id/test-inbox-message`, isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const channelId = parseInt(req.params.id);
+      
+      // Buscar canal
+      const channel = await db.query.schema.channels.findFirst({
+        where: eq(schema.channels.id, channelId)
+      });
+      
+      if (!channel) {
+        return res.status(404).json({
+          success: false,
+          message: "Canal não encontrado"
+        });
+      }
+      
+      // Verificar o tipo de canal e provider
+      if (channel.type === "whatsapp" && channel.config?.provider === "zapi") {
+        // Testar mensagem na caixa de entrada
+        const result = await sendTestMessageToInbox(channel);
+        
+        if (result.status === "success") {
+          return res.json({
+            success: true,
+            message: result.message || "Teste realizado com sucesso"
+          });
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: result.message || "Erro ao testar mensagem na caixa de entrada"
+          });
+        }
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: `Tipo de canal (${channel.type}) ou provedor não suporta teste na caixa de entrada`
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao testar mensagem na caixa de entrada:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Erro interno ao processar solicitação",
+        error: error instanceof Error ? error.message : "Erro desconhecido"
+      });
+    }
+  });
+
   app.post(`${apiPrefix}/channels/:id/send-message-test`, isAuthenticated, async (req: Request, res: Response) => {
     try {
       const channelId = parseInt(req.params.id);

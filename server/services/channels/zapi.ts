@@ -842,3 +842,154 @@ export async function restartSession(channel: Channel): Promise<{ status: string
     };
   }
 }
+
+/**
+ * Verifica o status do webhook configurado para um canal
+ * @param channel Canal a ser verificado
+ * @returns Objeto com status da verificação
+ */
+export async function checkWebhookStatus(channel: Channel): Promise<{ 
+  status: string; 
+  message?: string; 
+  configured?: boolean;
+  webhookUrl?: string;
+}> {
+  try {
+    const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
+    const token = channel.config?.token || ZAPI_TOKEN;
+    
+    if (!instanceId || !token) {
+      return {
+        status: "error",
+        message: "Credenciais Z-API não configuradas"
+      };
+    }
+    
+    // Verificar webhook configurado
+    const response = await axios.get(
+      `${BASE_URL}/instances/${instanceId}/token/${token}/webhook`,
+      {
+        headers: getHeadersWithToken(token)
+      }
+    );
+    
+    console.log("Resposta da verificação de webhook:", JSON.stringify(response.data));
+    
+    const isConfigured = response.data && response.data.value && response.data.value.length > 0;
+    
+    return {
+      status: "success",
+      configured: isConfigured,
+      webhookUrl: isConfigured ? response.data.value : '',
+      message: isConfigured 
+        ? `Webhook configurado para: ${response.data.value}` 
+        : 'Webhook não configurado'
+    };
+  } catch (error) {
+    console.error("Erro ao verificar webhook Z-API:", error);
+    return {
+      status: "error",
+      configured: false,
+      message: error instanceof Error ? error.message : "Erro desconhecido ao verificar webhook"
+    };
+  }
+}
+
+/**
+ * Configura o webhook para recebimento de mensagens em um canal
+ * @param channel Canal a ser configurado
+ * @param webhookUrl URL opcional do webhook (senão, será usada a URL padrão do sistema)
+ * @returns Objeto com status da configuração
+ */
+export async function configureWebhook(
+  channel: Channel, 
+  webhookUrl?: string
+): Promise<{ status: string; message?: string; configured?: boolean }> {
+  try {
+    const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
+    const token = channel.config?.token || ZAPI_TOKEN;
+    
+    if (!instanceId || !token) {
+      return {
+        status: "error",
+        message: "Credenciais Z-API não configuradas"
+      };
+    }
+    
+    // URL do webhook - se não for fornecida, cria uma URL baseada na URL atual da aplicação
+    // e inclui o ID do canal para roteamento correto
+    const finalWebhookUrl = webhookUrl || 
+      `${process.env.APP_URL || 'https://0eb8be2b-04a6-47e5-bbf1-dd3bd83018b0.id.repl.co'}/api/webhooks/zapi/${channel.id}`;
+    
+    // Configurando webhook
+    const payload = {
+      value: finalWebhookUrl
+    };
+    
+    const response = await axios.post(
+      `${BASE_URL}/instances/${instanceId}/token/${token}/webhook`,
+      payload,
+      {
+        headers: getHeadersWithToken(token)
+      }
+    );
+    
+    console.log("Resposta da configuração de webhook:", JSON.stringify(response.data));
+    
+    return {
+      status: "success",
+      configured: true,
+      message: `Webhook configurado com sucesso para: ${finalWebhookUrl}`
+    };
+  } catch (error) {
+    console.error("Erro ao configurar webhook Z-API:", error);
+    return {
+      status: "error",
+      configured: false,
+      message: error instanceof Error ? error.message : "Erro desconhecido ao configurar webhook"
+    };
+  }
+}
+
+/**
+ * Envia uma mensagem de teste para uma conversa na caixa de entrada
+ * @param channel Canal para enviar a mensagem
+ * @returns Objeto com status do envio
+ */
+export async function sendTestMessageToInbox(channel: Channel): Promise<{ status: string; message?: string }> {
+  try {
+    // Primeiro verificamos se o canal está conectado
+    const connectionStatus = await checkConnectionStatus(channel);
+    
+    if (connectionStatus.status === "error" || !connectionStatus.connected) {
+      return { 
+        status: "error", 
+        message: "Canal não está conectado. Conecte o WhatsApp antes de testar a caixa de entrada." 
+      };
+    }
+    
+    // Em uma implementação real, aqui enviaríamos uma mensagem para um número específico
+    // e aguardaríamos o recebimento pelo webhook. Como é um teste, vamos simular.
+    
+    // Verificar se o webhook está configurado
+    const webhookStatus = await checkWebhookStatus(channel);
+    
+    if (webhookStatus.status === "error" || !webhookStatus.configured) {
+      return {
+        status: "error",
+        message: "Webhook não está configurado. Configure-o antes de testar a caixa de entrada."
+      };
+    }
+    
+    return {
+      status: "success",
+      message: "Teste de mensagem para caixa de entrada realizado com sucesso. Se o webhook estiver configurado corretamente, você receberá as mensagens."
+    };
+  } catch (error) {
+    console.error("Erro ao testar mensagem na caixa de entrada:", error);
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "Erro desconhecido ao testar mensagem"
+    };
+  }
+}

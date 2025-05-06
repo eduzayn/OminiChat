@@ -11,7 +11,7 @@ import { Message } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 
 function Dashboard() {
-  const { socket } = useSocket();
+  const { socket, addListener } = useSocket();
   const { user } = useAuth();
   const { activeConversation } = useConversation();
   const { toast } = useToast();
@@ -35,16 +35,15 @@ function Dashboard() {
         }
       };
       
-      // Usar a API addListener em vez do addEventListener direto no socket
-      // Isso garante que não tenhamos problemas de processamento duplicado
-      const removeListener = useSocket().addListener("new_message", handleNewMessage);
+      // Usar a função addListener que já foi importada no topo do componente
+      const removeListener = addListener("new_message", handleNewMessage);
       
       return () => {
         // Limpar listener ao desmontar
         removeListener();
       };
     }
-  }, [socket, user, activeConversation, toast, useSocket]);
+  }, [socket, user, activeConversation, toast, addListener]);
 
   return (
     <>

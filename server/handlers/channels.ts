@@ -70,8 +70,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       const zapiService = await import("../services/channels/zapi");
       
       // Buscar o canal 23 que já sabemos que existe
-      const channel23 = await db.query.schema.channels.findFirst({
-        where: eq(schema.channels.id, 23)
+      const channel23 = await db.query.channels.findFirst({
+        where: eq(channels.id, 23)
       });
       
       if (!channel23) {
@@ -121,8 +121,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       const zapiService = await import("../services/channels/zapi");
       
       // Buscar o canal 23, ou criar se não existir
-      let channel23 = await db.query.schema.channels.findFirst({
-        where: eq(schema.channels.id, 23)
+      let channel23 = await db.query.channels.findFirst({
+        where: eq(channels.id, 23)
       });
       
       if (!channel23) {
@@ -148,7 +148,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
           
           // Inserir o canal com ID 23 fixo
           console.log("Criando canal 23 com credenciais Z-API do ambiente...");
-          const [newChannel] = await db.insert(schema.channels)
+          const [newChannel] = await db.insert(channels)
             .values({
               id: 23,
               name: "WhatsApp Z-API (Teste)",
@@ -425,7 +425,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
             isActive: false,
             config: updatedConfig
           })
-          .where(eq(schema.channels.id, newChannel.id));
+          .where(eq(channels.id, newChannel.id));
           
         const responseChannel = {
           ...newChannel,
@@ -484,7 +484,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
           ...updateData,
           updatedAt: new Date()
         })
-        .where(eq(schema.channels.id, channelId))
+        .where(eq(channels.id, channelId))
         .returning();
       
       // If channel was activated, try to setup

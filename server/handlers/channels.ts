@@ -335,7 +335,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
   // Get all channels
   app.get(`${apiPrefix}/channels`, isAuthenticated, async (req, res) => {
     try {
-      const allChannels = await db.query.schema.channels.findMany();
+      const allChannels = await db.query.channels.findMany();
       
       return res.json(allChannels);
       
@@ -568,8 +568,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       
       // Buscar o canal com verificação detalhada
       console.log(`[QRCode Handler] Buscando canal ${channelId} no banco de dados`);
-      let channel = await db.query.schema.channels.findFirst({
-        where: eq(schema.channels.id, channelId)
+      let channel = await db.query.channels.findFirst({
+        where: eq(channels.id, channelId)
       });
       
       if (!channel) {
@@ -633,7 +633,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
             
             if (ZAPI_INSTANCE_ID && ZAPI_TOKEN) {
               // Atualizar o canal com as credenciais do ambiente
-              await db.update(schema.channels)
+              await db.update(channels)
                 .set({
                   config: {
                     ...config,
@@ -641,11 +641,11 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
                     token: ZAPI_TOKEN
                   }
                 })
-                .where(eq(schema.channels.id, channel.id));
+                .where(eq(channels.id, channel.id));
                 
               // Recarregar o canal com as novas credenciais
-              const updatedChannel = await db.query.schema.channels.findFirst({
-                where: eq(schema.channels.id, channel.id)
+              const updatedChannel = await db.query.channels.findFirst({
+                where: eq(channels.id, channel.id)
               });
               
               if (updatedChannel) {

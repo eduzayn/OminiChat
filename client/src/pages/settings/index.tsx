@@ -407,12 +407,8 @@ function SettingsPage() {
       
       setIsNewChannelDialogOpen(false);
       
-      // Verificar se é um canal WhatsApp via QR Code (zapi) e exibir QR Code
-      if (savedChannel && 
-          channelForm.type === "whatsapp" && 
-          channelForm.config.provider === "zapi") {
-        handleOpenQrCodeDialog(savedChannel);
-      }
+      // QR Code não é mais usado para nenhum provedor
+      // Código para Z-API foi removido
       
       channelsQuery.refetch();
     } catch (error) {
@@ -581,66 +577,7 @@ function SettingsPage() {
               </div>
             </>
           );
-        } else if (channelForm.config.provider === "zapi") {
-          return (
-            <>
-              <div className="bg-blue-50 p-4 rounded-md border border-blue-200 mb-4">
-                <div className="flex gap-3">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                      <MessageSquare className="w-4 h-4 text-blue-600" />
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium text-blue-800">Z-API: Integração Robusta com WhatsApp</h4>
-                    <p className="text-sm text-blue-700">
-                      A Z-API oferece recursos avançados como suporte a múltiplos formatos de mídia, QR Code, obtenção de conversas e mensagens anteriores.
-                    </p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="instanceId">ID da Instância Z-API</Label>
-                <Input 
-                  id="instanceId" 
-                  value={channelForm.config.instanceId || ""} 
-                  onChange={(e) => handleChannelFormChange("config.instanceId", e.target.value)}
-                  placeholder="Ex: 1A2B3C4D5E6F7G8H9I0J"
-                />
-                <p className="text-xs text-muted-foreground">
-                  ID da sua instância na Z-API (encontrado no painel da Z-API)
-                </p>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="token">Token Z-API</Label>
-                <Input 
-                  id="token" 
-                  type="password"
-                  value={channelForm.config.token || ""} 
-                  onChange={(e) => handleChannelFormChange("config.token", e.target.value)}
-                  placeholder="Token da sua instância Z-API"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Token de autorização da sua instância na Z-API
-                </p>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="phone">Número de Telefone (opcional)</Label>
-                <Input 
-                  id="phone" 
-                  value={channelForm.config.phone || ""} 
-                  onChange={(e) => handleChannelFormChange("config.phone", e.target.value)}
-                  placeholder="+5511999999999"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Número de telefone no formato internacional (Ex: +5511999999999)
-                </p>
-              </div>
-            </>
-          );
+        /* O suporte ao Z-API foi removido do sistema */
         } else if (channelForm.config.provider === "twilio") {
           return (
             <>
@@ -674,40 +611,7 @@ function SettingsPage() {
               </div>
             </>
           );
-        } else if (channelForm.config.provider === "zapi") {
-          // Implementação para exibição do QR Code
-          return (
-            <>
-              <div className="bg-blue-50 p-4 rounded-md border border-blue-200 mb-4">
-                <div className="flex gap-3">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                      <QrCode className="w-4 h-4 text-blue-600" />
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-medium text-blue-800">WhatsApp via QR Code</h4>
-                    <p className="text-sm text-blue-700">
-                      Após salvar este canal, você poderá escanear o QR Code para conectar seu WhatsApp.
-                    </p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="whatsappName">Nome do WhatsApp</Label>
-                <Input 
-                  id="whatsappName" 
-                  value={channelForm.name || ""} 
-                  onChange={(e) => handleChannelFormChange("name", e.target.value)}
-                  placeholder="Ex: WhatsApp Atendimento"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Nome para identificação deste canal WhatsApp
-                </p>
-              </div>
-            </>
-          );
+        /* O suporte ao Z-API via QR Code foi removido do sistema */
         } else {
           return (
             <div className="py-4 text-center text-gray-500">

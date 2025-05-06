@@ -693,7 +693,7 @@ export class ZAPIClient {
         error: 'QR_CODE_UNAVAILABLE',
         message: 'Não foi possível obter o QR code da Z-API. Verifique suas credenciais e a documentação atual.',
         status: 'error',
-        attempted_endpoints: attempts
+        failed_attempts: attempts
       };
     } catch (error) {
       console.error('Erro geral ao tentar obter QR code:', error);

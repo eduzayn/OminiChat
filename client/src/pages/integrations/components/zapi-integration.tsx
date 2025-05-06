@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from "@/components/ui/checkbox";
 import { MessageSquare, QrCode, Loader2, RefreshCcw, AlertCircle, Info } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -727,12 +728,10 @@ export function ZAPIIntegrationDialog({
                     <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
                       <FormControl>
                         <div className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={field.value}
                             id="useClientToken"
-                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                            onChange={(e) => field.onChange(e.target.checked)}
+                            onCheckedChange={field.onChange}
                           />
                         </div>
                       </FormControl>

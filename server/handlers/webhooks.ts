@@ -297,7 +297,7 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
       
       // Verificar se o canal existe
       const channel = await db.query.channels.findFirst({
-        where: eq(schema.channels.id, channelId)
+        where: eq(channels.id, channelId)
       });
       
       if (!channel) {
@@ -318,13 +318,13 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
       // Processar mensagem recebida
       if (eventData.isMessage && eventData.phone && eventData.text) {
         // Buscar ou criar contato pelo número do telefone
-        let contact = await db.query.schema.contacts.findFirst({
-          where: eq(schema.contacts.phone, eventData.phone)
+        let contact = await db.query.contacts.findFirst({
+          where: eq(contacts.phone, eventData.phone)
         });
         
         if (!contact) {
           // Criar novo contato se não existir
-          const [newContact] = await db.insert(schema.contacts)
+          const [newContact] = await db.insert(contacts)
             .values({
               name: eventData.senderName || `Contato ${eventData.phone}`,
               phone: eventData.phone,

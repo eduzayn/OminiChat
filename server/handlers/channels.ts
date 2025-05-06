@@ -1209,7 +1209,13 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
   app.post(`${apiPrefix}/channels/:id/configure-webhook`, isAuthenticated, async (req: Request, res: Response) => {
     try {
       const channelId = parseInt(req.params.id);
-      const { webhookUrl } = req.body || {};
+      const { webhookUrl, webhookFeatures } = req.body || {};
+      
+      console.log("Configurando webhook:", { 
+        channelId, 
+        webhookUrl, 
+        webhookFeatures: webhookFeatures ? JSON.stringify(webhookFeatures) : "não especificado" 
+      });
       
       // Buscar canal
       const channel = await db.query.channels.findFirst({
@@ -1225,13 +1231,18 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       
       // Verificar o tipo de canal e provider
       if (channel.type === "whatsapp" && channel.config?.provider === "zapi") {
-        // Configurar webhook
-        const result = await configureWebhook(channel, webhookUrl);
+        // Configurar webhook com as features específicas do Z-API
+        const zapiService = await import("../services/channels/zapi");
+        const result = await zapiService.configureWebhook(channel, webhookUrl, webhookFeatures);
+        
+        console.log("Resposta da configuração de webhook:", result);
         
         if (result.status === "success") {
           return res.json({
             success: true,
-            message: result.message || "Webhook configurado com sucesso"
+            message: result.message || "Webhook configurado com sucesso",
+            webhookUrl: result.webhookUrl,
+            configured: true
           });
         } else {
           return res.status(400).json({
@@ -1247,6 +1258,64 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       }
     } catch (error) {
       console.error("Erro ao configurar webhook:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Erro interno ao processar solicitação",
+        error: error instanceof Error ? error.message : "Erro desconhecido"
+      });
+    }
+  });
+  
+  // Endpoint para remover webhook
+  app.post(`${apiPrefix}/channels/:id/remove-webhook`, isAuthenticated, async (req: Request, res: Response) => {
+    try {
+      const channelId = parseInt(req.params.id);
+      
+      // Buscar canal
+      const channel = await db.query.channels.findFirst({
+        where: eq(channels.id, channelId)
+      });
+      
+      if (!channel) {
+        return res.status(404).json({
+          success: false,
+          message: "Canal não encontrado"
+        });
+      }
+      
+      // Verificar o tipo de canal e provider
+      if (channel.type === "whatsapp" && channel.config?.provider === "zapi") {
+        // Remover webhook (configurando com string vazia e desativando recursos)
+        const zapiService = await import("../services/channels/zapi");
+        const result = await zapiService.configureWebhook(channel, "", {
+          receiveAllNotifications: false,
+          messageReceived: false,
+          messageCreate: false,
+          statusChange: false,
+          presenceChange: false,
+          deviceConnected: false,
+          receiveByEmail: false
+        });
+        
+        if (result.status === "success") {
+          return res.json({
+            success: true,
+            message: "Webhook removido com sucesso"
+          });
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: result.message || "Erro ao remover webhook"
+          });
+        }
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: `Tipo de canal (${channel.type}) ou provedor não suporta remoção de webhook`
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao remover webhook:", error);
       return res.status(500).json({
         success: false,
         message: "Erro interno ao processar solicitação",

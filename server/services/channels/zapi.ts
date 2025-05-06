@@ -908,12 +908,22 @@ export async function checkWebhookStatus(channel: Channel): Promise<{
  * Configura o webhook para recebimento de mensagens em um canal
  * @param channel Canal a ser configurado
  * @param webhookUrl URL opcional do webhook (senão, será usada a URL padrão do sistema)
+ * @param webhookFeatures Configurações específicas de recursos do webhook
  * @returns Objeto com status da configuração
  */
 export async function configureWebhook(
   channel: Channel, 
-  webhookUrl?: string
-): Promise<{ status: string; message?: string; configured?: boolean }> {
+  webhookUrl?: string,
+  webhookFeatures?: {
+    receiveAllNotifications?: boolean;
+    messageReceived?: boolean;
+    messageCreate?: boolean;
+    statusChange?: boolean;
+    presenceChange?: boolean;
+    deviceConnected?: boolean;
+    receiveByEmail?: boolean;
+  }
+): Promise<{ status: string; message?: string; configured?: boolean; webhookUrl?: string }> {
   try {
     const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
     const token = channel.config?.token || ZAPI_TOKEN;
@@ -930,10 +940,16 @@ export async function configureWebhook(
     const finalWebhookUrl = webhookUrl || 
       `${process.env.APP_URL || 'https://0eb8be2b-04a6-47e5-bbf1-dd3bd83018b0.id.repl.co'}/api/webhooks/zapi/${channel.id}`;
     
-    // Configurando webhook
-    const payload = {
-      value: finalWebhookUrl
+    // Configurando webhook com recursos específicos baseados na documentação da Z-API
+    // https://developer.z-api.io/webhooks/introduction
+    const payload: any = {
+      url: finalWebhookUrl,
+      webhookFeatures: webhookFeatures || {
+        receiveAllNotifications: true
+      }
     };
+    
+    console.log("Enviando configuração de webhook:", JSON.stringify(payload));
     
     const response = await axios.post(
       `${BASE_URL}/instances/${instanceId}/token/${token}/webhook`,
@@ -948,6 +964,7 @@ export async function configureWebhook(
     return {
       status: "success",
       configured: true,
+      webhookUrl: finalWebhookUrl,
       message: `Webhook configurado com sucesso para: ${finalWebhookUrl}`
     };
   } catch (error) {

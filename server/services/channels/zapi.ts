@@ -502,16 +502,39 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
     console.log(`Verificando status da instância Z-API: ${instanceId}`);
     
     try {
-      // Verificar status da conexão atual
-      const statusResponse = await axios.get(
-        `${BASE_URL}/instances/${instanceId}/token/${token}/status`,
-        {
-          headers: getHeadersWithToken(token)
+       // Verificar status da conexão atual
+      console.log(`Solicitando status da Z-API com instância: ${instanceId}, token: ${token}`);
+      console.log(`Headers utilizados:`, JSON.stringify(getHeadersWithToken(token)));
+      
+      let statusResponse;
+      
+      try {
+        statusResponse = await axios.get(
+          `${BASE_URL}/instances/${instanceId}/token/${token}/status`,
+          {
+            headers: getHeadersWithToken(token)
+          }
+        );
+        
+        console.log(`Resposta de status recebida:`, statusResponse.status, JSON.stringify(statusResponse.data));
+      } catch (error) {
+        if (axios.isAxiosError(error)) {
+          console.error(`Erro detalhado na requisição de status:`, {
+            message: error.message,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            responseData: error.response?.data ? JSON.stringify(error.response.data) : 'Sem dados',
+            requestURL: error.config?.url,
+            requestHeaders: error.config?.headers ? JSON.stringify(error.config.headers) : 'Sem headers'
+          });
+        } else {
+          console.error(`Erro não-Axios ao obter status:`, error);
         }
-      );
+        throw error;
+      }
       
       // Se já estiver conectado, não precisa de QR code
-      if (statusResponse.data && statusResponse.data.connected === true) {
+      if (statusResponse && statusResponse.data && statusResponse.data.connected === true) {
         console.log(`Instância ${instanceId} já está conectada ao WhatsApp`);
         return {
           status: "connected",

@@ -678,6 +678,15 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
             };
           }
           
+          // Se o objeto possui a propriedade 'connected': true, então já está conectado
+          if (qrObject && qrObject.connected === true) {
+            console.log("Instância já está conectada ao WhatsApp");
+            return {
+              status: "connected",
+              message: "O WhatsApp já está conectado a esta instância"
+            };
+          }
+          
           // Se temos um objeto JSON com a propriedade 'value', é o caso que estamos encontrando
           if (qrObject && qrObject.value) {
             console.log("QR Code retornado como JSON com propriedade 'value'");

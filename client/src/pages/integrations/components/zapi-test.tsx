@@ -513,6 +513,15 @@ export function ZAPITestPanel() {
                 
                 <Button 
                   variant="outline"
+                  onClick={() => window.open(`/api/qr-test?channel=${selectedChannel}`, '_blank')}
+                  disabled={!selectedChannel}
+                >
+                  <QrCode className="mr-2 h-4 w-4" />
+                  QR Code em Nova Janela
+                </Button>
+                
+                <Button 
+                  variant="outline"
                   onClick={checkConnectionStatus} 
                   disabled={!selectedChannel}
                 >

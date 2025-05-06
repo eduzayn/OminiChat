@@ -356,7 +356,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
               technical_info: {
                 instanceId: config.instanceId,
                 error_details: statusResponse.message || 'Credenciais inválidas ou instância inexistente',
-                attempted_endpoints: statusResponse.attempted_endpoints || []
+                failed_attempts: statusResponse.failed_attempts || statusResponse.attempted_endpoints || []
               }
             });
           }

@@ -279,7 +279,7 @@ export class ZAPIClient {
           error: 'API_COMPATIBILITY_ERROR',
           message: 'Nenhuma versão da API Z-API conseguiu processar esta solicitação. Verifique suas credenciais e a documentação da versão atual da Z-API.',
           status: 'error',
-          attempted_configs: errors.map(e => e.config_used)
+          failed_attempts: errors.map(e => e.config_used)
         };
       }
       
@@ -288,8 +288,8 @@ export class ZAPIClient {
         error: 'MULTIPLE_ERRORS',
         message: 'Múltiplos erros ao tentar acessar a API Z-API. Verifique suas credenciais e a documentação atualizada.',
         status: 'error',
-        attempted_configs: errors.map(e => e.config_used),
-        detailed_errors: errors
+        failed_attempts: errors.map(e => e.config_used),
+        error_details: errors
       };
     }
     
@@ -373,8 +373,8 @@ export class ZAPIClient {
           error: 'INVALID_CREDENTIALS',
           connected: false,
           message: 'As credenciais da Z-API parecem ser inválidas. Verifique o instanceId e token no painel da Z-API.',
-          attempted_endpoints: errors.map(e => e.endpoint),
-          detailed_errors: errors
+          failed_attempts: errors.map(e => e.endpoint),
+          error_details: errors
         };
       }
       
@@ -382,8 +382,8 @@ export class ZAPIClient {
         error: 'STATUS_CHECK_FAILED',
         connected: false,
         message: 'Falha ao verificar status em todos os endpoints da Z-API. Verifique suas credenciais e a documentação atualizada.',
-        attempted_endpoints: errors.map(e => e.endpoint),
-        detailed_errors: errors
+        failed_attempts: errors.map(e => e.endpoint),
+        error_details: errors
       };
     } catch (error) {
       console.error('Error checking Z-API status:', error);

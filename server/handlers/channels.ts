@@ -350,8 +350,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
     try {
       const channelId = parseInt(req.params.id);
       
-      const channel = await db.query.schema.channels.findFirst({
-        where: eq(schema.channels.id, channelId)
+      const channel = await db.query.channels.findFirst({
+        where: eq(channels.id, channelId)
       });
       
       if (!channel) {
@@ -462,8 +462,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
     try {
       const channelId = parseInt(req.params.id);
       
-      const channel = await db.query.schema.channels.findFirst({
-        where: eq(schema.channels.id, channelId)
+      const channel = await db.query.channels.findFirst({
+        where: eq(channels.id, channelId)
       });
       
       if (!channel) {

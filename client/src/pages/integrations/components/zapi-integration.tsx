@@ -36,7 +36,8 @@ const zapiConfigSchema = z.object({
   token: z.string()
     .min(1, "O token é obrigatório"),
   phone: z.string()
-    .min(1, "O telefone é obrigatório")
+    .min(1, "O telefone é obrigatório"),
+  useClientToken: z.boolean().default(true).optional()
 });
 
 type ZAPIConfigFormValues = z.infer<typeof zapiConfigSchema>;

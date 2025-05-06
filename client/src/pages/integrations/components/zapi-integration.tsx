@@ -92,13 +92,15 @@ export function ZAPIIntegrationDialog({
   const handleInputChange = (field: string, value: string | boolean) => {
     if (field.includes('.')) {
       const [parent, child] = field.split('.');
-      setChannelForm({
-        ...channelForm,
-        [parent]: {
-          ...channelForm[parent as keyof typeof channelForm],
-          [child]: value,
-        },
-      });
+      if (parent === 'config') {
+        setChannelForm({
+          ...channelForm,
+          config: {
+            ...channelForm.config,
+            [child]: value,
+          },
+        });
+      }
     } else {
       setChannelForm({
         ...channelForm,

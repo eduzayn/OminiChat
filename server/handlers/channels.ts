@@ -306,14 +306,62 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       
       console.log(`[QRCode Handler] Provedor do canal: ${config.provider}`);
       
-      // Função Z-API foi removida - resposta para indicar que o provedor Z-API não existe mais
+      // Verificar se é um canal Z-API
       if (config.provider === "zapi") {
-        console.log("[QRCode Handler] Provedor Z-API foi removido do sistema");
-        return res.status(400).json({
-          success: false,
-          message: "Provedor Z-API não está mais disponível no sistema",
-          details: "Esta funcionalidade foi removida. Por favor, utilize outro provedor."
-        });
+        console.log("[QRCode Handler] Solicitando QR Code da Z-API");
+        
+        try {
+          // Importar o módulo de serviço Z-API
+          const zapiService = await import("../services/channels/zapi");
+          
+          // Verificar status da conexão Z-API
+          const statusResult = await zapiService.checkConnectionStatus(channel);
+          
+          if (statusResult.connected) {
+            console.log("[QRCode Handler] Canal Z-API já está conectado");
+            return res.json({
+              success: true,
+              status: "connected",
+              connected: true,
+              message: "WhatsApp já está conectado"
+            });
+          }
+          
+          // Gerar QR Code
+          const setupResult = await zapiService.setupZAPIChannel(channel);
+          
+          if (setupResult.status === "pending" && setupResult.qrCode) {
+            console.log("[QRCode Handler] QR Code obtido da Z-API com sucesso");
+            return res.json({
+              success: true,
+              status: "waiting_scan",
+              qrcode: setupResult.qrCode,
+              connected: false
+            });
+          } else if (setupResult.status === "success") {
+            console.log("[QRCode Handler] Canal Z-API conectado com sucesso");
+            return res.json({
+              success: true,
+              status: "connected",
+              connected: true,
+              message: setupResult.message
+            });
+          } else {
+            console.error(`[QRCode Handler] Erro ao obter QR Code da Z-API: ${setupResult.message}`);
+            return res.status(500).json({
+              success: false,
+              message: setupResult.message || "Erro ao obter QR Code da Z-API",
+              details: "O serviço Z-API não retornou um QR Code válido"
+            });
+          }
+        } catch (error) {
+          console.error("[QRCode Handler] Erro ao processar requisição Z-API:", error);
+          return res.status(500).json({
+            success: false,
+            message: "Erro ao processar requisição Z-API",
+            details: error instanceof Error ? error.message : "Erro desconhecido"
+          });
+        }
       }
       
       // Check provider type for QR code
@@ -439,13 +487,36 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
         }
       } 
       
-      // Resposta Z-API removida
+      // Teste de conexão para Z-API
       if (provider === 'zapi') {
-        return res.status(400).json({
-          success: false,
-          message: "Provedor Z-API foi removido do sistema",
-          details: "Esta funcionalidade foi removida. Por favor, utilize outro provedor."
-        });
+        try {
+          // Importar o módulo de serviço Z-API
+          const zapiService = await import("../services/channels/zapi");
+          
+          // Verificar status da conexão
+          const statusResult = await zapiService.checkConnectionStatus(channel);
+          
+          if (statusResult.connected) {
+            return res.json({
+              success: true,
+              message: "WhatsApp conectado via Z-API",
+              details: statusResult.message || "Conexão estabelecida com sucesso"
+            });
+          } else {
+            return res.status(400).json({
+              success: false,
+              message: "WhatsApp não está conectado via Z-API",
+              details: statusResult.message || "Escaneie o QR Code para conectar"
+            });
+          }
+        } catch (error) {
+          console.error("Erro ao testar conexão Z-API:", error);
+          return res.status(500).json({
+            success: false,
+            message: "Erro ao testar conexão Z-API",
+            details: error instanceof Error ? error.message : "Erro desconhecido"
+          });
+        }
       }
       
       // Se chegou aqui, o provedor não tem implementação de teste

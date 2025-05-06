@@ -41,7 +41,7 @@ export function ZAPIIntegrationDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentTab, setCurrentTab] = useState('config');
   const [channelForm, setChannelForm] = useState({
-    id: undefined as number | undefined,
+    id: 23, // Usando o ID específico do canal que criamos
     name: 'WhatsApp via Z-API',
     type: 'whatsapp',
     isActive: true,
@@ -129,9 +129,9 @@ export function ZAPIIntegrationDialog({
         if (response.success && response.status === "connected") {
           setConnectionStatus('connected');
           setQrCode(null);
-        } else if (response.success && response.status === "waiting_scan" && response.qrcode) {
+        } else if (response.success && response.status === "waiting_scan" && (response.qrcode || response.qrCode)) {
           setConnectionStatus('disconnected');
-          setQrCode(response.qrcode);
+          setQrCode(response.qrcode || response.qrCode);
           
           console.log("QR Code recebido para leitura");
         } else {

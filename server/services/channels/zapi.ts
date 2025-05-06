@@ -557,6 +557,22 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
         
         console.log("Resposta da API /qr-code/image recebida com status:", qrResponse.status);
         
+        // Imprimir o tipo de dados recebido para diagnóstico
+        if (qrResponse.data) {
+          console.log("Tipo de dados recebido:", typeof qrResponse.data);
+          if (typeof qrResponse.data === 'string') {
+            console.log("Conteúdo da string (primeiros 100 chars):", qrResponse.data.substring(0, 100));
+            console.log("Comprimento da string:", qrResponse.data.length);
+          } else if (typeof qrResponse.data === 'object') {
+            console.log("Propriedades do objeto:", Object.keys(qrResponse.data));
+            console.log("Conteúdo completo:", JSON.stringify(qrResponse.data));
+          } else {
+            console.log("Formato desconhecido, conteúdo:", qrResponse.data);
+          }
+        } else {
+          console.log("Nenhum dado recebido na resposta");
+        }
+        
         // Verificar se a resposta contém dados
         let qrCodeData = null;
         
@@ -564,25 +580,38 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
         if (qrResponse.data) {
           if (typeof qrResponse.data === 'string' && qrResponse.data.startsWith('data:image')) {
             qrCodeData = qrResponse.data;
+            console.log("QR Code encontrado como data URL completa");
           } else if (typeof qrResponse.data === 'string' && qrResponse.data.length > 100) {
             // Provável string base64 sem o prefixo
             qrCodeData = `data:image/png;base64,${qrResponse.data}`;
-          } else if (qrResponse.data.qrcode) {
-            qrCodeData = qrResponse.data.qrcode.startsWith('data:image') 
-              ? qrResponse.data.qrcode 
-              : `data:image/png;base64,${qrResponse.data.qrcode}`;
-          } else if (qrResponse.data.base64) {
-            qrCodeData = qrResponse.data.base64.startsWith('data:image') 
-              ? qrResponse.data.base64 
-              : `data:image/png;base64,${qrResponse.data.base64}`;
-          } else if (qrResponse.data.value && typeof qrResponse.data.value === 'string') {
-            qrCodeData = qrResponse.data.value.startsWith('data:image') 
-              ? qrResponse.data.value 
-              : `data:image/png;base64,${qrResponse.data.value}`;
-          } else if (qrResponse.data.image) {
-            qrCodeData = qrResponse.data.image.startsWith('data:image') 
-              ? qrResponse.data.image 
-              : `data:image/png;base64,${qrResponse.data.image}`;
+            console.log("QR Code encontrado como string base64 longa (adicionando prefixo)");
+          } else if (typeof qrResponse.data === 'object') {
+            if (qrResponse.data.qrcode) {
+              qrCodeData = qrResponse.data.qrcode.startsWith('data:image') 
+                ? qrResponse.data.qrcode 
+                : `data:image/png;base64,${qrResponse.data.qrcode}`;
+              console.log("QR Code encontrado na propriedade 'qrcode'");
+            } else if (qrResponse.data.base64) {
+              qrCodeData = qrResponse.data.base64.startsWith('data:image') 
+                ? qrResponse.data.base64 
+                : `data:image/png;base64,${qrResponse.data.base64}`;
+              console.log("QR Code encontrado na propriedade 'base64'");
+            } else if (qrResponse.data.value && typeof qrResponse.data.value === 'string') {
+              qrCodeData = qrResponse.data.value.startsWith('data:image') 
+                ? qrResponse.data.value 
+                : `data:image/png;base64,${qrResponse.data.value}`;
+              console.log("QR Code encontrado na propriedade 'value'");
+            } else if (qrResponse.data.image) {
+              qrCodeData = qrResponse.data.image.startsWith('data:image') 
+                ? qrResponse.data.image 
+                : `data:image/png;base64,${qrResponse.data.image}`;
+              console.log("QR Code encontrado na propriedade 'image'");
+            } else if (qrResponse.data.code) {
+              qrCodeData = typeof qrResponse.data.code === 'string' && qrResponse.data.code.startsWith('data:image')
+                ? qrResponse.data.code
+                : `data:image/png;base64,${qrResponse.data.code}`;
+              console.log("QR Code encontrado na propriedade 'code'");
+            }
           }
         }
         

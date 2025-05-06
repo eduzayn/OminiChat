@@ -54,6 +54,118 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       });
     }
   });
+  
+  // Endpoint de teste direto para obter QR code Z-API sem autenticação
+  app.get(`${apiPrefix}/test-zapi-qrcode`, async (req, res) => {
+    try {
+      console.log("Solicitando diretamente QR code da Z-API para teste...");
+      
+      // Importar funções necessárias
+      const zapiService = await import("../services/channels/zapi");
+      
+      // Buscar o canal 23 que já sabemos que existe
+      const channel23 = await db.query.channels.findFirst({
+        where: eq(channels.id, 23)
+      });
+      
+      if (!channel23) {
+        return res.status(404).json({
+          success: false,
+          message: "Canal de teste não encontrado (ID 23)"
+        });
+      }
+      
+      // Tentar obter QR code
+      const qrCodeResult = await zapiService.getQRCodeForChannel(channel23);
+      
+      // Se foi obtido um QR code
+      if (qrCodeResult.status === "waiting_scan" && qrCodeResult.qrCode) {
+        return res.json({
+          success: true,
+          status: "waiting_scan",
+          message: qrCodeResult.message,
+          qrcode: qrCodeResult.qrCode
+        });
+      } else {
+        return res.status(500).json({
+          success: false,
+          status: qrCodeResult.status,
+          message: qrCodeResult.message || "Falha ao obter QR code"
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao obter QR code de teste:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Erro ao obter QR code de teste",
+        error: error instanceof Error ? error.message : "Erro desconhecido"
+      });
+    }
+  });
+  
+  // Endpoint de diagnóstico da integração Z-API (público, para debug)
+  app.get(`${apiPrefix}/zapi-diagnostic`, async (req, res) => {
+    try {
+      console.log("Iniciando diagnóstico Z-API...");
+      
+      // 1. Verificar canais disponíveis
+      const availableChannels = await db.query.channels.findMany();
+      const zapiChannels = availableChannels.filter(c => 
+        c.type === "whatsapp" && 
+        (c.config as any)?.provider === "zapi"
+      );
+      
+      // 2. Verificar canal 23 especificamente
+      const channel23 = await db.query.channels.findFirst({
+        where: eq(channels.id, 23)
+      });
+      
+      // 3. Verificar variáveis de ambiente
+      const envVars = {
+        ZAPI_TOKEN: process.env.ZAPI_TOKEN ? "Definido" : "Não definido",
+        ZAPI_INSTANCE_ID: process.env.ZAPI_INSTANCE_ID ? "Definido" : "Não definido", 
+        CLIENT_TOKEN_ZAPI: process.env.CLIENT_TOKEN_ZAPI ? "Definido" : "Não definido",
+        ZAPI_CLIENT_TOKEN: process.env.ZAPI_CLIENT_TOKEN ? "Definido" : "Não definido"
+      };
+      
+      // 4. Testar conexão com Z-API
+      let zapiTest;
+      try {
+        zapiTest = await testZapiInstances();
+      } catch (error) {
+        zapiTest = { error: error instanceof Error ? error.message : "Erro desconhecido" };
+      }
+      
+      // Resposta com diagnóstico completo
+      return res.json({
+        totalChannels: availableChannels.length,
+        zapiChannelsCount: zapiChannels.length,
+        zapiChannels: zapiChannels.map(c => ({
+          id: c.id,
+          name: c.name,
+          active: c.isActive,
+          config: c.config
+        })),
+        channel23: channel23 ? {
+          exists: true,
+          id: channel23.id,
+          name: channel23.name,
+          type: channel23.type,
+          active: channel23.isActive,
+          config: channel23.config
+        } : { exists: false },
+        environmentVariables: envVars,
+        zapiConnectionTest: zapiTest
+      });
+    } catch (error) {
+      console.error("Erro ao realizar diagnóstico Z-API:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Erro ao realizar diagnóstico",
+        error: error instanceof Error ? error.message : "Erro desconhecido"
+      });
+    }
+  });
   // Get all channels
   app.get(`${apiPrefix}/channels`, isAuthenticated, async (req, res) => {
     try {

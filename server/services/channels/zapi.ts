@@ -10,9 +10,13 @@ import { Channel } from '@shared/schema';
 
 // Configuração global
 // Configurações da instância web (valores das variáveis de ambiente ou valores padrão se não definidos)
-const ZAPI_TOKEN = process.env.ZAPI_TOKEN || "A4E4203C24887ZDA084747";
-const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID || "3DF871A7ADF830F8499BE6006CECDC1";
-const ZAPI_CLIENT_TOKEN = process.env.ZAPI_CLIENT_TOKEN || "Fa427b12e188a433292a658fe45a07714S";
+const ZAPI_TOKEN = process.env.ZAPI_TOKEN || "A4E42029C248B72DA0842F47";
+const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID || "3DF871A7ADFB20FB49998E66062CE0C1";
+
+// Usar CLIENT_TOKEN_ZAPI fornecido pelo usuário como primeira opção, depois cair para os outros
+const ZAPI_CLIENT_TOKEN = process.env.CLIENT_TOKEN_ZAPI || 
+                          process.env.ZAPI_CLIENT_TOKEN || 
+                          "Fa427b12e188a433292a658fe45a07714S";
 
 // Configurações alternativas da instância mobile para testes
 const ZAPI_MOBILE_TOKEN = "8A82365003962876A3574828";
@@ -24,16 +28,28 @@ const BASE_URL = 'https://api.z-api.io';
 // Este token é usado em todas as instâncias
 const ZAPI_SECURITY_TOKEN = "Fa427b12e188a433292a658fe45a07714S";
 
+// Log inicial das configurações para diagnóstico
+console.log("=================== CONFIGURAÇÃO Z-API ===================");
+console.log(`ZAPI_INSTANCE_ID: ${ZAPI_INSTANCE_ID}`);
+console.log(`ZAPI_TOKEN: ${ZAPI_TOKEN}`);
+console.log(`Client-Token definido: ${ZAPI_CLIENT_TOKEN ? "SIM" : "NÃO"}`);
+console.log(`Origem do Client-Token: ${
+  process.env.CLIENT_TOKEN_ZAPI ? "CLIENT_TOKEN_ZAPI" : 
+  (process.env.ZAPI_CLIENT_TOKEN ? "ZAPI_CLIENT_TOKEN" : "Valor padrão")
+}`);
+console.log("==========================================================");
+
 // Função de ajuda para garantir que incluímos sempre o Client-Token nos headers
 function getHeadersWithToken(token: string, clientToken: string = ZAPI_CLIENT_TOKEN) {
   // Muito importante! De acordo com a documentação Z-API, o Client-Token é crucial
   // para autenticação das requisições e deve estar presente em todos os headers
   // A Z-API usa o formato "client-token" (minúsculo e com hífen)
   // O Client-Token deve ser o token de segurança da conta, não o token da instância
-  return {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'client-token': clientToken,
   };
+  return headers;
 }
 
 /**
@@ -132,8 +148,8 @@ export async function testZapiInstances(): Promise<{
 export async function setupZAPIChannel(channel: Channel): Promise<{ status: string; message?: string; qrCode?: string }> {
   try {
     // Verifica se as credenciais estão disponíveis
-    const instanceId = channel.config.instanceId || ZAPI_INSTANCE_ID;
-    const token = channel.config.token || ZAPI_TOKEN;
+    const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
+    const token = channel.config?.token || ZAPI_TOKEN;
 
     if (!instanceId || !token) {
       return {
@@ -181,8 +197,10 @@ export async function setupZAPIChannel(channel: Channel): Promise<{ status: stri
         try {
           // Gera QR Code - modificando para usar endpoint correto e tratar resposta apropriadamente
           // De acordo com a documentação, devemos usar o endpoint qr-code
-          const headers = getHeadersWithToken(token);
-          headers['Accept'] = 'image/png, application/json';
+          const headers: Record<string, string> = {
+            ...getHeadersWithToken(token),
+            'Accept': 'image/png, application/json'
+          };
           
           const qrResponse = await axios.get(
             `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code`,
@@ -256,8 +274,8 @@ export async function sendTextMessage(
   content: string
 ): Promise<{ status: string; message?: string; messageId?: string }> {
   try {
-    const instanceId = channel.config.instanceId || ZAPI_INSTANCE_ID;
-    const token = channel.config.token || ZAPI_TOKEN;
+    const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
+    const token = channel.config?.token || ZAPI_TOKEN;
     
     if (!instanceId || !token) {
       return {
@@ -316,8 +334,8 @@ export async function sendImageMessage(
   imageUrl: string
 ): Promise<{ status: string; message?: string; messageId?: string }> {
   try {
-    const instanceId = channel.config.instanceId || ZAPI_INSTANCE_ID;
-    const token = channel.config.token || ZAPI_TOKEN;
+    const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
+    const token = channel.config?.token || ZAPI_TOKEN;
     
     if (!instanceId || !token) {
       return {
@@ -379,8 +397,8 @@ export async function sendDocumentMessage(
   fileName: string
 ): Promise<{ status: string; message?: string; messageId?: string }> {
   try {
-    const instanceId = channel.config.instanceId || ZAPI_INSTANCE_ID;
-    const token = channel.config.token || ZAPI_TOKEN;
+    const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
+    const token = channel.config?.token || ZAPI_TOKEN;
     
     if (!instanceId || !token) {
       return {
@@ -439,8 +457,8 @@ export async function sendAudioMessage(
   audioUrl: string
 ): Promise<{ status: string; message?: string; messageId?: string }> {
   try {
-    const instanceId = channel.config.instanceId || ZAPI_INSTANCE_ID;
-    const token = channel.config.token || ZAPI_TOKEN;
+    const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
+    const token = channel.config?.token || ZAPI_TOKEN;
     
     if (!instanceId || !token) {
       return {
@@ -491,8 +509,8 @@ export async function sendAudioMessage(
  */
 export async function syncContacts(channel: Channel): Promise<{ status: string; message?: string; contacts?: any[] }> {
   try {
-    const instanceId = channel.config.instanceId || ZAPI_INSTANCE_ID;
-    const token = channel.config.token || ZAPI_TOKEN;
+    const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
+    const token = channel.config?.token || ZAPI_TOKEN;
     
     if (!instanceId || !token) {
       return {
@@ -536,9 +554,9 @@ export async function syncContacts(channel: Channel): Promise<{ status: string; 
  */
 export async function checkConnectionStatus(channel: Channel): Promise<{ status: string; message?: string; connected?: boolean }> {
   try {
-    const instanceId = channel.config.instanceId || ZAPI_INSTANCE_ID;
-    const token = channel.config.token || ZAPI_TOKEN;
-    const clientToken = channel.config.clientToken || ZAPI_CLIENT_TOKEN;
+    const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
+    const token = channel.config?.token || ZAPI_TOKEN;
+    const clientToken = channel.config?.clientToken || ZAPI_CLIENT_TOKEN;
     
     if (!instanceId || !token) {
       return {
@@ -586,257 +604,116 @@ export async function checkConnectionStatus(channel: Channel): Promise<{ status:
  */
 export async function getQRCodeForChannel(channel: Channel): Promise<{ status: string; message?: string; qrCode?: string }> {
   try {
-    // Usar credenciais do canal ou do ambiente
-    const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
-    const token = channel.config?.token || ZAPI_TOKEN;
-    const clientToken = channel.config?.clientToken || ZAPI_CLIENT_TOKEN;
+    console.log("================= OBTENDO QR CODE PARA CANAL =================");
+    console.log(`Canal ID: ${channel.id}`);
+    console.log(`Canal Nome: ${channel.name}`);
+    console.log(`Canal Tipo: ${channel.type}`);
+
+    // Usar valores globais conhecidos que funcionam
+    const instanceId = ZAPI_INSTANCE_ID;
+    const token = ZAPI_TOKEN;
+    const clientToken = ZAPI_CLIENT_TOKEN;
     
-    if (!instanceId || !token) {
-      console.error("Credenciais Z-API não configuradas");
+    // Log dos valores utilizados para diagnóstico
+    console.log("Credenciais Z-API usadas:");
+    console.log(`Instance ID: ${instanceId}`);
+    console.log(`Token: ${token}`);
+    console.log(`Client-Token: ${clientToken.substring(0, 5)}...${clientToken.substring(clientToken.length - 5)}`);
+    
+    if (!instanceId || !token || !clientToken) {
+      console.error("Credenciais Z-API não configuradas completamente");
       return {
         status: "error",
-        message: "Credenciais Z-API não configuradas"
+        message: "Credenciais Z-API não configuradas completamente"
       };
     }
     
-    console.log(`Verificando status da instância Z-API: ${instanceId}`);
+    // Estrutura do header exatamente como esperado pela Z-API
+    const headers = {
+      'Content-Type': 'application/json',
+      'client-token': clientToken,
+      'Accept': 'image/png,application/json'
+    };
+    
+    console.log(`Headers a serem utilizados:`, JSON.stringify(headers));
+    console.log(`URL a ser chamada: ${BASE_URL}/instances/${instanceId}/token/${token}/qr-code`);
     
     try {
-       // Verificar status da conexão atual
-      console.log(`Solicitando status da Z-API com instância: ${instanceId}, token: ${token}, client-token: ${clientToken}`);
-      console.log(`Headers utilizados:`, JSON.stringify(getHeadersWithToken(token, clientToken)));
+      console.log("Solicitando QR code diretamente...");
       
-      let statusResponse;
+      const qrResponse = await axios.get(
+        `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code`,
+        { 
+          headers,
+          responseType: 'arraybuffer'
+        }
+      );
       
-      try {
-        statusResponse = await axios.get(
-          `${BASE_URL}/instances/${instanceId}/token/${token}/status`,
-          {
-            headers: getHeadersWithToken(token, clientToken)
-          }
-        );
-        
-        console.log(`Resposta de status recebida:`, statusResponse.status, JSON.stringify(statusResponse.data));
-      } catch (error) {
-        if (axios.isAxiosError(error)) {
-          console.error(`Erro detalhado na requisição de status:`, {
-            message: error.message,
-            status: error.response?.status,
-            statusText: error.response?.statusText,
-            responseData: error.response?.data ? JSON.stringify(error.response.data) : 'Sem dados',
-            requestURL: error.config?.url,
-            requestHeaders: error.config?.headers ? JSON.stringify(error.config.headers) : 'Sem headers'
-          });
-        } else {
-          console.error(`Erro não-Axios ao obter status:`, error);
-        }
-        throw error;
-      }
+      console.log("Resposta da API /qr-code recebida com status:", qrResponse.status);
       
-      // Se já estiver conectado, não precisa de QR code
-      if (statusResponse && statusResponse.data && statusResponse.data.connected === true) {
-        console.log(`Instância ${instanceId} já está conectada ao WhatsApp`);
-        return {
-          status: "connected",
-          message: "WhatsApp já está conectado"
-        };
-      }
-      
-      console.log(`Instância ${instanceId} não está conectada, solicitando QR code`);
-      
-      try {
-        console.log(`Requisitando QR code para instância ${instanceId} com token ${token} e client-token ${clientToken}`);
+      // Se temos dados na resposta
+      if (qrResponse.data && qrResponse.data.length > 0) {
+        console.log(`Recebido buffer de tamanho: ${qrResponse.data.length} bytes`);
         
-        // Usando o endpoint /qr-code conforme documentação Z-API
-        // Usando a função getHeadersWithToken para garantir o formato correto do cabeçalho
-        const qrResponse = await axios.get(
-          `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code`,
-          { headers: getHeadersWithToken(token, clientToken) }
-        );
-        
-        console.log("Resposta da API /qr-code recebida com status:", qrResponse.status);
-        
-        // Imprimir o tipo de dados recebido para diagnóstico
-        if (qrResponse.data) {
-          console.log("Tipo de dados recebido:", typeof qrResponse.data);
-          if (typeof qrResponse.data === 'string') {
-            console.log("Conteúdo da string (primeiros 100 chars):", qrResponse.data.substring(0, 100));
-            console.log("Comprimento da string:", qrResponse.data.length);
-          } else if (typeof qrResponse.data === 'object') {
-            console.log("Propriedades do objeto:", Object.keys(qrResponse.data));
-            console.log("Conteúdo completo:", JSON.stringify(qrResponse.data));
-          } else {
-            console.log("Formato desconhecido, conteúdo:", qrResponse.data);
-          }
-        } else {
-          console.log("Nenhum dado recebido na resposta");
-        }
-        
-        // Verificar se a resposta contém dados
-        let qrCodeData = null;
-        
-        // A Z-API pode retornar o base64 diretamente ou encapsulado em um JSON.
-        if (qrResponse.data) {
-          if (typeof qrResponse.data === 'string' && qrResponse.data.startsWith('data:image')) {
-            qrCodeData = qrResponse.data;
-            console.log("QR Code encontrado como data URL completa");
-          } else if (typeof qrResponse.data === 'string' && qrResponse.data.length > 100) {
-            // Provável string base64 sem o prefixo
-            qrCodeData = `data:image/png;base64,${qrResponse.data}`;
-            console.log("QR Code encontrado como string base64 longa (adicionando prefixo)");
-          } else if (typeof qrResponse.data === 'object') {
-            if (qrResponse.data.qrcode) {
-              qrCodeData = qrResponse.data.qrcode.startsWith('data:image') 
-                ? qrResponse.data.qrcode 
-                : `data:image/png;base64,${qrResponse.data.qrcode}`;
-              console.log("QR Code encontrado na propriedade 'qrcode'");
-            } else if (qrResponse.data.base64) {
-              qrCodeData = qrResponse.data.base64.startsWith('data:image') 
-                ? qrResponse.data.base64 
-                : `data:image/png;base64,${qrResponse.data.base64}`;
-              console.log("QR Code encontrado na propriedade 'base64'");
-            } else if (qrResponse.data.value && typeof qrResponse.data.value === 'string') {
-              qrCodeData = qrResponse.data.value.startsWith('data:image') 
-                ? qrResponse.data.value 
-                : `data:image/png;base64,${qrResponse.data.value}`;
-              console.log("QR Code encontrado na propriedade 'value'");
-            } else if (qrResponse.data.image) {
-              qrCodeData = qrResponse.data.image.startsWith('data:image') 
-                ? qrResponse.data.image 
-                : `data:image/png;base64,${qrResponse.data.image}`;
-              console.log("QR Code encontrado na propriedade 'image'");
-            } else if (qrResponse.data.code) {
-              qrCodeData = typeof qrResponse.data.code === 'string' && qrResponse.data.code.startsWith('data:image')
-                ? qrResponse.data.code
-                : `data:image/png;base64,${qrResponse.data.code}`;
-              console.log("QR Code encontrado na propriedade 'code'");
-            }
-          }
-        }
-        
-        if (qrCodeData) {
-          console.log("QR code (base64) obtido com sucesso da Z-API via /qr-code");
-          return {
-            status: "waiting_scan",
-            message: "Aguardando leitura do QR Code",
-            qrCode: qrCodeData
-          };
-        }
-        
-        console.error("Resposta da Z-API (/qr-code) não contém QR code em formato reconhecível");
-        
-        // Tentar com endpoint alternativo /qr-code
-        console.log("Tentando endpoint alternativo /qr-code");
-        
-        const qrResponseAlt = await axios.get(
-          `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code`,
-          {
-            headers: getHeadersWithToken(token)
-          }
-        );
-        
-        // Verificar se temos a imagem em base64 na resposta
-        if (qrResponseAlt.data) {
-          let qrCodeAltData = null;
-          
-          if (qrResponseAlt.data.base64) {
-            qrCodeAltData = qrResponseAlt.data.base64;
-          } else if (qrResponseAlt.data.qrcode) {
-            qrCodeAltData = qrResponseAlt.data.qrcode;
-          } else if (qrResponseAlt.data.value) {
-            qrCodeAltData = qrResponseAlt.data.value;
-          } else if (typeof qrResponseAlt.data === 'string' && qrResponseAlt.data.startsWith('data:image')) {
-            qrCodeAltData = qrResponseAlt.data;
-          } else if (qrResponseAlt.data.image) {
-            qrCodeAltData = qrResponseAlt.data.image;
-          }
-          
-          if (qrCodeAltData) {
-            console.log("QR code obtido com sucesso via endpoint /qr-code");
-            return {
-              status: "waiting_scan",
-              message: "Aguardando leitura do QR Code",
-              qrCode: qrCodeAltData
-            };
-          }
-        }
-        
-        // Se chegou aqui, tenta reiniciar a sessão
-        console.log("Tentando gerar um novo QR code via restart da sessão");
-        await axios.get(
-          `${BASE_URL}/instances/${instanceId}/token/${token}/restart`,
-          {
-            headers: getHeadersWithToken(token)
-          }
-        );
-        
-        // Aguardar um pouco para o QR code ser gerado
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Tentar novamente obter o QR code usando /qr-code
-        const retryHeaders = getHeadersWithToken(token);
-        retryHeaders['Accept'] = 'image/png, application/json';
-        
-        const retryQrResponse = await axios.get(
-          `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code`,
-          { headers: retryHeaders }
-        );
-        
-        // Verificar se a resposta contém dados
-        let retryQrCodeData = null;
-        
-        if (retryQrResponse.data) {
-          if (typeof retryQrResponse.data === 'string' && retryQrResponse.data.startsWith('data:image')) {
-            retryQrCodeData = retryQrResponse.data;
-          } else if (typeof retryQrResponse.data === 'string' && retryQrResponse.data.length > 100) {
-            retryQrCodeData = `data:image/png;base64,${retryQrResponse.data}`;
-          } else if (retryQrResponse.data.qrcode) {
-            retryQrCodeData = retryQrResponse.data.qrcode.startsWith('data:image') 
-              ? retryQrResponse.data.qrcode 
-              : `data:image/png;base64,${retryQrResponse.data.qrcode}`;
-          } else if (retryQrResponse.data.base64) {
-            retryQrCodeData = retryQrResponse.data.base64.startsWith('data:image') 
-              ? retryQrResponse.data.base64 
-              : `data:image/png;base64,${retryQrResponse.data.base64}`;
-          }
-        }
-        
-        if (retryQrCodeData) {
-          console.log("QR code obtido com sucesso após reiniciar sessão");
-          return {
-            status: "waiting_scan",
-            message: "Aguardando leitura do QR Code",
-            qrCode: retryQrCodeData
-          };
-        }
+        // Converter o buffer para base64
+        const qrCodeBase64 = `data:image/png;base64,${Buffer.from(qrResponse.data).toString('base64')}`;
+        console.log("QR Code convertido para base64 com sucesso");
         
         return {
-          status: "error",
-          message: "QR Code não disponível no momento. Por favor, tente novamente mais tarde."
+          status: "waiting_scan",
+          message: "Escaneie o QR Code com o WhatsApp para conectar",
+          qrCode: qrCodeBase64
         };
-      } catch (qrError: any) {
-        console.error("Erro ao obter QR code da Z-API:", qrError.message);
-        
-        // Capturar detalhes do erro para retornar ao cliente
-        const errorDetails = qrError.response?.data?.message || qrError.response?.data || qrError.message || "Erro desconhecido";
-        
-        return {
-          status: "error",
-          message: `Não foi possível obter o QR Code para conexão: ${errorDetails}`
-        };
-      }
-    } catch (statusError: any) {
-      console.error("Erro ao verificar status da instância Z-API:", statusError.message);
+      } 
+      
+      // Retornar erro se não conseguiu obter o QR code
+      console.error("QR Code retornou dados vazios");
       return {
         status: "error",
-        message: "Falha ao verificar status da instância Z-API"
+        message: "Falha ao gerar QR Code para conexão: resposta vazia"
+      };
+      
+    } catch (qrError) {
+      console.error("Erro ao solicitar QR Code:", qrError);
+      
+      // Log detalhado do erro para diagnóstico
+      if (axios.isAxiosError(qrError)) {
+        const status = qrError.response?.status;
+        const headers = qrError.response?.headers;
+        const data = qrError.response?.data;
+        
+        console.error(`Status da resposta: ${status}`);
+        
+        if (data) {
+          try {
+            // Tentar extrair informações do erro
+            const dataStr = Buffer.isBuffer(data) 
+              ? Buffer.from(data).toString() 
+              : typeof data === 'object'
+                ? JSON.stringify(data)
+                : String(data);
+            
+            console.error(`Dados da resposta: ${dataStr.substring(0, 300)}...`);
+          } catch (convErr) {
+            console.error("Não foi possível converter os dados da resposta");
+          }
+        }
+      }
+      
+      return {
+        status: "error",
+        message: qrError instanceof Error 
+          ? `Falha ao solicitar QR Code: ${qrError.message}` 
+          : "Erro desconhecido ao solicitar QR Code"
       };
     }
-  } catch (error: any) {
-    console.error("Erro geral ao obter QR code Z-API:", error.message);
+  } catch (error) {
+    console.error("Erro geral na obtenção do QR Code:", error);
     return {
       status: "error",
-      message: "Erro interno ao processar requisição de QR Code"
+      message: error instanceof Error 
+        ? `Erro geral na obtenção do QR Code: ${error.message}` 
+        : "Erro desconhecido na obtenção do QR Code"
     };
   }
 }
@@ -848,8 +725,8 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
  */
 export async function disconnectSession(channel: Channel): Promise<{ status: string; message?: string }> {
   try {
-    const instanceId = channel.config.instanceId || ZAPI_INSTANCE_ID;
-    const token = channel.config.token || ZAPI_TOKEN;
+    const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
+    const token = channel.config?.token || ZAPI_TOKEN;
     
     if (!instanceId || !token) {
       return {
@@ -886,8 +763,8 @@ export async function disconnectSession(channel: Channel): Promise<{ status: str
  */
 export async function restartSession(channel: Channel): Promise<{ status: string; message?: string }> {
   try {
-    const instanceId = channel.config.instanceId || ZAPI_INSTANCE_ID;
-    const token = channel.config.token || ZAPI_TOKEN;
+    const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
+    const token = channel.config?.token || ZAPI_TOKEN;
     
     if (!instanceId || !token) {
       return {

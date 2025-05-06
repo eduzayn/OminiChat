@@ -34,15 +34,23 @@ export class ZAPIClient {
   private instanceId: string;
   private token: string;
   private baseUrl: string;
+  private useClientToken: boolean;
 
-  constructor(instanceId: string, token: string) {
+  constructor(instanceId: string, token: string, options: { useClientToken?: boolean } = {}) {
     this.instanceId = instanceId;
     this.token = token;
+    this.useClientToken = options.useClientToken !== false; // default para true se não especificado
     
-    // A Z-API possui várias versões e URLs base diferentes
-    // De acordo com a documentação mais recente: https://developer.z-api.io/
-    // A versão mais recente usa um novo formato de URL com o token no caminho
-    this.baseUrl = `https://api.z-api.io/instances/${instanceId}/token/${token}`;
+    // Definir URL base de acordo com o modo de autenticação
+    if (this.useClientToken) {
+      // Para token no header, URL não inclui o token
+      this.baseUrl = `https://api.z-api.io/instances/${instanceId}`;
+      console.log('Z-API configurada para usar Client-Token no header');
+    } else {
+      // Para token no URL, incluir no caminho
+      this.baseUrl = `https://api.z-api.io/instances/${instanceId}/token/${token}`;
+      console.log('Z-API configurada para usar token no path');
+    }
   }
   
   // Método para obter combinações de URLs e modos de autenticação a serem testados

@@ -509,7 +509,8 @@ export function ZAPIIntegrationDialog({
       form.reset({
         instanceId: channel.config.instanceId || '',
         token: channel.config.token || '',
-        phone: channel.config.phone || ''
+        phone: channel.config.phone || '',
+        useClientToken: channel.config.useClientToken !== false // default para true se não estiver definido
       });
     }
   }, [channel, form]);
@@ -715,6 +716,34 @@ export function ZAPIIntegrationDialog({
                         Use apenas números, sem espaços, hífens ou outros caracteres (Ex: 5511999999999).
                       </FormDescription>
                       <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="useClientToken"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={field.value}
+                            id="useClientToken"
+                            className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                            onChange={(e) => field.onChange(e.target.checked)}
+                          />
+                        </div>
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>
+                          Usar autenticação via Client-Token
+                        </FormLabel>
+                        <FormDescription>
+                          Habilite esta opção se sua instância Z-API exige o token no cabeçalho (modo mais recente). Necessário para APIs mais novas da Z-API.
+                        </FormDescription>
+                      </div>
                     </FormItem>
                   )}
                 />

@@ -40,18 +40,29 @@ export class ZAPIClient {
     this.token = token;
     
     // A Z-API possui várias versões e URLs base diferentes
-    // Alguns clientes usam api.z-api.io e outros usam sandbox.z-api.io
-    // Vamos definir a URL base principal, mas também tentaremos URLs alternativas se necessário
+    // De acordo com a documentação mais recente: https://developer.z-api.io/
+    // A versão mais recente (v4) usa um novo formato de URL
     this.baseUrl = `https://api.z-api.io/instances/${instanceId}`;
   }
   
   // Método para obter URLs alternativas que podem ser usadas em caso de falha
   private getAlternativeBaseUrls(): string[] {
     return [
-      `https://sandbox.z-api.io/instances/${this.instanceId}`, // URL sandbox (ambientes de teste)
-      `https://api.z-api.io/v1/instances/${this.instanceId}`,  // URL com versão explícita v1
-      `https://api.z-api.io/v2/instances/${this.instanceId}`,  // URL com versão explícita v2
-      `https://api.z-api.io/v3/instances/${this.instanceId}`   // URL com versão explícita v3
+      // Nova URL base da v4 (2024) - ver https://developer.z-api.io/
+      `https://api.z-api.io/v4/instances/${this.instanceId}`,  // Versão mais recente v4
+      
+      // URL base alternativa da API
+      `https://api.z-api.io/instances/${this.instanceId}`,     // Sem versão (padrão)
+      
+      // URLs da documentação alternativa
+      `https://sandbox.z-api.io/instances/${this.instanceId}`, // URL de sandbox
+      `https://api.z-api.io/v1/instances/${this.instanceId}`,  // Versão v1
+      `https://api.z-api.io/v2/instances/${this.instanceId}`,  // Versão v2
+      `https://api.z-api.io/v3/instances/${this.instanceId}`,  // Versão v3
+      
+      // Alguns clientes podem estar usando este formato sem o "instances" no path
+      `https://api.z-api.io/${this.instanceId}`,               // URL sem "instances"
+      `https://api.z-api.io/v4/${this.instanceId}`             // URL v4 sem "instances"
     ];
   }
 
@@ -169,50 +180,89 @@ export class ZAPIClient {
   // Instance Status
   async getStatus(): Promise<ZAPIResponse> {
     try {
-      // Tentativa principal com /status
-      const response = await this.makeRequest('GET', '/status');
-      if (!response.error) {
-        return response;
+      console.log('Checking Z-API connection status');
+      
+      // De acordo com a documentação atual 2024 - primeiro endpoint a tentar
+      // https://developer.z-api.io/instance/update-auto-read-message
+      console.log('Trying latest documented status endpoint: /connection');
+      const connectionResponse = await this.makeRequest('GET', '/connection');
+      if (!connectionResponse.error) {
+        console.log('Successfully got status from /connection');
+        return {
+          ...connectionResponse,
+          connected: connectionResponse.connected === true || 
+                    (typeof connectionResponse.status === 'string' && 
+                     connectionResponse.status.toLowerCase() === 'connected')
+        };
       }
       
-      console.log('First status attempt failed, trying alternative endpoints');
+      // Tentativa com o endpoint /status tradicional
+      console.log('Trying traditional status endpoint: /status');
+      const statusResponse = await this.makeRequest('GET', '/status');
+      if (!statusResponse.error) {
+        console.log('Successfully got status from /status');
+        return statusResponse;
+      }
       
       // Tentativa com endpoint da sessão
+      console.log('Trying session endpoint: /session');
       const sessionResponse = await this.makeRequest('GET', '/session');
       if (!sessionResponse.error) {
-        // Converter para o formato esperado pela aplicação
+        console.log('Successfully got status from /session');
         return {
           ...sessionResponse,
-          connected: sessionResponse.connected || sessionResponse.status === 'connected'
+          connected: sessionResponse.connected || 
+                    (typeof sessionResponse.status === 'string' && 
+                     sessionResponse.status === 'connected')
         };
       }
       
-      // Tentativa com endpoint de device
+      // Tentativa com o endpoint específico de verificação do número
+      console.log('Trying device info endpoint: /device');
       const deviceResponse = await this.makeRequest('GET', '/device');
       if (!deviceResponse.error) {
+        console.log('Successfully got status from /device');
         return {
           ...deviceResponse,
-          connected: deviceResponse.connected || deviceResponse.status === 'connected'
+          connected: true // Se o endpoint /device responde sem erro, o dispositivo está conectado
         };
       }
       
-      // Tentativa com endpoint de phone
+      // Tentativa adicional com o endpoint /phone conforme documentação
+      console.log('Trying phone endpoint: /phone');
       const phoneResponse = await this.makeRequest('GET', '/phone');
       if (!phoneResponse.error) {
+        console.log('Successfully got status from /phone');
         return {
           ...phoneResponse,
-          connected: true // Se o endpoint /phone responde, o dispositivo está conectado
+          connected: true // Se o endpoint /phone responde sem erro, o dispositivo está conectado
         };
       }
       
-      // Se nenhuma tentativa funcionou, retornamos a resposta original
-      return response;
+      // Tentativa com o novo endpoint de conexão baseado na documentação atual
+      console.log('Trying instance endpoint: /instance');
+      const instanceResponse = await this.makeRequest('GET', '/instance');
+      if (!instanceResponse.error) {
+        console.log('Successfully got status from /instance');
+        return {
+          ...instanceResponse,
+          connected: true // Se o endpoint /instance responde sem erro, o dispositivo está conectado
+        };
+      }
+      
+      // Se todas as tentativas falharam, retornamos um erro detalhado
+      console.error('All status endpoints failed');
+      return { 
+        error: 'STATUS_CHECK_FAILED',
+        connected: false,
+        message: 'Falha ao verificar status em todos os endpoints da Z-API. Verifique as credenciais e a documentação atualizada.'
+      };
     } catch (error) {
       console.error('Error checking Z-API status:', error);
       return { 
         error: error instanceof Error ? error.message : 'Unknown error',
         connected: false,
-        message: 'Failed to check status through any available endpoint' 
+        message: 'Erro ao verificar o status da conexão com a Z-API' 
       };
     }
   }
@@ -315,47 +365,115 @@ export class ZAPIClient {
 
   // Set webhook for message notifications
   async setWebhook(webhookUrl: string): Promise<ZAPIResponse> {
-    return this.makeRequest('POST', '/webhook', {
-      webhook: webhookUrl
-    });
+    console.log(`Setting Z-API webhook to: ${webhookUrl}`);
+    try {
+      // De acordo com a documentação mais recente: https://developer.z-api.io/webhooks/introduction
+      // Primeiro tentar com o novo formato
+      const response = await this.makeRequest('POST', '/webhook', {
+        value: webhookUrl // Novo formato usa 'value' em vez de 'webhook'
+      });
+      
+      if (!response.error) {
+        console.log('Successfully set webhook using new format (value)');
+        return response;
+      }
+      
+      // Se falhar, tentar com o formato antigo
+      console.log('Webhook setting with new format failed, trying legacy format');
+      const legacyResponse = await this.makeRequest('POST', '/webhook', {
+        webhook: webhookUrl // Formato antigo usa 'webhook'
+      });
+      
+      if (!legacyResponse.error) {
+        console.log('Successfully set webhook using legacy format (webhook)');
+        return legacyResponse;
+      }
+      
+      // Se ambos falharem, tentar com outro endpoint
+      console.log('Both webhook formats failed, trying alternative endpoint');
+      const alternativeResponse = await this.makeRequest('POST', '/set-webhook', {
+        value: webhookUrl,
+        webhook: webhookUrl  // Incluir ambos para maior compatibilidade
+      });
+      
+      return alternativeResponse;
+    } catch (error) {
+      console.error('Error setting webhook:', error);
+      return { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        message: 'Falha ao configurar webhook Z-API' 
+      };
+    }
   }
 
   // Get webhook configuration
   async getWebhook(): Promise<ZAPIResponse> {
+    // De acordo com a documentação mais recente: https://developer.z-api.io/webhooks/introduction
     return this.makeRequest('GET', '/webhook');
   }
   
   // Obter QR Code para autenticação
   async getQRCode(): Promise<ZAPIResponse> {
     console.log('Requesting Z-API QR Code for connection');
-    // Tentando endpoint documentado atual
+    
     try {
-      // De acordo com a versão mais recente da documentação Z-API
-      const response = await this.makeRequest('GET', '/qr-code');
-      if (!response.error) {
-        return response;
-      }
-      console.log('First QR code attempt failed, trying alternative endpoints');
-      
-      // Tentativa alternativa com endpoint antigo
-      const altResponse = await this.makeRequest('GET', '/qrcode');
-      if (!altResponse.error) {
-        return altResponse;
+      // Verificar primeiro se o dispositivo já está conectado
+      const statusResponse = await this.getStatus();
+      if (statusResponse.connected) {
+        console.log('Device already connected, no need for QR code');
+        return {
+          ...statusResponse,
+          message: 'Device already connected'
+        };
       }
       
-      // Tentativa com endpoint da sessão
-      const sessionResponse = await this.makeRequest('GET', '/session');
-      if (sessionResponse.qrcode || sessionResponse.connected === true) {
-        return sessionResponse;
+      // De acordo com a documentação atual 2024: /qrcode-image endpoint
+      console.log('Trying latest documented QR code endpoint: /qrcode-image');
+      const qrcodeImageResponse = await this.makeRequest('GET', '/qrcode-image');
+      if (!qrcodeImageResponse.error) {
+        console.log('Successfully retrieved QR code from /qrcode-image');
+        // Converter a resposta para o formato esperado
+        return {
+          qrcode: qrcodeImageResponse.base64 || qrcodeImageResponse.qrcode,
+          status: 'success'
+        };
       }
       
-      // Se nenhuma tentativa funcionou, retornar a resposta original
-      return response;
+      // Tentar com endpoint alternativo /qrcode
+      console.log('Trying alternative QR code endpoint: /qrcode');
+      const qrcodeResponse = await this.makeRequest('GET', '/qrcode');
+      if (!qrcodeResponse.error) {
+        console.log('Successfully retrieved QR code from /qrcode');
+        return qrcodeResponse;
+      }
+      
+      // Tentar com o endpoint alternativo /qr-code (com hífen)
+      console.log('Trying alternative QR code endpoint: /qr-code');
+      const qrCodeResponse = await this.makeRequest('GET', '/qr-code');
+      if (!qrCodeResponse.error) {
+        console.log('Successfully retrieved QR code from /qr-code');
+        return qrCodeResponse;
+      }
+      
+      // Tentar com o endpoint de conexão da v4 da API
+      console.log('Trying v4 API connection endpoint');
+      const connectionResponse = await this.makeRequest('GET', '/connection');
+      if (!connectionResponse.error && connectionResponse.qrcode) {
+        console.log('Successfully retrieved QR code from /connection');
+        return connectionResponse;
+      }
+      
+      // Se todas as tentativas falharam, retornar erro
+      console.error('All QR code endpoints failed');
+      return { 
+        error: 'QR_CODE_UNAVAILABLE',
+        message: 'Não foi possível obter QR code de nenhum endpoint da Z-API. Verifique suas credenciais e a documentação atualizada.'
+      };
     } catch (error) {
       console.error('Error fetching QR code:', error);
       return { 
         error: error instanceof Error ? error.message : 'Unknown error',
-        message: 'Failed to get QR code through any available endpoint'
+        message: 'Falha ao obter QR code. Verifique suas credenciais e a versão da API.'
       };
     }
   }

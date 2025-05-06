@@ -341,6 +341,26 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
         if (statusResponse.error) {
           console.error(`[QRCode Handler] Erro ao verificar status: ${statusResponse.error}`);
           
+          // Tratamento específico para o erro de credenciais inválidas
+          if (statusResponse.error === 'INVALID_CREDENTIALS') {
+            return res.status(500).json({ 
+              success: false,
+              error_code: 'INVALID_CREDENTIALS', 
+              message: "Erro ao verificar status da instância Z-API: Credenciais inválidas",
+              details: `As credenciais fornecidas (instanceId e token) parecem ser inválidas ou a instância não existe no serviço Z-API. Verifique se estão corretas no painel da Z-API.`,
+              recommendations: [
+                "Verifique se o instanceId e token estão corretos no painel da Z-API",
+                "Confirme se sua instância Z-API está ativa e dentro da validade",
+                "Tente criar uma nova instância no painel da Z-API e use as novas credenciais"
+              ],
+              technical_info: {
+                instanceId: config.instanceId,
+                error_details: statusResponse.message || 'Credenciais inválidas ou instância inexistente',
+                attempted_endpoints: statusResponse.attempted_endpoints || []
+              }
+            });
+          }
+          
           // Tratamento específico para o erro NOT_FOUND
           if (typeof statusResponse.error === 'string' && statusResponse.error.includes('NOT_FOUND')) {
             return res.status(500).json({ 
@@ -348,16 +368,54 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
               error_code: 'NOT_FOUND', 
               message: "Erro ao verificar status da instância Z-API: NOT_FOUND",
               details: `Este erro geralmente indica que suas credenciais Z-API estão incorretas ou a instância não existe. Verifique o instanceId e token no painel da Z-API.`,
+              recommendations: [
+                "Verifique se o instanceId e token estão corretos no painel da Z-API",
+                "Confirme se sua instância Z-API está ativa e dentro da validade",
+                "Tente criar uma nova instância no painel da Z-API e use as novas credenciais"
+              ],
               technical_info: {
                 instanceId: config.instanceId,
-                error_details: statusResponse.message || 'Unable to find matching resource'
+                error_details: statusResponse.message || 'Unable to find matching resource',
+                attempted_endpoints: statusResponse.attempted_endpoints || []
               }
             });
           }
           
+          // Tratamento para erro específico de STATUS_CHECK_FAILED
+          if (statusResponse.error === 'STATUS_CHECK_FAILED') {
+            return res.status(500).json({ 
+              success: false,
+              error_code: 'STATUS_CHECK_FAILED', 
+              message: "Erro ao verificar status da instância Z-API",
+              details: `Não foi possível verificar o status da conexão usando nenhum dos endpoints disponíveis da Z-API. Isso pode indicar:
+              1. Um problema temporário de comunicação com a API
+              2. Uma mudança recente na API Z-API que tornou os endpoints incompatíveis
+              3. Alguma restrição de acesso na sua instância`,
+              recommendations: [
+                "Aguarde alguns minutos e tente novamente",
+                "Verifique se o instanceId e token estão corretos",
+                "Verifique a documentação atualizada da Z-API para confirmar os endpoints",
+                "Entre em contato com o suporte da Z-API para mais informações"
+              ],
+              technical_info: {
+                instanceId: config.instanceId,
+                error_details: statusResponse.message || 'Falha na verificação de status',
+                attempted_endpoints: statusResponse.attempted_endpoints || []
+              }
+            });
+          }
+          
+          // Tratamento genérico para outros erros
           return res.status(500).json({ 
             success: false, 
-            message: `Erro ao verificar status da instância Z-API: ${statusResponse.error}` 
+            error_code: statusResponse.error,
+            message: `Erro ao verificar status da instância Z-API: ${statusResponse.error}`,
+            details: statusResponse.message || 'Ocorreu um erro ao verificar o status da instância',
+            technical_info: {
+              error: statusResponse.error,
+              message: statusResponse.message,
+              attempted_endpoints: statusResponse.attempted_endpoints || []
+            }
           });
         }
         
@@ -396,6 +454,26 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
             });
           }
           
+          // Tratamento para erro de credenciais inválidas
+          if (qrCodeResponse.error === 'INVALID_CREDENTIALS') {
+            return res.status(500).json({ 
+              success: false,
+              error_code: 'INVALID_CREDENTIALS', 
+              message: "Erro ao obter QR Code: Credenciais inválidas",
+              details: `As credenciais fornecidas (instanceId e token) parecem ser inválidas ou a instância não existe no serviço Z-API.`,
+              recommendations: [
+                "Verifique se o instanceId e token estão corretos no painel da Z-API",
+                "Confirme se sua instância Z-API está ativa e dentro da validade",
+                "Tente criar uma nova instância no painel da Z-API e use as novas credenciais"
+              ],
+              technical_info: {
+                instanceId: config.instanceId,
+                error_details: qrCodeResponse.message || 'Credenciais inválidas ou instância inexistente',
+                attempted_endpoints: qrCodeResponse.attempted_endpoints || []
+              }
+            });
+          }
+          
           // Tratamento para erros de compatibilidade de API
           if (qrCodeResponse.error === 'API_COMPATIBILITY_ERROR') {
             return res.status(500).json({ 
@@ -410,7 +488,31 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
               ],
               technical_info: {
                 instanceId: config.instanceId,
-                attempted_urls: qrCodeResponse.attempted_urls
+                attempted_urls: qrCodeResponse.attempted_urls,
+                attempted_endpoints: qrCodeResponse.attempted_endpoints || []
+              }
+            });
+          }
+          
+          // Tratamento para erro específico QR_CODE_UNAVAILABLE
+          if (qrCodeResponse.error === 'QR_CODE_UNAVAILABLE') {
+            return res.status(500).json({ 
+              success: false,
+              error_code: 'QR_CODE_UNAVAILABLE', 
+              message: "QR Code não disponível",
+              details: `Não foi possível obter o QR Code de nenhum dos endpoints disponíveis da Z-API. Isso pode indicar:
+              1. Um problema temporário de comunicação com a API
+              2. Uma mudança recente na API Z-API que tornou os endpoints incompatíveis
+              3. Sua instância pode estar em um estado que não permite a geração de QR Code`,
+              recommendations: [
+                "Aguarde alguns minutos e tente novamente",
+                "Verifique se o dispositivo não está bloqueado no painel da Z-API",
+                "Tente desconectar o dispositivo no painel da Z-API e solicitar um novo QR Code",
+                "Verifique a documentação atualizada da Z-API para confirmar os endpoints corretos"
+              ],
+              technical_info: {
+                instanceId: config.instanceId,
+                attempted_endpoints: qrCodeResponse.attempted_endpoints || []
               }
             });
           }
@@ -418,8 +520,14 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
           // Tratamento para outros erros
           return res.status(500).json({ 
             success: false, 
+            error_code: qrCodeResponse.error,
             message: `Erro ao obter QR Code: ${qrCodeResponse.error}`,
-            details: qrCodeResponse.message || "Ocorreu um erro ao comunicar com a API Z-API"
+            details: qrCodeResponse.message || "Ocorreu um erro ao comunicar com a API Z-API",
+            technical_info: {
+              error: qrCodeResponse.error,
+              message: qrCodeResponse.message,
+              attempted_endpoints: qrCodeResponse.attempted_endpoints || []
+            }
           });
         }
         
@@ -570,15 +678,63 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
         };
       }
       
-      // Adicionar informações de solução ao diagnóstico
-      diagnostic.solutions = [
-        "Verificar se o instanceId e token estão corretos",
-        "Confirmar que sua instância Z-API está ativa e dentro da validade",
-        "Verificar se a versão da API Z-API que você está usando suporta este endpoint",
-        "Caso o dispositivo já tenha sido conectado, desconectar e solicitar um novo QR Code",
-        "Verificar se sua instância Z-API requer endpoints diferentes (consultar documentação específica da sua versão)",
-        "Entrar em contato com o suporte da Z-API para obter ajuda adicional"
-      ];
+      // Análise dos resultados para recomendações personalizadas
+      const failedEndpoints = Object.keys(diagnostic.results).filter(key => 
+        !diagnostic.results[key].success
+      );
+      
+      const hasNotFoundErrors = Object.keys(diagnostic.results).some(key => {
+        const result = diagnostic.results[key];
+        return !result.success && 
+          (result.error?.includes('NOT_FOUND') || 
+           result.status === 404 || 
+           result.data?.error === 'NOT_FOUND');
+      });
+      
+      const hasConnectionError = Object.keys(diagnostic.results).some(key => {
+        const result = diagnostic.results[key];
+        return !result.success && 
+          (result.error?.includes('ECONN') || 
+           result.error?.includes('timeout') || 
+           result.error?.includes('network'));
+      });
+      
+      // Adicionar informações de solução ao diagnóstico com base nos problemas encontrados
+      diagnostic.problem_type = hasNotFoundErrors ? 'CREDENCIAIS_INVALIDAS' : 
+                                 hasConnectionError ? 'ERRO_CONEXAO' : 
+                                 failedEndpoints.length > 0 ? 'ENDPOINTS_INCOMPATIVEIS' : 'NENHUM_PROBLEMA';
+      
+      diagnostic.solutions = [];
+      
+      // Recomendações baseadas no tipo de problema
+      if (hasNotFoundErrors) {
+        diagnostic.solutions = [
+          "Verifique se o instanceId e token estão corretos no painel da Z-API",
+          "Confirme se sua instância Z-API está ativa e dentro da validade",
+          "Se o erro persistir, tente criar uma nova instância no painel da Z-API e use as novas credenciais",
+          "Entre em contato com o suporte da Z-API para verificar se sua conta está ativa"
+        ];
+      } else if (hasConnectionError) {
+        diagnostic.solutions = [
+          "Verifique sua conexão com a internet",
+          "A API da Z-API pode estar temporariamente indisponível, tente novamente mais tarde",
+          "Verifique se existe algum bloqueio de firewall no servidor que está hospedando esta aplicação",
+          "Entre em contato com o suporte da Z-API para verificar o status do serviço"
+        ];
+      } else if (failedEndpoints.length > 0) {
+        diagnostic.solutions = [
+          "Verifique se a versão da API Z-API que você está usando suporta estes endpoints",
+          "Caso o dispositivo já tenha sido conectado, desconectar e solicitar um novo QR Code",
+          "Verifique se sua instância Z-API requer endpoints diferentes (consultar documentação específica da sua versão)",
+          "Entre em contato com o suporte da Z-API para obter ajuda adicional com endpoints incompatíveis"
+        ];
+      } else {
+        diagnostic.solutions = [
+          "Nenhum problema crítico foi detectado com a configuração atual",
+          "Para conectar um dispositivo, use a opção 'Conectar WhatsApp' na interface",
+          "Caso esteja enfrentando problemas, tente desconectar e reconectar o dispositivo"
+        ];
+      }
       
       return res.json({
         channel_id: channelId,

@@ -182,80 +182,88 @@ export class ZAPIClient {
     try {
       console.log('Checking Z-API connection status');
       
-      // De acordo com a documentação atual 2024 - primeiro endpoint a tentar
-      // https://developer.z-api.io/instance/update-auto-read-message
-      console.log('Trying latest documented status endpoint: /connection');
-      const connectionResponse = await this.makeRequest('GET', '/connection');
-      if (!connectionResponse.error) {
-        console.log('Successfully got status from /connection');
+      // Lista de todos os endpoints a serem tentados, em ordem
+      const endpointsToTry = [
+        { path: '/connection', description: 'latest documented status endpoint' },  // Documentação mais recente 2024
+        { path: '/status', description: 'traditional status endpoint' },            // Endpoint tradicional
+        { path: '/session', description: 'session endpoint' },                      // Endpoint de sessão
+        { path: '/device', description: 'device info endpoint' },                   // Endpoint de informações do dispositivo
+        { path: '/phone', description: 'phone endpoint' },                          // Endpoint de telefone
+        { path: '/instance', description: 'instance endpoint' },                    // Endpoint de instância
+        { path: '/me', description: 'account info endpoint' }                       // Endpoint de informações da conta
+      ];
+      
+      const errors = [];
+      
+      // Tenta cada endpoint
+      for (const endpoint of endpointsToTry) {
+        try {
+          console.log(`Trying ${endpoint.description}: ${endpoint.path}`);
+          const response = await this.makeRequest('GET', endpoint.path);
+          
+          if (!response.error) {
+            console.log(`Successfully got status from ${endpoint.path}`);
+            
+            // Preparar resposta com flag connected normalizada
+            return {
+              ...response,
+              endpoint_used: endpoint.path,
+              connected: response.connected === true || 
+                        (typeof response.status === 'string' && 
+                        ['connected', 'active', 'true'].includes(response.status.toLowerCase())) ||
+                        // Se for endpoint de device/phone/instance sem erro, considerar conectado
+                        (endpoint.path !== '/connection' && endpoint.path !== '/status' && endpoint.path !== '/session')
+            };
+          }
+          
+          // Armazena o erro para diagnóstico
+          errors.push({
+            endpoint: endpoint.path,
+            error: response.error,
+            message: response.message
+          });
+          
+          // Se for um erro NOT_FOUND e já testamos mais de 3 endpoints, não continue tentando
+          const isNotFound = response.error === 'NOT_FOUND' || 
+                            (typeof response.error === 'string' && response.error.includes('NOT_FOUND'));
+          if (isNotFound && errors.length >= 3) {
+            console.log('Multiple NOT_FOUND errors, likely invalid credentials or incompatible API version');
+            break;
+          }
+        } catch (endpointError) {
+          console.error(`Error with endpoint ${endpoint.path}:`, endpointError);
+          errors.push({
+            endpoint: endpoint.path,
+            error: endpointError instanceof Error ? endpointError.message : 'Unknown error'
+          });
+        }
+      }
+      
+      // Se todas as tentativas falharam, retorna um erro detalhado
+      console.error('All status endpoints failed:', errors);
+      
+      // Verificar se todos os erros são NOT_FOUND, indicando provavelmente credenciais inválidas
+      const allNotFound = errors.every(e => 
+        e.error === 'NOT_FOUND' || 
+        (typeof e.error === 'string' && e.error.includes('NOT_FOUND'))
+      );
+      
+      if (allNotFound && errors.length > 0) {
         return {
-          ...connectionResponse,
-          connected: connectionResponse.connected === true || 
-                    (typeof connectionResponse.status === 'string' && 
-                     connectionResponse.status.toLowerCase() === 'connected')
+          error: 'INVALID_CREDENTIALS',
+          connected: false,
+          message: 'As credenciais da Z-API parecem ser inválidas. Verifique o instanceId e token no painel da Z-API.',
+          attempted_endpoints: errors.map(e => e.endpoint),
+          detailed_errors: errors
         };
       }
       
-      // Tentativa com o endpoint /status tradicional
-      console.log('Trying traditional status endpoint: /status');
-      const statusResponse = await this.makeRequest('GET', '/status');
-      if (!statusResponse.error) {
-        console.log('Successfully got status from /status');
-        return statusResponse;
-      }
-      
-      // Tentativa com endpoint da sessão
-      console.log('Trying session endpoint: /session');
-      const sessionResponse = await this.makeRequest('GET', '/session');
-      if (!sessionResponse.error) {
-        console.log('Successfully got status from /session');
-        return {
-          ...sessionResponse,
-          connected: sessionResponse.connected || 
-                    (typeof sessionResponse.status === 'string' && 
-                     sessionResponse.status === 'connected')
-        };
-      }
-      
-      // Tentativa com o endpoint específico de verificação do número
-      console.log('Trying device info endpoint: /device');
-      const deviceResponse = await this.makeRequest('GET', '/device');
-      if (!deviceResponse.error) {
-        console.log('Successfully got status from /device');
-        return {
-          ...deviceResponse,
-          connected: true // Se o endpoint /device responde sem erro, o dispositivo está conectado
-        };
-      }
-      
-      // Tentativa adicional com o endpoint /phone conforme documentação
-      console.log('Trying phone endpoint: /phone');
-      const phoneResponse = await this.makeRequest('GET', '/phone');
-      if (!phoneResponse.error) {
-        console.log('Successfully got status from /phone');
-        return {
-          ...phoneResponse,
-          connected: true // Se o endpoint /phone responde sem erro, o dispositivo está conectado
-        };
-      }
-      
-      // Tentativa com o novo endpoint de conexão baseado na documentação atual
-      console.log('Trying instance endpoint: /instance');
-      const instanceResponse = await this.makeRequest('GET', '/instance');
-      if (!instanceResponse.error) {
-        console.log('Successfully got status from /instance');
-        return {
-          ...instanceResponse,
-          connected: true // Se o endpoint /instance responde sem erro, o dispositivo está conectado
-        };
-      }
-      
-      // Se todas as tentativas falharam, retornamos um erro detalhado
-      console.error('All status endpoints failed');
       return { 
         error: 'STATUS_CHECK_FAILED',
         connected: false,
-        message: 'Falha ao verificar status em todos os endpoints da Z-API. Verifique as credenciais e a documentação atualizada.'
+        message: 'Falha ao verificar status em todos os endpoints da Z-API. Verifique suas credenciais e a documentação atualizada.',
+        attempted_endpoints: errors.map(e => e.endpoint),
+        detailed_errors: errors
       };
     } catch (error) {
       console.error('Error checking Z-API status:', error);
@@ -427,47 +435,95 @@ export class ZAPIClient {
         };
       }
       
-      // De acordo com a documentação atual 2024: /qrcode-image endpoint
-      console.log('Trying latest documented QR code endpoint: /qrcode-image');
-      const qrcodeImageResponse = await this.makeRequest('GET', '/qrcode-image');
-      if (!qrcodeImageResponse.error) {
-        console.log('Successfully retrieved QR code from /qrcode-image');
-        // Converter a resposta para o formato esperado
+      // Se o status indicou erro de credenciais, não adianta tentar obter QR code
+      if (statusResponse.error === 'INVALID_CREDENTIALS') {
+        console.error('Cannot get QR code - invalid credentials detected in status check');
         return {
-          qrcode: qrcodeImageResponse.base64 || qrcodeImageResponse.qrcode,
-          status: 'success'
+          ...statusResponse,
+          error: 'INVALID_CREDENTIALS',
+          message: 'Não é possível obter QR code com credenciais inválidas. Verifique o instanceId e token no painel da Z-API.'
         };
       }
       
-      // Tentar com endpoint alternativo /qrcode
-      console.log('Trying alternative QR code endpoint: /qrcode');
-      const qrcodeResponse = await this.makeRequest('GET', '/qrcode');
-      if (!qrcodeResponse.error) {
-        console.log('Successfully retrieved QR code from /qrcode');
-        return qrcodeResponse;
+      // Lista de todos os endpoints de QR code a serem tentados, em ordem
+      const qrEndpointsToTry = [
+        { path: '/qrcode-image', description: 'latest documented QR code endpoint' },  // Documentação mais recente 2024
+        { path: '/qrcode', description: 'alternative QR code endpoint' },              // Endpoint alternativo
+        { path: '/qr-code', description: 'alternative QR code endpoint (hyphenated)' }, // Endpoint alternativo com hífen
+        { path: '/connection', description: 'v4 API connection endpoint' }             // Endpoint de conexão v4
+      ];
+      
+      const errors = [];
+      
+      // Tenta cada endpoint
+      for (const endpoint of qrEndpointsToTry) {
+        try {
+          console.log(`Trying ${endpoint.description}: ${endpoint.path}`);
+          const response = await this.makeRequest('GET', endpoint.path);
+          
+          // Se não tem erro, verificar se tem QR code na resposta
+          if (!response.error) {
+            // Verificar os diferentes formatos possíveis do QR code
+            const qrCodeValue = response.qrcode || response.base64 || response.image || response.qrCode;
+            
+            if (qrCodeValue) {
+              console.log(`Successfully retrieved QR code from ${endpoint.path}`);
+              return {
+                qrcode: qrCodeValue,
+                status: 'success',
+                endpoint_used: endpoint.path
+              };
+            } else {
+              console.log(`Endpoint ${endpoint.path} returned success but no QR code data:`, response);
+              // Se contém 'connected' e é true, o dispositivo já está conectado
+              if (response.connected === true) {
+                return {
+                  ...response,
+                  message: 'Device already connected'
+                };
+              }
+            }
+          }
+          
+          // Armazena o erro para diagnóstico
+          errors.push({
+            endpoint: endpoint.path,
+            error: response.error,
+            message: response.message
+          });
+        } catch (endpointError) {
+          console.error(`Error with QR endpoint ${endpoint.path}:`, endpointError);
+          errors.push({
+            endpoint: endpoint.path,
+            error: endpointError instanceof Error ? endpointError.message : 'Unknown error'
+          });
+        }
       }
       
-      // Tentar com o endpoint alternativo /qr-code (com hífen)
-      console.log('Trying alternative QR code endpoint: /qr-code');
-      const qrCodeResponse = await this.makeRequest('GET', '/qr-code');
-      if (!qrCodeResponse.error) {
-        console.log('Successfully retrieved QR code from /qr-code');
-        return qrCodeResponse;
+      // Se todas as tentativas falharam, retornar erro detalhado
+      console.error('All QR code endpoints failed:', errors);
+      
+      // Verificar se todos os erros são NOT_FOUND, indicando provavelmente credenciais inválidas
+      const allNotFound = errors.length > 0 && errors.every(e => 
+        e.error === 'NOT_FOUND' || 
+        (typeof e.error === 'string' && e.error.includes('NOT_FOUND'))
+      );
+      
+      if (allNotFound) {
+        return {
+          error: 'INVALID_CREDENTIALS',
+          connected: false,
+          message: 'As credenciais da Z-API parecem ser inválidas. Verifique o instanceId e token no painel da Z-API.',
+          attempted_endpoints: errors.map(e => e.endpoint),
+          detailed_errors: errors
+        };
       }
       
-      // Tentar com o endpoint de conexão da v4 da API
-      console.log('Trying v4 API connection endpoint');
-      const connectionResponse = await this.makeRequest('GET', '/connection');
-      if (!connectionResponse.error && connectionResponse.qrcode) {
-        console.log('Successfully retrieved QR code from /connection');
-        return connectionResponse;
-      }
-      
-      // Se todas as tentativas falharam, retornar erro
-      console.error('All QR code endpoints failed');
       return { 
         error: 'QR_CODE_UNAVAILABLE',
-        message: 'Não foi possível obter QR code de nenhum endpoint da Z-API. Verifique suas credenciais e a documentação atualizada.'
+        message: 'Não foi possível obter QR code de nenhum endpoint da Z-API. Verifique suas credenciais e a documentação atualizada.',
+        attempted_endpoints: errors.map(e => e.endpoint),
+        detailed_errors: errors
       };
     } catch (error) {
       console.error('Error fetching QR code:', error);

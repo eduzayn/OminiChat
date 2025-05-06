@@ -87,6 +87,8 @@ function WhatsAppQRCode({ channelId }: { channelId: number }) {
         
         // Construir mensagem de erro detalhada
         let errorDetails = '';
+        let errorTitle = '';
+        let errorVariant: "default" | "destructive" = "destructive";
         
         if (data.details) {
           errorDetails += data.details;
@@ -102,12 +104,31 @@ function WhatsAppQRCode({ channelId }: { channelId: number }) {
         if (data.error_code) {
           errorDetails += `\n\nCódigo do erro: ${data.error_code}`;
           
-          // Adicionar mensagens personalizadas para códigos de erro conhecidos
+          // Configurar mensagens personalizadas para códigos de erro conhecidos
           if (data.error_code === 'NOT_FOUND') {
+            errorTitle = "Credenciais da Z-API inválidas";
             errorDetails += `\n\nEste erro indica que a API da Z-API não reconheceu sua instância. Verifique se as credenciais estão corretas no painel da Z-API.`;
           } else if (data.error_code === 'API_COMPATIBILITY_ERROR') {
+            errorTitle = "Problema de compatibilidade com a API";
             errorDetails += `\n\nEste erro indica um problema de compatibilidade com a API. Verifique a versão da sua Z-API e as URLs suportadas.`;
+          } else if (data.error_code === 'INVALID_CREDENTIALS') {
+            errorTitle = "Credenciais da Z-API inválidas";
+            errorDetails += `\n\nAs credenciais fornecidas (instanceId e token) parecem ser inválidas ou a instância não existe.`;
+          } else if (data.error_code === 'STATUS_CHECK_FAILED') {
+            errorTitle = "Falha na verificação de status";
+            errorDetails += `\n\nNão foi possível verificar o status da conexão com a Z-API. Pode ser um problema temporário.`;
+          } else if (data.error_code === 'QR_CODE_UNAVAILABLE') {
+            errorTitle = "QR Code não disponível";
+            errorDetails += `\n\nNão foi possível obter o QR Code. Isso pode ocorrer se o dispositivo já estiver conectado ou em processo de conexão.`;
+            errorVariant = "default"; // Erro menos crítico
           }
+        }
+        
+        // Tratamento para casos específicos sem error_code
+        if (data.connected) {
+          errorTitle = "WhatsApp já conectado";
+          errorDetails = "O dispositivo já está conectado. Não é necessário escanear o QR Code.";
+          errorVariant = "default"; // Não é realmente um erro
         }
         
         // Exibir mensagem de erro com detalhes
@@ -115,9 +136,9 @@ function WhatsAppQRCode({ channelId }: { channelId: number }) {
         setError(`${errorMessage}${errorDetails ? '\n\n' + errorDetails : ''}`);
         
         toast({
-          title: "Erro ao gerar QR Code",
+          title: errorTitle || "Erro ao gerar QR Code",
           description: errorMessage,
-          variant: "destructive"
+          variant: errorVariant
         });
       }
     } catch (err: any) {

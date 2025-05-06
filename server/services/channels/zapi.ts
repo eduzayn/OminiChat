@@ -72,9 +72,13 @@ export class ZAPIClient {
     const executeRequest = async (baseUrl: string): Promise<ZAPIResponse> => {
       try {
         const url = `${baseUrl}${endpoint}`;
+        // Configurar os headers
+        // Se o token já está na URL, não é necessário incluí-lo no cabeçalho novamente
+        const hasTokenInUrl = baseUrl.includes(`/token/${this.token}`);
+        
         const headers = {
           'Content-Type': 'application/json',
-          'Client-Token': this.token
+          ...(hasTokenInUrl ? {} : { 'Client-Token': this.token })
         };
         
         console.log(`Tentando ${method} para Z-API: ${url}`);
@@ -449,8 +453,7 @@ export class ZAPIClient {
         { path: '/qrcode-image', description: 'image QR code endpoint' }      // Endpoint alternativo com sufixo image
       ];
       
-      // Evitar adicionar cabeçalho Client-Token quando o token já está na URL
-      const options = { skipTokenHeader: true };
+      // Usando diretamente o token no path da URL
       
       const errors = [];
       

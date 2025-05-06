@@ -350,6 +350,129 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
     }
   });
 
+  // Diagnóstico para depurar problemas com a Z-API
+  app.get(`${apiPrefix}/channels/:id/zapi-diagnostic`, isAuthenticated, async (req, res) => {
+    try {
+      const channelId = parseInt(req.params.id);
+      
+      const channel = await db.query.channels.findFirst({
+        where: eq(channels.id, channelId)
+      });
+      
+      if (!channel) {
+        return res.status(404).json({ message: "Canal não encontrado" });
+      }
+      
+      const config = channel.config as ChannelConfig;
+      
+      if (config.provider !== "zapi" || !config.instanceId || !config.token) {
+        return res.status(400).json({ 
+          message: "Este canal não é Z-API ou está com credenciais incompletas" 
+        });
+      }
+      
+      const instanceId = config.instanceId as string;
+      const token = config.token as string;
+      
+      console.log(`Realizando diagnóstico para Z-API ${instanceId}`);
+      
+      const zapiClient = new ZAPIClient(instanceId, token);
+      
+      // Verificar todos os endpoints disponíveis
+      const diagnostic = {
+        base_url: `https://api.z-api.io/instances/${instanceId}`,
+        instance_id: instanceId,
+        token_length: token.length,
+        token_preview: token.substring(0, 4) + '...',
+        results: {} as Record<string, any>
+      };
+      
+      // Testar o endpoint de status
+      try {
+        const statusResponse = await zapiClient.getStatus();
+        diagnostic.results.status = {
+          endpoint: '/status',
+          success: !statusResponse.error,
+          data: statusResponse
+        };
+      } catch (error: any) {
+        diagnostic.results.status = {
+          endpoint: '/status',
+          success: false,
+          error: error.message
+        };
+      }
+      
+      // Testar o endpoint de QR code usando qr-code
+      try {
+        const qrCodeResponse = await zapiClient.getQRCode();
+        diagnostic.results.qrCode = {
+          endpoint: '/qr-code',
+          success: !qrCodeResponse.error,
+          has_qrcode: !!qrCodeResponse.qrcode,
+          data: qrCodeResponse.qrcode ? { preview: 'QR Code disponível' } : qrCodeResponse
+        };
+      } catch (error: any) {
+        diagnostic.results.qrCode = {
+          endpoint: '/qr-code',
+          success: false,
+          error: error.message
+        };
+      }
+      
+      // Não podemos usar makeRequest porque é privado, mas podemos fazer uma chamada direta
+      try {
+        const apiUrl = `https://api.z-api.io/instances/${instanceId}/qrcode`;
+        const response = await axios.get(apiUrl, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Client-Token': token
+          }
+        });
+        
+        diagnostic.results.alternateQRCode = {
+          endpoint: '/qrcode',
+          success: true,
+          status: response.status,
+          has_qrcode: !!response.data.qrcode,
+          data: response.data.qrcode ? { preview: 'QR Code disponível' } : response.data
+        };
+      } catch (error: any) {
+        diagnostic.results.alternateQRCode = {
+          endpoint: '/qrcode',
+          success: false,
+          error: error.message,
+          status: error.response?.status,
+          data: error.response?.data
+        };
+      }
+      
+      // Adicionar informações de solução ao diagnóstico
+      const possibleSolutions = [
+        "Verificar se o instanceId e token estão corretos",
+        "Confirmar que sua instância Z-API está ativa e dentro da validade",
+        "Verificar se a versão da API Z-API que você está usando suporta este endpoint",
+        "Caso o dispositivo já tenha sido conectado, desconectar e solicitar um novo QR Code",
+        "Verificar se sua instância Z-API requer endpoints diferentes (consultar documentação específica da sua versão)",
+        "Entrar em contato com o suporte da Z-API para obter ajuda adicional"
+      ];
+      
+      diagnostic.solutions = possibleSolutions;
+      
+      return res.json({
+        channel_id: channelId,
+        channel_name: channel.name,
+        diagnostic
+      });
+    } catch (error) {
+      console.error("Erro ao realizar diagnóstico Z-API:", error);
+      return res.status(500).json({ 
+        message: "Erro interno ao realizar diagnóstico",
+        error: error instanceof Error ? error.message : "Erro desconhecido"
+      });
+    }
+  });
+
   // Test channel connection
   app.post(`${apiPrefix}/channels/:id/test`, isAuthenticated, async (req, res) => {
     try {

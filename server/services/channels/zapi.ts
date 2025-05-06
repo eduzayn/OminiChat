@@ -200,11 +200,13 @@ export class ZAPIClient {
       }
     };
 
-    // Primeiro tenta com a configuração padrão
+    // Primeiro tenta com a configuração padrão, baseada na preferência do usuário
     const defaultConfig = {
       baseUrl: this.baseUrl,
-      useHeaderToken: false,
-      description: 'default config with token in path'
+      useHeaderToken: this.useClientToken,
+      description: this.useClientToken 
+        ? 'default config with token in header' 
+        : 'default config with token in path'
     };
     
     const mainResponse = await executeRequest(defaultConfig);
@@ -228,7 +230,7 @@ export class ZAPIClient {
       
       for (const config of alternativeConfigs) {
         // Pular a configuração padrão que já testamos
-        if (config.baseUrl === this.baseUrl && !config.useHeaderToken) {
+        if (config.baseUrl === this.baseUrl && config.useHeaderToken === this.useClientToken) {
           continue;
         }
         
@@ -791,9 +793,13 @@ export async function setupZAPIChannel(channel: Channel): Promise<{ status: stri
       };
     }
 
+    // Extrair a opção de usar Client-Token no header (novo formato da API Z-API)
+    const useClientToken = config.useClientToken !== false; // default para true se não estiver definido
+    
     // Criar cliente Z-API com diagnóstico aprimorado
     console.log(`Criando cliente Z-API para instance ${instanceId.substring(0, 8)}...`);
-    const client = new ZAPIClient(instanceId, token);
+    console.log(`Modo de autenticação: ${useClientToken ? 'Client-Token no header' : 'token no path'}`);
+    const client = new ZAPIClient(instanceId, token, { useClientToken });
 
     // Verificar estado de conexão
     console.log('Verificando status da conexão Z-API...');
@@ -970,9 +976,13 @@ export async function sendZAPIWhatsAppMessage(
     // Formatar número de telefone (remover + e caracteres especiais)
     const formattedPhone = phone.replace(/\D/g, '');
     
+    // Extrair a opção de usar Client-Token no header
+    const useClientToken = config.useClientToken !== false; // default para true se não estiver definido
+    
     // Criar cliente Z-API com diagnóstico aprimorado
     console.log(`Enviando mensagem WhatsApp via Z-API para ${formattedPhone.substring(0, 5)}*****`);
-    const client = new ZAPIClient(instanceId, token);
+    console.log(`Modo de autenticação: ${useClientToken ? 'Client-Token no header' : 'token no path'}`);
+    const client = new ZAPIClient(instanceId, token, { useClientToken });
     
     // Registrar tentativa de envio
     console.log(`Enviando mensagem tipo ${type}, tamanho do conteúdo: ${content?.length || 0}`);

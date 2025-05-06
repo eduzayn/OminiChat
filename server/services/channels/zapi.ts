@@ -72,7 +72,53 @@ export class ZAPIClient {
 
   // Instance Status
   async getStatus(): Promise<ZAPIResponse> {
-    return this.makeRequest('GET', '/status');
+    try {
+      // Tentativa principal com /status
+      const response = await this.makeRequest('GET', '/status');
+      if (!response.error) {
+        return response;
+      }
+      
+      console.log('First status attempt failed, trying alternative endpoints');
+      
+      // Tentativa com endpoint da sessão
+      const sessionResponse = await this.makeRequest('GET', '/session');
+      if (!sessionResponse.error) {
+        // Converter para o formato esperado pela aplicação
+        return {
+          ...sessionResponse,
+          connected: sessionResponse.connected || sessionResponse.status === 'connected'
+        };
+      }
+      
+      // Tentativa com endpoint de device
+      const deviceResponse = await this.makeRequest('GET', '/device');
+      if (!deviceResponse.error) {
+        return {
+          ...deviceResponse,
+          connected: deviceResponse.connected || deviceResponse.status === 'connected'
+        };
+      }
+      
+      // Tentativa com endpoint de phone
+      const phoneResponse = await this.makeRequest('GET', '/phone');
+      if (!phoneResponse.error) {
+        return {
+          ...phoneResponse,
+          connected: true // Se o endpoint /phone responde, o dispositivo está conectado
+        };
+      }
+      
+      // Se nenhuma tentativa funcionou, retornamos a resposta original
+      return response;
+    } catch (error) {
+      console.error('Error checking Z-API status:', error);
+      return { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        connected: false,
+        message: 'Failed to check status through any available endpoint' 
+      };
+    }
   }
   
   // Alias para getStatus para manter compatibilidade com o código existente
@@ -186,7 +232,36 @@ export class ZAPIClient {
   // Obter QR Code para autenticação
   async getQRCode(): Promise<ZAPIResponse> {
     console.log('Requesting Z-API QR Code for connection');
-    return this.makeRequest('GET', '/qr-code');
+    // Tentando endpoint documentado atual
+    try {
+      // De acordo com a versão mais recente da documentação Z-API
+      const response = await this.makeRequest('GET', '/qr-code');
+      if (!response.error) {
+        return response;
+      }
+      console.log('First QR code attempt failed, trying alternative endpoints');
+      
+      // Tentativa alternativa com endpoint antigo
+      const altResponse = await this.makeRequest('GET', '/qrcode');
+      if (!altResponse.error) {
+        return altResponse;
+      }
+      
+      // Tentativa com endpoint da sessão
+      const sessionResponse = await this.makeRequest('GET', '/session');
+      if (sessionResponse.qrcode || sessionResponse.connected === true) {
+        return sessionResponse;
+      }
+      
+      // Se nenhuma tentativa funcionou, retornar a resposta original
+      return response;
+    } catch (error) {
+      console.error('Error fetching QR code:', error);
+      return { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        message: 'Failed to get QR code through any available endpoint'
+      };
+    }
   }
 }
 

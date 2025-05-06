@@ -320,12 +320,14 @@ function SettingsPage() {
     }
   };
   
-  // Função para buscar QR Code do WhatsApp
+  // Função para buscar QR Code do WhatsApp (não utilizada após remoção do Z-API)
+  // Mantida para compatibilidade com canais existentes, mas não funcional
   const handleGetWhatsAppQrCode = async (channelId: number) => {
     setQrCodeLoading(true);
     setQrCodeData("");
     
     try {
+      // API endpoint que usava Z-API não está mais disponível
       const response = await fetch(`/api/channels/${channelId}/qrcode`, {
         method: 'GET',
         headers: {
@@ -335,13 +337,14 @@ function SettingsPage() {
       
       const data = await response.json();
       
+      // O servidor retornará um erro informando sobre a remoção do Z-API
       if (data.success && data.qrCode) {
         setQrCodeData(data.qrCode);
       } else {
         toast({
           variant: "destructive",
-          title: "Erro ao obter QR Code",
-          description: data.message || "Não foi possível obter o QR Code para este canal",
+          title: "Funcionalidade QR Code não disponível",
+          description: "O suporte ao Z-API foi removido do sistema",
           duration: 5000
         });
       }
@@ -1256,18 +1259,7 @@ function SettingsPage() {
                         </div>
                       </div>
                       
-                      <div 
-                        className={`flex flex-col items-center justify-center p-4 rounded-md border ${channelForm.config.provider === "zapi" ? 'border-primary bg-primary/5' : 'border-gray-200'} hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors`}
-                        onClick={() => handleChannelFormChange("config.provider", "zapi")}
-                      >
-                        <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-full mb-2">
-                          <MessageSquare className="w-5 h-5 text-blue-600" />
-                        </div>
-                        <span className="text-sm font-medium">Z-API</span>
-                        <div className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full mt-2 flex items-center">
-                          <Check className="w-3 h-3 mr-1" /> Recomendado
-                        </div>
-                      </div>
+                      {/* Opção de Z-API removida */}
                       
                       <div 
                         className={`flex flex-col items-center justify-center p-4 rounded-md border ${channelForm.config.provider === "twilio" ? 'border-primary bg-primary/5' : 'border-gray-200'} hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors`}
@@ -1280,16 +1272,7 @@ function SettingsPage() {
                         <span className="text-xs text-muted-foreground mt-1">Integração via Twilio</span>
                       </div>
                       
-                      <div 
-                        className={`flex flex-col items-center justify-center p-4 rounded-md border ${channelForm.config.provider === "zapi" ? 'border-primary bg-primary/5' : 'border-gray-200'} hover:border-primary hover:bg-primary/5 cursor-pointer transition-colors`}
-                        onClick={() => handleChannelFormChange("config.provider", "zapi")}
-                      >
-                        <div className="flex items-center justify-center w-10 h-10 bg-gray-100 rounded-full mb-2">
-                          <QrCode className="w-5 h-5 text-gray-600" />
-                        </div>
-                        <span className="text-sm font-medium">WhatsApp App</span>
-                        <span className="text-xs text-muted-foreground mt-1">(QR Code)</span>
-                      </div>
+                      {/* Opção de WhatsApp via QR Code (Z-API) removida */}
                     </div>
                   </div>
                   

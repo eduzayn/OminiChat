@@ -13,6 +13,8 @@ import { registerWebhookRoutes } from "./handlers/webhooks";
 import { registerOpportunityRoutes } from "./handlers/opportunities";
 import { registerOrganizationRoutes } from "./handlers/organizations";
 import { setupWebSocketServer } from "./services/socket";
+// Importar rotas Z-API
+import { registerZAPIRoutes } from "./routes/zapi-routes";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Create HTTP server
@@ -32,6 +34,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerWebhookRoutes(app, apiPrefix);
   registerOpportunityRoutes(app, apiPrefix);
   registerOrganizationRoutes(app, apiPrefix);
+  registerZAPIRoutes(app, apiPrefix);
   
   // Create WebSocket server
   const wss = new WebSocketServer({ 

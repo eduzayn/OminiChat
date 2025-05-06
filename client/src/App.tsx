@@ -13,6 +13,7 @@ import LeadsManagement from "@/pages/crm/leads";
 import SettingsPage from "@/pages/settings/index";
 import AIAssistantPage from "@/pages/ai/index";
 import OrganizationsPage from "@/pages/organizations";
+import { ZAPIPage } from "@/pages/ZAPIPage";
 import { useAuth } from "./context/auth-context";
 import { AuthProvider } from "./context/auth-context";
 import { SocketProvider } from "./context/socket-context";
@@ -139,6 +140,9 @@ function Router() {
       </Route>
       
       <Route path="/settings" component={SettingsPage} />
+      
+      {/* Configuração Z-API */}
+      <Route path="/zapi-config" component={ZAPIPage} />
       
       <Route component={NotFound} />
     </Switch>

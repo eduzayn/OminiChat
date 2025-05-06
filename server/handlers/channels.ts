@@ -39,6 +39,21 @@ function isAdmin(req: any, res: any, next: any) {
 }
 
 export function registerChannelRoutes(app: Express, apiPrefix: string) {
+  // Testar conexão com instâncias Z-API
+  app.get(`${apiPrefix}/test-zapi-instances`, isAuthenticated, async (req, res) => {
+    try {
+      console.log(`Iniciando teste de instâncias Z-API...`);
+      const result = await testZapiInstances();
+      console.log(`Resultado do teste de instâncias Z-API:`, result);
+      return res.json(result);
+    } catch (error) {
+      console.error("Erro ao testar instâncias Z-API:", error);
+      return res.status(500).json({ 
+        message: "Erro ao testar instâncias Z-API", 
+        error: error instanceof Error ? error.message : "Erro desconhecido" 
+      });
+    }
+  });
   // Get all channels
   app.get(`${apiPrefix}/channels`, isAuthenticated, async (req, res) => {
     try {

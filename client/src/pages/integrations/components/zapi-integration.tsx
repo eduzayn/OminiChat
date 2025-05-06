@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { MessageSquare, QrCode, Loader2, RefreshCcw } from 'lucide-react';
+import { MessageSquare, QrCode, Loader2, RefreshCcw, AlertCircle, Info } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -22,6 +22,12 @@ import {
   IntegrationTabs, 
   IntegrationTabContent 
 } from './integration-config-dialog';
+import { 
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Schema de validação para configuração da Z-API
 const zapiConfigSchema = z.object({
@@ -419,6 +425,52 @@ function WhatsAppQRCode({ channelId }: { channelId: number }) {
       )}
     </div>
   );
+}
+
+// Função para extrair o ID da instância da URL Z-API
+function extractZAPIInstanceId(input: string): string {
+  if (!input) return '';
+  
+  // Se já for um ID limpo (apenas hexadecimal de 32 caracteres), retorne-o
+  if (/^[A-F0-9]{32}$/i.test(input)) {
+    return input;
+  }
+  
+  // Verificar se é uma URL ou um caminho
+  if (input.includes('http') || input.includes('/')) {
+    // Tentar extrair da URL usando expressão regular
+    // Procura por padrões como: /instances/XXXXXXXXXXX/token/
+    const instanceMatch = input.match(/\/instances\/([A-F0-9]{32})(?:\/|$)/i);
+    if (instanceMatch && instanceMatch[1]) {
+      return instanceMatch[1];
+    }
+    
+    // Alternativa: procurar qualquer sequência de 32 caracteres hexadecimais
+    const hexMatch = input.match(/([A-F0-9]{32})/i);
+    if (hexMatch && hexMatch[1]) {
+      return hexMatch[1];
+    }
+  }
+  
+  // Se não conseguir extrair, retorne o input original como fallback
+  return input;
+}
+
+// Função para extrair o token da URL Z-API se estiver neste formato: /token/XXX/
+function extractZAPIToken(input: string): string {
+  if (!input) return '';
+  
+  // Verificar se parece com uma URL
+  if (input.includes('http') || input.includes('/')) {
+    // Tentar extrair o token após "/token/"
+    const tokenMatch = input.match(/\/token\/([A-Za-z0-9]+)(?:\/|$)/);
+    if (tokenMatch && tokenMatch[1]) {
+      return tokenMatch[1];
+    }
+  }
+  
+  // Se não conseguir extrair, retornar o input original
+  return input;
 }
 
 export interface ZAPIIntegrationDialogProps {

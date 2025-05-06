@@ -4,7 +4,11 @@ import * as schema from "@shared/schema";
 import { 
   insertChannelSchema,
   InsertChannel,
-  ChannelConfig
+  ChannelConfig,
+  channels,
+  conversations,
+  contacts,
+  messages
 } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -995,8 +999,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       const channelId = parseInt(req.params.id);
       
       // Buscar canal
-      const channel = await db.query.schema.channels.findFirst({
-        where: eq(schema.channels.id, channelId)
+      const channel = await db.query.channels.findFirst({
+        where: eq(channels.id, channelId)
       });
       
       if (!channel) {

@@ -114,20 +114,63 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       // Importar funções necessárias
       const zapiService = await import("../services/channels/zapi");
       
-      // Buscar o canal 23 que já sabemos que existe
-      const channel23 = await db.query.channels.findFirst({
+      // Buscar o canal 23, ou criar se não existir
+      let channel23 = await db.query.channels.findFirst({
         where: eq(channels.id, 23)
       });
       
       if (!channel23) {
-        return res.send(`
-          <html>
-            <body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
-              <h1>Erro: Canal não encontrado</h1>
-              <p>O canal com ID 23 não foi encontrado no banco de dados.</p>
-            </body>
-          </html>
-        `);
+        console.log("Canal 23 não encontrado. Criando automaticamente...");
+        
+        // Criar canal Z-API de teste
+        try {
+          // Usar os valores das variáveis de ambiente para configurar o canal
+          const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID;
+          const ZAPI_TOKEN = process.env.ZAPI_TOKEN;
+          const CLIENT_TOKEN_ZAPI = process.env.CLIENT_TOKEN_ZAPI;
+          
+          if (!ZAPI_INSTANCE_ID || !ZAPI_TOKEN || !CLIENT_TOKEN_ZAPI) {
+            return res.send(`
+              <html>
+                <body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
+                  <h1>Erro: Variáveis de ambiente não configuradas</h1>
+                  <p>As variáveis de ambiente ZAPI_INSTANCE_ID, ZAPI_TOKEN e CLIENT_TOKEN_ZAPI precisam estar configuradas.</p>
+                </body>
+              </html>
+            `);
+          }
+          
+          // Inserir o canal com ID 23 fixo
+          console.log("Criando canal 23 com credenciais Z-API do ambiente...");
+          const [newChannel] = await db.insert(channels)
+            .values({
+              id: 23,
+              name: "WhatsApp Z-API (Teste)",
+              type: "whatsapp",
+              isActive: true,
+              config: {
+                provider: "zapi",
+                instanceId: ZAPI_INSTANCE_ID,
+                token: ZAPI_TOKEN,
+                clientToken: CLIENT_TOKEN_ZAPI
+              }
+            })
+            .returning();
+          
+          console.log("Canal 23 criado com sucesso:", newChannel.name);
+          channel23 = newChannel;
+        } catch (createError) {
+          console.error("Erro ao criar canal 23:", createError);
+          return res.send(`
+            <html>
+              <body style="font-family: Arial, sans-serif; text-align: center; margin-top: 50px;">
+                <h1>Erro ao criar canal</h1>
+                <p>Não foi possível criar o canal 23 automaticamente.</p>
+                <p>Erro: ${createError instanceof Error ? createError.message : "Desconhecido"}</p>
+              </body>
+            </html>
+          `);
+        }
       }
       
       // Tentar obter QR code

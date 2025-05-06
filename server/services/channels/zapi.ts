@@ -13,6 +13,15 @@ const ZAPI_TOKEN = process.env.ZAPI_TOKEN;
 const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID;
 const BASE_URL = 'https://api.z-api.io';
 
+// Função de ajuda para garantir que incluímos sempre o Client-Token nos headers
+function getHeadersWithToken(token: string) {
+  return {
+    'Client-Token': token,
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  };
+}
+
 /**
  * Configura o canal Z-API
  * @param channel Canal configurado no sistema
@@ -514,10 +523,7 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
       const statusResponse = await axios.get(
         `${BASE_URL}/instances/${instanceId}/token/${token}/status`,
         {
-          headers: {
-            'Client-Token': token,
-            'Content-Type': 'application/json'
-          }
+          headers: getHeadersWithToken(token)
         }
       );
       
@@ -539,11 +545,7 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
         const qrResponse = await axios.get(
           `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code`,
           {
-            headers: {
-              'Client-Token': token,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            }
+            headers: getHeadersWithToken(token)
           }
         );
         
@@ -587,9 +589,9 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
           // Aguardar um pouco para o QR code ser gerado
           await new Promise(resolve => setTimeout(resolve, 2000));
           
-          // Tentar novamente obter o QR code
+          // Tentar novamente obter o QR code (usando endpoint correto)
           const retryQrResponse = await axios.get(
-            `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code/image`,
+            `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code`,
             {
               headers: {
                 'Client-Token': token,

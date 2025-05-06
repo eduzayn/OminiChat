@@ -270,7 +270,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       
       // Buscar o canal com verificação detalhada
       console.log(`[QRCode Handler] Buscando canal ${channelId} no banco de dados`);
-      const channel = await db.query.channels.findFirst({
+      let channel = await db.query.channels.findFirst({
         where: eq(channels.id, channelId)
       });
       

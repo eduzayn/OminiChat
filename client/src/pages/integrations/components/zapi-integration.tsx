@@ -116,20 +116,27 @@ export function ZAPIIntegrationDialog({
     try {
       // Se for um canal existente, verifica o status usando o ID
       if (channelForm.id) {
+        // Usar o endpoint de QR code em vez do test-connection
+        // Este endpoint verifica o status e retorna QR code se necessário
         const response = await apiRequest<any>(
-          'POST',
-          `/api/channels/${channelForm.id}/test-connection`,
-          { provider: 'zapi' }
+          'GET',
+          `/api/channels/${channelForm.id}/qr-code`,
+          null
         );
         
-        if (response.success && response.connected) {
+        console.log("Resposta do endpoint QR code:", JSON.stringify(response));
+        
+        if (response.success && response.status === "connected") {
           setConnectionStatus('connected');
           setQrCode(null);
-        } else if (response.qrCode) {
+        } else if (response.success && response.status === "waiting_scan" && response.qrcode) {
           setConnectionStatus('disconnected');
-          setQrCode(response.qrCode);
+          setQrCode(response.qrcode);
+          
+          console.log("QR Code recebido para leitura");
         } else {
           setConnectionStatus('disconnected');
+          console.log("Status da conexão:", response.status);
         }
       } else {
         // Para novo canal, apenas verifica se as credenciais estão preenchidas
@@ -382,14 +389,21 @@ export function ZAPIIntegrationDialog({
                   )}
                 </CardContent>
                 <CardFooter>
-                  <Button 
-                    onClick={checkConnectionStatus} 
-                    variant="outline" 
-                    className="w-full"
-                  >
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Verificar conexão
-                  </Button>
+                  <div className="flex flex-col space-y-2 w-full">
+                    <Button 
+                      onClick={checkConnectionStatus} 
+                      variant="outline" 
+                      className="w-full"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Verificar conexão
+                    </Button>
+                    {connectionStatus === 'disconnected' && (
+                      <p className="text-sm text-center text-amber-600">
+                        Se o QR Code não aparecer, tente novamente em alguns segundos. O serviço pode estar gerando um novo código.
+                      </p>
+                    )}
+                  </div>
                 </CardFooter>
               </Card>
 

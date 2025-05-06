@@ -17,9 +17,13 @@ const BASE_URL = 'https://api.z-api.io';
 function getHeadersWithToken(token: string) {
   // Muito importante! De acordo com a documentação Z-API, o Client-Token é crucial
   // para autenticação das requisições e deve estar presente em todos os headers
+  // Tentando várias combinações diferentes porque a API parece ser sensível ao caso
   return {
     'Client-Token': token,
-    'client-token': token, // Adicionando em lowercase também por segurança
+    'client-token': token,
+    'clienttoken': token,
+    'ClientToken': token,
+    'clientToken': token,
     'Content-Type': 'application/json',
     'Accept': 'application/json'
   };
@@ -545,14 +549,13 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
         console.log(`Requisitando QR code para instância ${instanceId} com token ${token}`);
         
         // Usando o endpoint /qr-code/image conforme documentação Z-API
+        // Usando a função getHeadersWithToken para garantir o formato correto do cabeçalho
+        const headers = getHeadersWithToken(token);
+        headers['Accept'] = 'image/png, application/json';
+        
         const qrResponse = await axios.get(
           `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code/image`,
-          {
-            headers: {
-              'Client-Token': token,
-              'Accept': 'image/png, application/json'
-            }
-          }
+          { headers }
         );
         
         console.log("Resposta da API /qr-code/image recebida com status:", qrResponse.status);
@@ -675,14 +678,12 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
         await new Promise(resolve => setTimeout(resolve, 2000));
         
         // Tentar novamente obter o QR code usando /qr-code/image
+        const retryHeaders = getHeadersWithToken(token);
+        retryHeaders['Accept'] = 'image/png, application/json';
+        
         const retryQrResponse = await axios.get(
           `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code/image`,
-          {
-            headers: {
-              'Client-Token': token,
-              'Accept': 'image/png, application/json'
-            }
-          }
+          { headers: retryHeaders }
         );
         
         // Verificar se a resposta contém dados

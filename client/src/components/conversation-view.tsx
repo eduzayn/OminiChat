@@ -100,7 +100,14 @@ function MessageBubble({ message, isAgent }: { message: Message, isAgent: boolea
             ? 'bg-primary-500 text-white chat-bubble-agent' 
             : 'bg-white text-neutral-800 chat-bubble-client'
         }`}>
-          <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+          <p className="text-sm whitespace-pre-wrap">
+            {message.content || "<Mensagem sem conteúdo>"}
+          </p>
+          {!message.content && (
+            <p className="text-xs italic mt-1">
+              {isAgent ? "Mensagem do agente sem conteúdo" : "Mensagem do cliente sem conteúdo"}
+            </p>
+          )}
         </div>
         
         {paymentRequest && (

@@ -45,21 +45,50 @@ export class ZAPIClient {
     this.baseUrl = `https://api.z-api.io/instances/${instanceId}/token/${token}`;
   }
   
-  // Método para obter URLs alternativas que podem ser usadas em caso de falha
-  private getAlternativeBaseUrls(): string[] {
+  // Método para obter combinações de URLs e modos de autenticação a serem testados
+  private getApiConfigurations(): { baseUrl: string; useHeaderToken: boolean; description: string }[] {
     return [
-      // URLs com token no path (formato mais recente da API)
-      `https://api.z-api.io/instances/${this.instanceId}/token/${this.token}`,
+      // Formato com token no path (documentado no Postman) - formato principal a testar
+      { 
+        baseUrl: `https://api.z-api.io/instances/${this.instanceId}/token/${this.token}`,
+        useHeaderToken: false, 
+        description: 'Token no path (formato padrão Postman)' 
+      },
       
-      // URLs alternativas versões mais recentes
-      `https://api.z-api.io/v4/instances/${this.instanceId}/token/${this.token}`,
+      // Formato alternativo com token no header (algumas implementações antigas)
+      { 
+        baseUrl: `https://api.z-api.io/instances/${this.instanceId}`,
+        useHeaderToken: true, 
+        description: 'Token no header Client-Token' 
+      },
       
-      // Alteração do path para instância
-      `https://api.z-api.io/${this.instanceId}/token/${this.token}`,
+      // Formato com prefixo /v2 (possível versão mais recente)
+      { 
+        baseUrl: `https://api.z-api.io/v2/instances/${this.instanceId}/token/${this.token}`,
+        useHeaderToken: false, 
+        description: 'Prefixo /v2, token no path' 
+      },
       
-      // Alteração de domínio
-      `https://sandbox.z-api.io/instances/${this.instanceId}/token/${this.token}`
+      // Formato com prefixo /api (algumas implementações mencionam)
+      { 
+        baseUrl: `https://api.z-api.io/api/instances/${this.instanceId}/token/${this.token}`,
+        useHeaderToken: false, 
+        description: 'Prefixo /api, token no path' 
+      },
+      
+      // Formato URL simples sem /instances (algumas implementações mais antigas)
+      { 
+        baseUrl: `https://api.z-api.io/${this.instanceId}`,
+        useHeaderToken: true, 
+        description: 'URL simples sem /instances, token no header' 
+      }
     ];
+  }
+  
+  // Mantém método original para compatibilidade com código existente
+  private getAlternativeBaseUrls(): string[] {
+    const configs = this.getApiConfigurations();
+    return configs.map(config => config.baseUrl);
   }
 
   // Método público para permitir acesso em outros componentes
@@ -68,20 +97,18 @@ export class ZAPIClient {
     endpoint: string,
     data?: any
   ): Promise<ZAPIResponse> {
-    // Função auxiliar para fazer a requisição com uma URL base específica
-    const executeRequest = async (baseUrl: string): Promise<ZAPIResponse> => {
+    // Função auxiliar para fazer a requisição com uma configuração específica de URL e autenticação
+    const executeRequest = async (config: { baseUrl: string; useHeaderToken: boolean; description: string }): Promise<ZAPIResponse> => {
       try {
-        const url = `${baseUrl}${endpoint}`;
-        // Configurar os headers
-        // Se o token já está na URL, não é necessário incluí-lo no cabeçalho novamente
-        const hasTokenInUrl = baseUrl.includes(`/token/${this.token}`);
+        const url = `${config.baseUrl}${endpoint}`;
         
+        // Configurar os headers com base no método de autenticação
         const headers = {
           'Content-Type': 'application/json',
-          ...(hasTokenInUrl ? {} : { 'Client-Token': this.token })
+          ...(config.useHeaderToken ? { 'Client-Token': this.token } : {})
         };
         
-        console.log(`Tentando ${method} para Z-API: ${url}`);
+        console.log(`Tentando ${method} para Z-API (${config.description}): ${url}`);
 
         let response;
         switch (method) {
@@ -100,9 +127,40 @@ export class ZAPIClient {
         }
 
         console.log(`Resposta Z-API para ${url}: ${JSON.stringify(response.data).substring(0, 200)}...`);
-        return response?.data;
+        
+        // Se a resposta contém um erro "NOT_FOUND" ou similar, não consideramos sucesso
+        if (response.data && 
+            (response.data.error === 'NOT_FOUND' || 
+             (typeof response.data.error === 'string' && response.data.error.includes('NOT_FOUND')))) {
+          return {
+            error: 'NOT_FOUND',
+            message: response.data.message || 'Unable to find matching resource',
+            status: 'error',
+            config_used: config.description
+          };
+        }
+        
+        // Adiciona informação sobre qual configuração funcionou
+        return {
+          ...response.data,
+          config_used: config.description
+        };
       } catch (error) {
         if (axios.isAxiosError(error) && error.response) {
+          // Verificar error "Instance not found" como caso especial
+          if (error.response.status === 400 && 
+              error.response.data && 
+              typeof error.response.data === 'object' &&
+              error.response.data.error === 'Instance not found') {
+            console.error(`Z-API 'Instance not found' error for ${config.baseUrl}${endpoint}`);
+            return {
+              error: 'INSTANCE_NOT_FOUND',
+              message: 'A instância informada não foi encontrada. Verifique o instanceId no painel da Z-API.',
+              status: 'error',
+              config_used: config.description
+            };
+          }
+          
           // Se é NOT_FOUND, vamos fazer um log específico para identificar o problema
           if (error.response.status === 404 || 
              (error.response.data && 
@@ -110,66 +168,118 @@ export class ZAPIClient {
               'message' in error.response.data && 
               error.response.data.message && 
               error.response.data.message.includes('NOT_FOUND'))) {
-            console.error(`Z-API NOT_FOUND error for ${baseUrl}${endpoint}:`, error.response.data);
+            console.error(`Z-API NOT_FOUND error for ${config.baseUrl}${endpoint}:`, error.response.data);
             return {
               error: 'NOT_FOUND',
               message: error.response.data.message || 'Unable to find matching resource',
-              status: 'error'
+              status: 'error',
+              config_used: config.description
             };
           }
           
           return {
             error: `Z-API Error: ${error.response.status} - ${JSON.stringify(error.response.data)}`,
-            status: 'error'
+            status: 'error',
+            config_used: config.description
           };
         }
         
         return {
           error: error instanceof Error ? error.message : 'Unknown error in Z-API request',
-          status: 'error'
+          status: 'error',
+          config_used: config.description
         };
       }
     };
 
-    // Primeiro tenta com a URL base padrão
-    const mainResponse = await executeRequest(this.baseUrl);
+    // Primeiro tenta com a configuração padrão
+    const defaultConfig = {
+      baseUrl: this.baseUrl,
+      useHeaderToken: false,
+      description: 'default config with token in path'
+    };
+    
+    const mainResponse = await executeRequest(defaultConfig);
     
     // Se a resposta principal não contém erro, retorna imediatamente
     if (!mainResponse.error) {
       return mainResponse;
     }
     
-    // Se recebemos NOT_FOUND, tentamos com URLs alternativas
+    // Se recebemos NOT_FOUND ou INSTANCE_NOT_FOUND, tentamos com outras configurações
     if (mainResponse.error === 'NOT_FOUND' || 
-        (typeof mainResponse.error === 'string' && mainResponse.error.includes('NOT_FOUND'))) {
-      console.log('Recebido NOT_FOUND, tentando URLs alternativas para Z-API...');
+        mainResponse.error === 'INSTANCE_NOT_FOUND' ||
+        (typeof mainResponse.error === 'string' && 
+         (mainResponse.error.includes('NOT_FOUND') || 
+          mainResponse.error.includes('Instance not found')))) {
+      console.log('Recebido erro de recurso não encontrado, tentando configurações alternativas para Z-API...');
       
-      // Tentar cada URL alternativa
-      const alternativeUrls = this.getAlternativeBaseUrls();
-      for (const altBaseUrl of alternativeUrls) {
-        console.log(`Tentando URL alternativa para Z-API: ${altBaseUrl}`);
-        const altResponse = await executeRequest(altBaseUrl);
+      // Tentar cada configuração alternativa
+      const alternativeConfigs = this.getApiConfigurations();
+      const errors = [mainResponse];
+      
+      for (const config of alternativeConfigs) {
+        // Pular a configuração padrão que já testamos
+        if (config.baseUrl === this.baseUrl && !config.useHeaderToken) {
+          continue;
+        }
         
-        // Se alguma URL alternativa funcionar sem erro, retorna o resultado
-        if (!altResponse.error) {
-          console.log(`URL alternativa funcionou: ${altBaseUrl}`);
+        console.log(`Tentando configuração alternativa para Z-API: ${config.description}`);
+        const response = await executeRequest(config);
+        
+        // Se alguma configuração alternativa funcionar sem erro, retorna o resultado
+        if (!response.error) {
+          console.log(`Configuração alternativa funcionou: ${config.description}`);
           
           // Atualiza a URL base para usar esta que funcionou nas próximas chamadas
-          this.baseUrl = altBaseUrl;
+          this.baseUrl = config.baseUrl;
           
-          return altResponse;
+          return response;
         }
+        
+        errors.push(response);
       }
       
-      // Se chegamos aqui, nenhuma URL alternativa funcionou
-      console.error('Todas as URLs alternativas falharam com NOT_FOUND');
+      // Se chegamos aqui, nenhuma configuração alternativa funcionou
+      console.error('Todas as configurações alternativas falharam');
       
-      // Retornamos a resposta original com informação adicional
+      // Verificar se todos os erros são "Instance not found", o que indica credenciais inválidas
+      const allInstanceNotFound = errors.every(e => 
+        e.error === 'INSTANCE_NOT_FOUND' || 
+        (typeof e.error === 'string' && e.error.includes('Instance not found'))
+      );
+      
+      if (allInstanceNotFound) {
+        return {
+          error: 'INVALID_CREDENTIALS',
+          message: 'ID de instância inválido. Verifique o instanceId no painel da Z-API.',
+          status: 'error',
+          attempted_configs: errors.map(e => e.config_used)
+        };
+      }
+      
+      // Verificar se todos os erros são NOT_FOUND, o que pode indicar mudança na API
+      const allNotFound = errors.every(e => 
+        e.error === 'NOT_FOUND' || 
+        (typeof e.error === 'string' && e.error.includes('NOT_FOUND'))
+      );
+      
+      if (allNotFound) {
+        return {
+          error: 'API_COMPATIBILITY_ERROR',
+          message: 'Nenhuma versão da API Z-API conseguiu processar esta solicitação. Verifique suas credenciais e a documentação da versão atual da Z-API.',
+          status: 'error',
+          attempted_configs: errors.map(e => e.config_used)
+        };
+      }
+      
+      // Retornamos o erro geral para outros tipos de erro
       return {
-        ...mainResponse,
-        error: 'API_COMPATIBILITY_ERROR',
-        message: 'Nenhuma versão da API Z-API conseguiu processar esta solicitação. Verifique suas credenciais e a documentação da versão atual da Z-API.',
-        attempted_urls: [this.baseUrl, ...alternativeUrls]
+        error: 'MULTIPLE_ERRORS',
+        message: 'Múltiplos erros ao tentar acessar a API Z-API. Verifique suas credenciais e a documentação atualizada.',
+        status: 'error',
+        attempted_configs: errors.map(e => e.config_used),
+        detailed_errors: errors
       };
     }
     
@@ -422,11 +532,12 @@ export class ZAPIClient {
   
   // Obter QR Code para autenticação
   async getQRCode(): Promise<ZAPIResponse> {
-    console.log('Requesting Z-API QR Code for connection');
+    console.log('Fetching Z-API QR code using multiple endpoints and authentication methods');
     
     try {
-      // Verificar primeiro se o dispositivo já está conectado
+      // Verificar primeiro o status para não tentar obter QR code se já está conectado
       const statusResponse = await this.getStatus();
+      
       if (statusResponse.connected) {
         console.log('Device already connected, no need for QR code');
         return {
@@ -436,7 +547,7 @@ export class ZAPIClient {
       }
       
       // Se o status indicou erro de credenciais, não adianta tentar obter QR code
-      if (statusResponse.error === 'INVALID_CREDENTIALS') {
+      if (statusResponse.error === 'INVALID_CREDENTIALS' || statusResponse.error === 'INSTANCE_NOT_FOUND') {
         console.error('Cannot get QR code - invalid credentials detected in status check');
         return {
           ...statusResponse,
@@ -454,121 +565,194 @@ export class ZAPIClient {
         { path: '/qrcode', description: 'Traditional QR code endpoint (fallback)' }        // Endpoint tradicional (fallback)
       ];
       
-      // Usando diretamente o token no path da URL
-      
+      // Obter todas as configurações de API (URL + autenticação)
+      const apiConfigurations = this.getApiConfigurations();
       const errors = [];
       
-      // Tenta cada endpoint
-      for (const endpoint of qrEndpointsToTry) {
-        try {
-          console.log(`Trying Z-API QR code from ${endpoint.description}: ${endpoint.path}`);
-          
-          // Acessa diretamente sem passar pelos headers
-          const response = await this.makeRequest('GET', endpoint.path, undefined);
-          
-          // Se não tem erro, verificar se tem QR code na resposta
-          if (!response.error) {
-            // Verificar os diferentes formatos possíveis do QR code
-            const qrCodeValue = response.qrcode || response.base64 || response.image || response.qrCode || response.value;
+      // Para cada combinação de configuração API + endpoint
+      for (const config of apiConfigurations) {
+        const originalBaseUrl = this.baseUrl;
+        
+        // Temporariamente muda a baseUrl para testar esta configuração
+        this.baseUrl = config.baseUrl;
+        
+        for (const endpoint of qrEndpointsToTry) {
+          try {
+            console.log(`Tentando obter QR code com ${config.description} + ${endpoint.description}: ${endpoint.path}`);
+            
+            // Criar headers conforme configuração
+            const headers = {
+              'Content-Type': 'application/json',
+              ...(config.useHeaderToken ? { 'Client-Token': this.token } : {})
+            };
+            
+            // Construir URL completa
+            const url = `${config.baseUrl}${endpoint.path}`;
+            
+            console.log(`Fazendo requisição GET para: ${url}`);
+            
+            // Fazer chamada direta com axios por mais controle
+            let response;
+            try {
+              response = await axios.get(url, { headers });
+              console.log(`Resposta HTTP ${response.status} de ${url}`);
+            } catch (axiosError) {
+              if (axios.isAxiosError(axiosError) && axiosError.response) {
+                console.error(`Erro HTTP ${axiosError.response.status} de ${url}:`, 
+                  axiosError.response.data ? JSON.stringify(axiosError.response.data) : 'Sem dados na resposta');
+                
+                // Caso especial para Instance not found
+                if (axiosError.response.status === 400 && 
+                    axiosError.response.data?.error === 'Instance not found') {
+                  errors.push({
+                    config: config.description,
+                    endpoint: endpoint.path,
+                    error: 'INSTANCE_NOT_FOUND',
+                    message: 'A instância informada não foi encontrada.'
+                  });
+                  
+                  // Pular para o próximo endpoint
+                  continue;
+                }
+              }
+              
+              // Para outros erros, apenas registrar e continuar
+              console.error(`Erro ao acessar ${url}:`, axiosError.message || 'Erro desconhecido');
+              errors.push({
+                config: config.description,
+                endpoint: endpoint.path,
+                error: axiosError.message || 'Erro desconhecido'
+              });
+              
+              // Pular para o próximo endpoint
+              continue;
+            }
+            
+            // Se chegamos aqui, a requisição foi bem-sucedida em termos HTTP
+            
+            // Verificar se a resposta contém um erro NOT_FOUND
+            if (response.data && response.data.error === 'NOT_FOUND') {
+              console.log(`Resposta contém erro NOT_FOUND: ${response.data.message || 'Sem mensagem'}`);
+              errors.push({
+                config: config.description,
+                endpoint: endpoint.path,
+                error: 'NOT_FOUND',
+                message: response.data.message || 'Endpoint not found'
+              });
+              
+              // Pular para o próximo endpoint
+              continue;
+            }
+            
+            // Verificar se tem QR code na resposta usando vários formatos possíveis
+            const qrCodeValue = response.data?.qrcode || 
+                              response.data?.base64 || 
+                              response.data?.image || 
+                              response.data?.qrCode || 
+                              response.data?.value;
             
             if (qrCodeValue) {
-              console.log(`Successfully retrieved QR code from ${endpoint.path}`);
+              console.log(`SUCESSO! QR code obtido com ${config.description} + ${endpoint.description}`);
+              
+              // Restaurar URL base original
+              this.baseUrl = originalBaseUrl;
+              
               return {
                 qrcode: qrCodeValue,
                 status: 'success',
-                endpoint_used: endpoint.path
+                endpoint_used: endpoint.path,
+                config_used: config.description
+              };
+            } else if (response.data?.connected === true) {
+              console.log(`Dispositivo já está conectado (config: ${config.description}, endpoint: ${endpoint.path})`);
+              
+              // Restaurar URL base original
+              this.baseUrl = originalBaseUrl;
+              
+              return {
+                connected: true,
+                status: 'connected',
+                message: 'Device already connected',
+                endpoint_used: endpoint.path,
+                config_used: config.description
               };
             } else {
-              console.log(`Endpoint ${endpoint.path} returned success but no QR code data:`, response);
-              // Se contém 'connected' e é true, o dispositivo já está conectado
-              if (response.connected === true) {
-                return {
-                  ...response,
-                  message: 'Device already connected'
-                };
-              }
+              console.log(`Resposta não contém QR code nem indicação de conectado:`, 
+                JSON.stringify(response.data).substring(0, 200));
+              
+              errors.push({
+                config: config.description,
+                endpoint: endpoint.path,
+                error: 'NO_QR_CODE',
+                message: 'Resposta não contém QR code',
+                data: response.data
+              });
             }
-          }
-          
-          // Armazena o erro para diagnóstico
-          errors.push({
-            endpoint: endpoint.path,
-            error: response.error,
-            message: response.message
-          });
-        } catch (endpointError) {
-          console.error(`Error with QR endpoint ${endpoint.path}:`, endpointError);
-          errors.push({
-            endpoint: endpoint.path,
-            error: endpointError instanceof Error ? endpointError.message : 'Unknown error'
-          });
-        }
-      }
-      
-      // Se todas as tentativas falharam, vamos fazer uma requisição direta para demonstração
-      try {
-        console.log('Trying direct API call to Z-API QR code endpoint without client library...');
-        
-        // Construir URL diretamente conforme documentação Z-API no Postman
-        const directUrl = `https://api.z-api.io/instances/${this.instanceId}/token/${this.token}/qr-code`;
-        console.log(`Making direct GET request to: ${directUrl} (from Postman docs)`);
-        
-        const directResponse = await axios.get(directUrl);
-        
-        if (directResponse?.data) {
-          const qrCodeValue = directResponse.data.qrcode || 
-                        directResponse.data.base64 || 
-                        directResponse.data.image || 
-                        directResponse.data.qrCode || 
-                        directResponse.data.value;
-          
-          if (qrCodeValue) {
-            console.log('Successfully retrieved QR code from direct API call');
-            return {
-              qrcode: qrCodeValue,
-              status: 'success',
-              endpoint_used: 'direct-call'
-            };
+          } catch (endpointError) {
+            console.error(`Erro geral com ${config.description} + ${endpoint.path}:`, endpointError);
+            errors.push({
+              config: config.description,
+              endpoint: endpoint.path,
+              error: endpointError instanceof Error ? endpointError.message : 'Erro desconhecido'
+            });
           }
         }
-      } catch (directError) {
-        console.error('Error with direct API call:', directError);
-        errors.push({
-          endpoint: 'direct-call',
-          error: directError instanceof Error ? directError.message : 'Unknown error with direct call'
-        });
+        
+        // Restaurar URL base original após testar todos os endpoints com esta configuração
+        this.baseUrl = originalBaseUrl;
       }
       
-      // Se todas as tentativas falharam, retornar erro detalhado
-      console.error('All QR code endpoints failed:', errors);
+      // Se chegamos aqui, nenhuma combinação funcionou
+      console.error('Todas as combinações de configuração e endpoint falharam.');
+      console.error(`Total de ${errors.length} erros:`);
       
-      // Verificar se todos os erros são NOT_FOUND, indicando provavelmente credenciais inválidas
-      const allNotFound = errors.length > 0 && errors.every(e => 
+      // Detectar padrões específicos de erro
+      
+      // Verificar se muitos erros foram "Instance not found"
+      const instanceNotFoundErrors = errors.filter(e => 
+        e.error === 'INSTANCE_NOT_FOUND' || 
+        (typeof e.error === 'string' && e.error.includes('Instance not found'))
+      );
+      
+      if (instanceNotFoundErrors.length > 3) {
+        console.log(`Padrão detectado: ${instanceNotFoundErrors.length} erros de 'Instance not found'`);
+        return {
+          error: 'INVALID_INSTANCE_ID',
+          message: 'O ID da instância informado não foi encontrado. Verifique se o instanceId está correto no painel da Z-API.',
+          status: 'error',
+          detailed_errors: errors.slice(0, 5) // Limitando para não sobrecarregar a resposta
+        };
+      }
+      
+      // Verificar se muitos erros foram NOT_FOUND
+      const notFoundErrors = errors.filter(e => 
         e.error === 'NOT_FOUND' || 
         (typeof e.error === 'string' && e.error.includes('NOT_FOUND'))
       );
       
-      if (allNotFound) {
+      if (notFoundErrors.length > (errors.length / 2)) {
+        console.log(`Padrão detectado: ${notFoundErrors.length} erros 'NOT_FOUND' de ${errors.length} total`);
         return {
-          error: 'INVALID_CREDENTIALS',
-          connected: false,
-          message: 'As credenciais da Z-API parecem ser inválidas. Verifique o instanceId e token no painel da Z-API.',
-          attempted_endpoints: errors.map(e => e.endpoint),
-          detailed_errors: errors
+          error: 'API_COMPATIBILITY_ERROR',
+          message: 'Múltiplos erros "NOT_FOUND" sugerem incompatibilidade com a versão atual da API Z-API. Verifique a documentação atualizada.',
+          status: 'error',
+          detailed_errors: errors.slice(0, 5) // Limitando para não sobrecarregar a resposta
         };
       }
       
+      // Erro genérico quando não identificamos um padrão claro
       return { 
         error: 'QR_CODE_UNAVAILABLE',
-        message: 'Não foi possível obter QR code de nenhum endpoint da Z-API. Verifique suas credenciais e a documentação atualizada.',
-        attempted_endpoints: errors.map(e => e.endpoint),
-        detailed_errors: errors
+        message: 'Não foi possível obter QR code de nenhuma combinação de endpoint da Z-API. Verifique suas credenciais e a documentação atualizada.',
+        status: 'error',
+        detailed_errors: errors.slice(0, 10) // Limitando para não sobrecarregar a resposta
       };
     } catch (error) {
-      console.error('Error fetching QR code:', error);
+      console.error('Erro geral ao tentar obter QR code:', error);
       return { 
         error: error instanceof Error ? error.message : 'Unknown error',
-        message: 'Falha ao obter QR code. Verifique suas credenciais e a versão da API.'
+        message: 'Falha ao obter QR code. Verifique suas credenciais e a versão da API.',
+        status: 'error'
       };
     }
   }
@@ -582,7 +766,7 @@ export async function setupZAPIChannel(channel: Channel): Promise<{ status: stri
     if (!config || !config.instanceId || !config.token) {
       return {
         status: "error",
-        message: "Missing Z-API credentials (instanceId, token)"
+        message: "Credenciais Z-API ausentes (instanceId, token). Por favor, configure o canal com as credenciais corretas."
       };
     }
     
@@ -592,65 +776,153 @@ export async function setupZAPIChannel(channel: Channel): Promise<{ status: stri
     if (!instanceId || !token) {
       return {
         status: "error",
-        message: "Missing Z-API credentials (instanceId, token)"
+        message: "Credenciais Z-API ausentes (instanceId, token). Por favor, configure o canal com as credenciais corretas."
       };
     }
 
-    // Create Z-API client
+    // Criar cliente Z-API com diagnóstico aprimorado
+    console.log(`Criando cliente Z-API para instance ${instanceId.substring(0, 8)}...`);
     const client = new ZAPIClient(instanceId, token);
 
-    // Check connection status
+    // Verificar estado de conexão
+    console.log('Verificando status da conexão Z-API...');
     const statusResponse = await client.getStatus();
     
+    // Tratamento específico para diferentes tipos de erros
     if (statusResponse.error) {
+      console.log(`[Z-API Setup] Erro ao verificar status: ${statusResponse.error}`);
+      
+      // Correspondência de padrões de erro para mensagens mais amigáveis
+      if (statusResponse.error === 'INVALID_CREDENTIALS' || 
+          statusResponse.error === 'INSTANCE_NOT_FOUND' || 
+          statusResponse.error === 'INVALID_INSTANCE_ID') {
+        return {
+          status: "error",
+          message: "Credenciais Z-API inválidas. Verifique o instanceId e token no painel da Z-API e tente novamente."
+        };
+      }
+      
+      if (statusResponse.error === 'API_COMPATIBILITY_ERROR') {
+        return {
+          status: "error",
+          message: "Incompatibilidade com a API Z-API. A versão da API pode ter mudado desde a última atualização deste sistema. Verifique a documentação mais recente da Z-API."
+        };
+      }
+      
+      if (statusResponse.error === 'STATUS_CHECK_FAILED') {
+        // Verificar se há algum indício de problema de autenticação
+        const authErrors = statusResponse.detailed_errors?.filter(e => 
+          e.error === 'Client-Token is required' || 
+          e.message?.includes('Token') || 
+          e.message?.includes('Authentication')
+        );
+        
+        if (authErrors && authErrors.length > 0) {
+          return {
+            status: "error",
+            message: "Falha na autenticação Z-API. Verifique se o token está correto e tente novamente."
+          };
+        }
+        
+        return {
+          status: "error",
+          message: "Falha ao verificar status da conexão Z-API. Verifique se o serviço Z-API está disponível e tente novamente."
+        };
+      }
+      
+      // Outros erros não classificados
       return {
         status: "error",
-        message: `Error checking Z-API status: ${statusResponse.error}`
+        message: `Erro ao verificar status Z-API: ${statusResponse.error}. Detalhes: ${statusResponse.message || 'Nenhum detalhe disponível'}`
       };
     }
 
-    // If connected, return success
+    // Se conectado, configurar webhook e retornar sucesso
     if (statusResponse.connected) {
-      // Set webhook URL for notifications
+      console.log('Z-API já está conectado. Configurando webhook...');
+      
+      // Determinar URL do webhook baseada no ambiente
       const webhookUrl = process.env.BASE_URL 
         ? `${process.env.BASE_URL}/api/webhooks/zapi/${channel.id}` 
         : `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}/api/webhooks/zapi/${channel.id}`;
       
-      await client.setWebhook(webhookUrl);
+      console.log(`Configurando webhook para: ${webhookUrl}`);
+      const webhookResponse = await client.setWebhook(webhookUrl);
+      
+      if (webhookResponse.error) {
+        console.log(`Alerta: Erro ao configurar webhook: ${webhookResponse.error}`);
+        // Continuamos mesmo com erro de webhook, já que o WhatsApp está conectado
+      } else {
+        console.log('Webhook configurado com sucesso');
+      }
 
       return {
         status: "success",
-        message: "Z-API WhatsApp connected successfully"
+        message: "WhatsApp Z-API conectado com sucesso!"
       };
     } 
     
-    // If not connected, return QR code
+    // Se não conectado, obter QR code
+    console.log('Z-API não está conectado. Solicitando QR code...');
     const qrResponse = await client.getQRCode();
     
+    // Tratamento específico para diferentes tipos de erros
     if (qrResponse.error) {
+      console.log(`[Z-API Setup] Erro ao obter QR code: ${qrResponse.error}`);
+      
+      if (qrResponse.error === 'INVALID_CREDENTIALS' || 
+          qrResponse.error === 'INSTANCE_NOT_FOUND' || 
+          qrResponse.error === 'INVALID_INSTANCE_ID') {
+        return {
+          status: "error",
+          message: "Credenciais Z-API inválidas. Verifique o instanceId e token no painel da Z-API e tente novamente."
+        };
+      }
+      
+      if (qrResponse.error === 'API_COMPATIBILITY_ERROR') {
+        return {
+          status: "error",
+          message: "Incompatibilidade com a API Z-API ao obter QR code. A versão da API pode ter mudado. Verifique a documentação atual da Z-API."
+        };
+      }
+      
+      if (qrResponse.error === 'QR_CODE_UNAVAILABLE') {
+        return {
+          status: "error",
+          message: "Não foi possível obter o QR code de nenhum endpoint da Z-API. Verifique se o serviço está operacional e tente novamente."
+        };
+      }
+      
+      // Outros erros não classificados
       return {
         status: "error",
-        message: `Error generating QR code: ${qrResponse.error}`
+        message: `Erro ao gerar QR code: ${qrResponse.error}. ${qrResponse.message || ''}`
       };
     }
 
+    // Se o QR code foi obtido, retornar para exibição
     if (qrResponse.qrcode) {
+      console.log('QR code obtido com sucesso. Aguardando escaneamento...');
       return {
         status: "pending",
-        message: "Scan the QR code with WhatsApp to connect",
+        message: "Escaneie o QR code com seu WhatsApp para conectar",
         qrCode: qrResponse.qrcode
       };
     }
 
+    // Caso de falha sem erro explícito
+    console.log('Falha ao obter QR code ou status de conexão');
     return {
       status: "error",
-      message: "Failed to get connection status or QR code"
+      message: "Falha ao obter status de conexão ou QR code. Verifique suas credenciais e tente novamente."
     };
   } catch (error) {
-    console.error("Error setting up Z-API WhatsApp channel:", error);
+    console.error("Erro ao configurar canal WhatsApp Z-API:", error);
     return {
       status: "error",
-      message: error instanceof Error ? error.message : "Unknown error setting up Z-API WhatsApp"
+      message: error instanceof Error 
+        ? `Erro inesperado: ${error.message}` 
+        : "Erro desconhecido ao configurar WhatsApp Z-API"
     };
   }
 }

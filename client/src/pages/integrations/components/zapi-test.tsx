@@ -336,9 +336,10 @@ export function ZAPITestPanel() {
 
   return (
     <Tabs defaultValue="qrcode" className="w-full">
-      <TabsList className="grid grid-cols-3 mb-4">
+      <TabsList className="grid grid-cols-4 mb-4">
         <TabsTrigger value="qrcode">QR Code</TabsTrigger>
         <TabsTrigger value="message">Enviar Mensagem</TabsTrigger>
+        <TabsTrigger value="inbox">Caixa de Entrada</TabsTrigger>
         <TabsTrigger value="diagnostic">Diagnóstico</TabsTrigger>
       </TabsList>
       
@@ -521,6 +522,90 @@ export function ZAPITestPanel() {
                 )}
                 Enviar Mensagem
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </TabsContent>
+      
+      <TabsContent value="inbox">
+        <Card>
+          <CardHeader>
+            <CardTitle>Configuração da Caixa de Entrada</CardTitle>
+            <CardDescription>
+              Configure seu canal Z-API para receber e enviar mensagens na caixa de entrada
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid w-full items-center gap-1.5">
+                <Label htmlFor="channel-select-inbox">Canal WhatsApp</Label>
+                <select 
+                  id="channel-select-inbox"
+                  value={selectedChannel}
+                  onChange={(e) => setSelectedChannel(Number(e.target.value))}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={loadingChannels}
+                >
+                  {channels.map(channel => (
+                    <option key={channel.id} value={channel.id}>
+                      {channel.name} (ID: {channel.id})
+                    </option>
+                  ))}
+                  {channels.length === 0 && (
+                    <option value="">Nenhum canal disponível</option>
+                  )}
+                </select>
+              </div>
+              
+              <div className="border rounded-md p-4">
+                <h3 className="text-lg font-medium">Status do Webhook</h3>
+                <p className="text-sm text-gray-500 mt-1 mb-3">
+                  O webhook é necessário para receber mensagens do WhatsApp na sua caixa de entrada.
+                </p>
+                
+                <div className="flex items-center gap-4">
+                  <Button onClick={() => verifyWebhookConfiguration()} disabled={!selectedChannel}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Verificar Webhook
+                  </Button>
+                  
+                  <Button variant="outline" onClick={() => configureWebhook()} disabled={!selectedChannel}>
+                    <Webhook className="h-4 w-4 mr-2" />
+                    Configurar Webhook
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="border rounded-md p-4">
+                <h3 className="text-lg font-medium">Conexão com a Caixa de Entrada</h3>
+                <p className="text-sm text-gray-500 mt-1 mb-3">
+                  Status da integração do canal com a caixa de entrada do sistema.
+                </p>
+                
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="font-medium">Status da Conexão:</div>
+                  {connectionStatus === 'connected' ? (
+                    <span className="flex items-center text-green-600">
+                      <Check className="h-5 w-5 mr-1" />
+                      Conectado
+                    </span>
+                  ) : (
+                    <span className="flex items-center text-red-600">
+                      <AlertCircle className="h-5 w-5 mr-1" />
+                      Desconectado
+                    </span>
+                  )}
+                </div>
+                
+                <Button 
+                  onClick={() => testInboxMessage()} 
+                  disabled={!selectedChannel || connectionStatus !== 'connected'}
+                  variant="secondary"
+                >
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Enviar Mensagem de Teste para Caixa
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

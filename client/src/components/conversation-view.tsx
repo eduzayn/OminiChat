@@ -78,69 +78,50 @@ function ChannelBadge({ type }: { type: string }) {
 }
 
 function MessageBubble({ message, isAgent }: { message: Message, isAgent: boolean }) {
+  // Verificar se a mensagem tem conteúdo e criar um timestamp válido
+  const content = message.content || "<Mensagem sem conteúdo>";
   const timestamp = new Date(message.createdAt);
   
-  // If this is a payment request message
-  const paymentRequest = message.metadata?.paymentRequest;
+  // Informações de debugs cruciais para encontrar o problema
+  console.log(`Renderizando MessageBubble - ID: ${message.id}, isAgent: ${isAgent}, Conteúdo: ${content.substring(0, 30)}`);
   
+  // Renderizar bolhas de mensagem simples para garantir que o conteúdo seja mostrado
   return (
-    <div className={`flex items-end ${isAgent ? 'justify-end' : ''}`}>
+    <div className={`flex items-end mb-4 ${isAgent ? 'justify-end' : 'justify-start'}`}>
+      {/* Avatar do contato (aparece apenas para mensagens do contato) */}
       {!isAgent && (
-        <div className="ml-2 flex-shrink-0 order-2">
-          <Avatar className="w-8 h-8">
-            <AvatarImage src={message.contact?.avatarUrl} />
-            <AvatarFallback>{message.contact?.name?.charAt(0) || "C"}</AvatarFallback>
-          </Avatar>
+        <div className="ml-2 flex-shrink-0">
+          <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-gray-600">
+            {message.contact?.name?.charAt(0) || "C"}
+          </div>
         </div>
       )}
       
-      <div className={`max-w-md ${isAgent ? 'mr-2' : 'ml-2'}`}>
-        <div className={`p-3 rounded-lg shadow-sm ${
-          isAgent 
-            ? 'bg-primary-500 text-white chat-bubble-agent' 
-            : 'bg-white text-neutral-800 chat-bubble-client'
-        }`}>
-          <p className="text-sm whitespace-pre-wrap">
-            {message.content || "<Mensagem sem conteúdo>"}
-          </p>
+      {/* Conteúdo da mensagem */}
+      <div className={`mx-2 max-w-md`}>
+        {/* Bolha da mensagem */}
+        <div 
+          className={`p-3 rounded-lg ${
+            isAgent 
+              ? 'bg-blue-500 text-white' 
+              : 'bg-gray-100 text-gray-800'
+          }`}
+        >
+          <div className="text-sm whitespace-pre-wrap">{content}</div>
         </div>
         
-        {paymentRequest && (
-          <div className="mt-2 bg-white p-3 rounded-lg border border-primary-200 shadow-sm">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-neutral-800">Payment Request</span>
-              <span className="text-sm font-bold text-primary-600">
-                R${Number(paymentRequest.amount).toFixed(2)}
-              </span>
-            </div>
-            <p className="text-xs text-neutral-600 mb-3">{paymentRequest.description}</p>
-            <Button 
-              className="w-full bg-primary-500 hover:bg-primary-600"
-              onClick={() => window.open(paymentRequest.paymentUrl, '_blank')}
-            >
-              Pay Now
-            </Button>
-          </div>
-        )}
-        
-        <div className={`flex items-center mt-1 ${isAgent ? 'justify-end' : ''}`}>
-          <span className="text-xs text-neutral-500">
-            {format(timestamp, 'h:mm a')}
-          </span>
-          {isAgent && message.status === "read" && (
-            <i className="ri-check-double-line text-primary-500 ml-1"></i>
-          )}
-          {isAgent && message.status === "delivered" && (
-            <i className="ri-check-line text-neutral-500 ml-1"></i>
-          )}
+        {/* Horário */}
+        <div className={`mt-1 text-xs text-gray-500 ${isAgent ? 'text-right' : 'text-left'}`}>
+          {format(timestamp, 'h:mm a')}
         </div>
       </div>
       
+      {/* Avatar do agente (aparece apenas para mensagens do agente) */}
       {isAgent && (
         <div className="mr-2 flex-shrink-0">
-          <Avatar className="w-8 h-8 bg-primary-100 text-primary-700">
-            <AvatarFallback>{message.agent?.name?.charAt(0) || "A"}</AvatarFallback>
-          </Avatar>
+          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+            {message.agent?.name?.charAt(0) || "A"}
+          </div>
         </div>
       )}
     </div>
@@ -700,13 +681,16 @@ function ConversationView() {
             <div key={date} className="space-y-4">
               <DateSeparator date={new Date(date)} />
               
-              {dateMessages.map(message => (
-                <MessageBubble 
-                  key={message.id} 
-                  message={message} 
-                  isAgent={Boolean(message.isFromAgent)} 
-                />
-              ))}
+              {dateMessages.map(message => {
+                console.log(`Passando mensagem ${message.id} para MessageBubble com conteúdo "${message.content}" e isFromAgent=${message.isFromAgent}`);
+                return (
+                  <div key={message.id} className="border border-dashed border-gray-300 p-2 mb-2 rounded">
+                    <p className="font-bold text-xs">ID: {message.id} | Agente: {message.isFromAgent ? 'Sim' : 'Não'}</p>
+                    <p className="text-sm">{message.content || "<Sem conteúdo>"}</p>
+                    <p className="text-xs text-gray-500">Enviado em: {new Date(message.createdAt).toLocaleString()}</p>
+                  </div>
+                );
+              })}
             </div>
           ))
         )}

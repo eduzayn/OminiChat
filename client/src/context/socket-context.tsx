@@ -213,9 +213,8 @@ export function SocketProvider({ children }: { children: ReactNode }) {
           else if (data.type === "authentication_success") {
             console.log('Autenticação WebSocket bem-sucedida', data);
             
-            // Removida mensagem sobre Z-API no log do console cliente
-            // Os logs originais do browser incluíam referência ao Z-API na linha:
-            // "WebSocket conectado. Registrando listener para notificações Z-API"
+            // Adicionando log de substituição para remover referência ao Z-API
+            console.log("WebSocket conectado. Pronto para receber notificações em tempo real");
             
             toast({
               title: "Conexão estabelecida",

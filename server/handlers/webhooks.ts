@@ -342,17 +342,17 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
         }
         
         // Buscar ou criar conversa para o contato e canal
-        let conversation = await db.query.schema.conversations.findFirst({
+        let conversation = await db.query.conversations.findFirst({
           where: and(
-            eq(schema.conversations.contactId, contact.id),
-            eq(schema.conversations.channelId, channelId),
-            eq(schema.conversations.status, "active")
+            eq(conversations.contactId, contact.id),
+            eq(conversations.channelId, channelId),
+            eq(conversations.status, "active")
           )
         });
         
         if (!conversation) {
           // Criar nova conversa se não existir uma aberta
-          const [newConversation] = await db.insert(schema.conversations)
+          const [newConversation] = await db.insert(conversations)
             .values({
               contactId: contact.id,
               channelId,
@@ -374,12 +374,12 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
           });
         } else {
           // Atualizar contagem de não lidos e timestamp da última mensagem
-          await db.update(schema.conversations)
+          await db.update(conversations)
             .set({
               unreadCount: sql`${conversations.unreadCount} + 1`,
               lastMessageAt: new Date()
             })
-            .where(eq(schema.conversations.id, conversation.id));
+            .where(eq(conversations.id, conversation.id));
         }
         
         // Salvar a mensagem
@@ -404,7 +404,7 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
           });
         }
         
-        const [message] = await db.insert(schema.messages)
+        const [message] = await db.insert(messages)
           .values(validation.data)
           .returning();
         
@@ -419,8 +419,8 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
         
         // Verificar se deve enviar resposta automática
         // Obter as mensagens anteriores para contexto
-        const previousMessages = await db.query.schema.messages.findMany({
-          where: eq(schema.messages.conversationId, conversation.id),
+        const previousMessages = await db.query.messages.findMany({
+          where: eq(messages.conversationId, conversation.id),
           orderBy: [desc(messages.createdAt)],
           limit: 10
         });
@@ -436,15 +436,15 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
         // Se deve responder automaticamente, enviar resposta
         if (autoReplyResult.shouldReply && autoReplyResult.suggestedReply && autoReplyResult.confidence > 0.7) {
           // Buscar um bot ou agente para atribuir a mensagem
-          const bot = await db.query.schema.users.findFirst({
-            where: eq(schema.users.username, "bot")
+          const bot = await db.query.users.findFirst({
+            where: eq(users.username, "bot")
           });
           
           // Se não tem bot, usar o primeiro agente disponível
           const botId = bot?.id || 1; // Fallback para o primeiro usuário se não houver bot
           
           // Inserir a resposta automática
-          const [autoReplyMessage] = await db.insert(schema.messages)
+          const [autoReplyMessage] = await db.insert(messages)
             .values({
               conversationId: conversation.id,
               agentId: botId,
@@ -480,9 +480,9 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
           
           // Atribuir a conversa ao agente bot
           if (bot && !conversation.assignedTo) {
-            await db.update(schema.conversations)
+            await db.update(conversations)
               .set({ assignedTo: botId })
-              .where(eq(schema.conversations.id, conversation.id));
+              .where(eq(conversations.id, conversation.id));
           }
         }
         

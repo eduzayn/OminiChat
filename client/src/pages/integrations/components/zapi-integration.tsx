@@ -241,10 +241,9 @@ function WhatsAppQRCode({ channelId }: { channelId: number }) {
           <h3 className="text-red-800 font-medium mb-2">Erro ao conectar WhatsApp</h3>
           <div className="text-gray-700 text-sm whitespace-pre-wrap max-h-64 overflow-y-auto mb-4">
             {error.split('\n').map((line, index) => (
-              <React.Fragment key={index}>
+              <div key={index} className="line">
                 {line}
-                <br />
-              </React.Fragment>
+              </div>
             ))}
           </div>
           

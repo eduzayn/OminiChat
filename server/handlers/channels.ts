@@ -107,7 +107,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
   });
   
   // Novo endpoint com HTML minimalista para visualizar QR Code diretamente
-  app.get(`${apiPrefix}/test-zapi-qrcode-view`, async (req, res) => {
+  app.get('/api/test-zapi-qrcode-view', async (req, res) => {
     try {
       console.log("Gerando página HTML para visualização de QR code...");
       

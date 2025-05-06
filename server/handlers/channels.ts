@@ -141,6 +141,13 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
         qrCodeResult.qrCode ? "QR Code obtido (não exibido no log)" : "Sem QR Code"
       );
       
+      if (qrCodeResult.qrCode) {
+        // Verificar se o QR code parece ser válido (começa com data:image)
+        const isValidQrCode = qrCodeResult.qrCode.startsWith('data:image');
+        const qrCodeLength = qrCodeResult.qrCode.length;
+        console.log(`Diagnóstico do QR Code: Válido=${isValidQrCode}, Tamanho=${qrCodeLength}, Primeiros 50 caracteres: ${qrCodeResult.qrCode.substring(0, 50)}...`);
+      }
+      
       // Se foi obtido um QR code
       if (qrCodeResult.status === "waiting_scan" && qrCodeResult.qrCode) {
         return res.send(`

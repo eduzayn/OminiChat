@@ -655,7 +655,7 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
       if (qrResponse.data && qrResponse.data.length > 0) {
         console.log(`Recebido buffer de tamanho: ${qrResponse.data.length} bytes`);
         
-        // Converter o buffer para base64
+        // Converter o buffer para base64 com prefixo data:URL correto
         const qrCodeBase64 = `data:image/png;base64,${Buffer.from(qrResponse.data).toString('base64')}`;
         console.log("QR Code convertido para base64 com sucesso");
         

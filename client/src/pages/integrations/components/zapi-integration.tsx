@@ -41,7 +41,7 @@ export function ZAPIIntegrationDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentTab, setCurrentTab] = useState('config');
   const [channelForm, setChannelForm] = useState({
-    id: 23, // Usando o ID específico do canal que criamos
+    id: undefined,
     name: 'WhatsApp via Z-API',
     type: 'whatsapp',
     isActive: true,
@@ -49,6 +49,7 @@ export function ZAPIIntegrationDialog({
       provider: 'zapi',
       instanceId: '3DF871A7ADF830F8499BE6006CECDC1',
       token: 'A4E4203C24887ZDA084747',
+      clientToken: 'Fa427b12e188a433292a658fe45a07714S',
     },
   });
   const [connectionStatus, setConnectionStatus] = useState<'unknown' | 'loading' | 'connected' | 'disconnected'>('unknown');
@@ -67,6 +68,7 @@ export function ZAPIIntegrationDialog({
           provider: 'zapi',
           instanceId: existingChannel.config?.instanceId || '',
           token: existingChannel.config?.token || '',
+          clientToken: existingChannel.config?.clientToken || '',
         },
       });
     }
@@ -83,6 +85,7 @@ export function ZAPIIntegrationDialog({
           ...channelForm.config,
           instanceId: '',
           token: '',
+          clientToken: '',
         },
       });
     }
@@ -176,6 +179,7 @@ export function ZAPIIntegrationDialog({
           ...(!usePredefined ? {
             instanceId: channelForm.config.instanceId,
             token: channelForm.config.token,
+            clientToken: channelForm.config.clientToken,
           } : {}),
         },
       };
@@ -316,7 +320,19 @@ export function ZAPIIntegrationDialog({
                         type="password"
                         value={channelForm.config.token}
                         onChange={(e) => handleInputChange('config.token', e.target.value)}
-                        placeholder="Token de segurança da Z-API"
+                        placeholder="Token de segurança da instância Z-API"
+                        required={!usePredefined}
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label htmlFor="clientToken">Client Token da Conta Z-API</Label>
+                      <Input
+                        id="clientToken"
+                        type="password"
+                        value={channelForm.config.clientToken}
+                        onChange={(e) => handleInputChange('config.clientToken', e.target.value)}
+                        placeholder="Token de segurança da conta Z-API"
                         required={!usePredefined}
                       />
                     </div>

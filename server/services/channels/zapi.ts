@@ -12,6 +12,7 @@ import { Channel } from '@shared/schema';
 // Configurações da instância web (valores das variáveis de ambiente ou valores padrão se não definidos)
 const ZAPI_TOKEN = process.env.ZAPI_TOKEN || "A4E4203C24887ZDA084747";
 const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID || "3DF871A7ADF830F8499BE6006CECDC1";
+const ZAPI_CLIENT_TOKEN = process.env.ZAPI_CLIENT_TOKEN || "Fa427b12e188a433292a658fe45a07714S";
 
 // Configurações alternativas da instância mobile para testes
 const ZAPI_MOBILE_TOKEN = "8A82365003962876A3574828";
@@ -24,15 +25,14 @@ const BASE_URL = 'https://api.z-api.io';
 const ZAPI_SECURITY_TOKEN = "Fa427b12e188a433292a658fe45a07714S";
 
 // Função de ajuda para garantir que incluímos sempre o Client-Token nos headers
-function getHeadersWithToken(token: string) {
+function getHeadersWithToken(token: string, clientToken: string = ZAPI_CLIENT_TOKEN) {
   // Muito importante! De acordo com a documentação Z-API, o Client-Token é crucial
   // para autenticação das requisições e deve estar presente em todos os headers
   // A Z-API usa o formato "client-token" (minúsculo e com hífen)
   // O Client-Token deve ser o token de segurança da conta, não o token da instância
   return {
-    'client-token': ZAPI_SECURITY_TOKEN,
     'Content-Type': 'application/json',
-    'Accept': 'application/json'
+    'client-token': clientToken,
   };
 }
 
@@ -538,6 +538,7 @@ export async function checkConnectionStatus(channel: Channel): Promise<{ status:
   try {
     const instanceId = channel.config.instanceId || ZAPI_INSTANCE_ID;
     const token = channel.config.token || ZAPI_TOKEN;
+    const clientToken = channel.config.clientToken || ZAPI_CLIENT_TOKEN;
     
     if (!instanceId || !token) {
       return {
@@ -546,15 +547,18 @@ export async function checkConnectionStatus(channel: Channel): Promise<{ status:
       };
     }
     
+    console.log(`Verificando status da conexão Z-API: ${instanceId} com client-token: ${clientToken}`);
+    
     // Verificar status
     const response = await axios.get(
       `${BASE_URL}/instances/${instanceId}/token/${token}/status`,
       {
-        headers: getHeadersWithToken(token)
+        headers: getHeadersWithToken(token, clientToken)
       }
     );
     
     if (response.data) {
+      console.log(`Resposta de status Z-API:`, JSON.stringify(response.data));
       return {
         status: "success",
         connected: response.data.connected === true,
@@ -585,6 +589,7 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
     // Usar credenciais do canal ou do ambiente
     const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
     const token = channel.config?.token || ZAPI_TOKEN;
+    const clientToken = channel.config?.clientToken || ZAPI_CLIENT_TOKEN;
     
     if (!instanceId || !token) {
       console.error("Credenciais Z-API não configuradas");
@@ -598,8 +603,8 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
     
     try {
        // Verificar status da conexão atual
-      console.log(`Solicitando status da Z-API com instância: ${instanceId}, token: ${token}`);
-      console.log(`Headers utilizados:`, JSON.stringify(getHeadersWithToken(token)));
+      console.log(`Solicitando status da Z-API com instância: ${instanceId}, token: ${token}, client-token: ${clientToken}`);
+      console.log(`Headers utilizados:`, JSON.stringify(getHeadersWithToken(token, clientToken)));
       
       let statusResponse;
       
@@ -607,7 +612,7 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
         statusResponse = await axios.get(
           `${BASE_URL}/instances/${instanceId}/token/${token}/status`,
           {
-            headers: getHeadersWithToken(token)
+            headers: getHeadersWithToken(token, clientToken)
           }
         );
         
@@ -637,22 +642,19 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
         };
       }
       
-      console.log(`Instância ${instanceId} não está conectada, solicitando QR code via /qr-code/image`);
+      console.log(`Instância ${instanceId} não está conectada, solicitando QR code`);
       
       try {
-        console.log(`Requisitando QR code para instância ${instanceId} com token ${token}`);
+        console.log(`Requisitando QR code para instância ${instanceId} com token ${token} e client-token ${clientToken}`);
         
-        // Usando o endpoint /qr-code/image conforme documentação Z-API
+        // Usando o endpoint /qr-code conforme documentação Z-API
         // Usando a função getHeadersWithToken para garantir o formato correto do cabeçalho
-        const headers = getHeadersWithToken(token);
-        headers['Accept'] = 'image/png, application/json';
-        
         const qrResponse = await axios.get(
-          `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code/image`,
-          { headers }
+          `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code`,
+          { headers: getHeadersWithToken(token, clientToken) }
         );
         
-        console.log("Resposta da API /qr-code/image recebida com status:", qrResponse.status);
+        console.log("Resposta da API /qr-code recebida com status:", qrResponse.status);
         
         // Imprimir o tipo de dados recebido para diagnóstico
         if (qrResponse.data) {
@@ -713,7 +715,7 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
         }
         
         if (qrCodeData) {
-          console.log("QR code (base64) obtido com sucesso da Z-API via /qr-code/image");
+          console.log("QR code (base64) obtido com sucesso da Z-API via /qr-code");
           return {
             status: "waiting_scan",
             message: "Aguardando leitura do QR Code",
@@ -721,7 +723,7 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
           };
         }
         
-        console.error("Resposta da Z-API (/qr-code/image) não contém QR code em formato reconhecível");
+        console.error("Resposta da Z-API (/qr-code) não contém QR code em formato reconhecível");
         
         // Tentar com endpoint alternativo /qr-code
         console.log("Tentando endpoint alternativo /qr-code");
@@ -771,12 +773,12 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
         // Aguardar um pouco para o QR code ser gerado
         await new Promise(resolve => setTimeout(resolve, 2000));
         
-        // Tentar novamente obter o QR code usando /qr-code/image
+        // Tentar novamente obter o QR code usando /qr-code
         const retryHeaders = getHeadersWithToken(token);
         retryHeaders['Accept'] = 'image/png, application/json';
         
         const retryQrResponse = await axios.get(
-          `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code/image`,
+          `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code`,
           { headers: retryHeaders }
         );
         

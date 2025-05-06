@@ -64,7 +64,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       
       // Buscar o canal 23 que já sabemos que existe
       const channel23 = await db.query.channels.findFirst({
-        where: eq(channels.id, 23)
+        where: eq(schema.channels.id, 23)
       });
       
       if (!channel23) {
@@ -115,7 +115,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       
       // Buscar o canal 23, ou criar se não existir
       let channel23 = await db.query.channels.findFirst({
-        where: eq(channels.id, 23)
+        where: eq(schema.channels.id, 23)
       });
       
       if (!channel23) {
@@ -141,7 +141,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
           
           // Inserir o canal com ID 23 fixo
           console.log("Criando canal 23 com credenciais Z-API do ambiente...");
-          const [newChannel] = await db.insert(channels)
+          const [newChannel] = await db.insert(schema.channels)
             .values({
               id: 23,
               name: "WhatsApp Z-API (Teste)",
@@ -276,7 +276,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       
       // 2. Verificar canal 23 especificamente
       const channel23 = await db.query.channels.findFirst({
-        where: eq(channels.id, 23)
+        where: eq(schema.channels.id, 23)
       });
       
       // 3. Verificar variáveis de ambiente
@@ -562,7 +562,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       // Buscar o canal com verificação detalhada
       console.log(`[QRCode Handler] Buscando canal ${channelId} no banco de dados`);
       let channel = await db.query.channels.findFirst({
-        where: eq(channels.id, channelId)
+        where: eq(schema.channels.id, channelId)
       });
       
       if (!channel) {
@@ -626,7 +626,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
             
             if (ZAPI_INSTANCE_ID && ZAPI_TOKEN) {
               // Atualizar o canal com as credenciais do ambiente
-              await db.update(channels)
+              await db.update(schema.channels)
                 .set({
                   config: {
                     ...config,
@@ -634,11 +634,11 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
                     token: ZAPI_TOKEN
                   }
                 })
-                .where(eq(channels.id, channel.id));
+                .where(eq(schema.channels.id, channel.id));
                 
               // Recarregar o canal com as novas credenciais
               const updatedChannel = await db.query.channels.findFirst({
-                where: eq(channels.id, channel.id)
+                where: eq(schema.channels.id, channel.id)
               });
               
               if (updatedChannel) {

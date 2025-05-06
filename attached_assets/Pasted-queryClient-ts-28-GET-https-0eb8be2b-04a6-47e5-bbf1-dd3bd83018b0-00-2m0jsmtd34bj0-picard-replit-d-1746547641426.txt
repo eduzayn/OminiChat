@@ -1,0 +1,75 @@
+queryClient.ts:28
+
+GET https://0eb8be2b-04a6-47e5-bbf1-dd3bd83018b0-00-2m0jsmtd34bj0.picard.replit.dev/api/channels/21/qr-code 404 (Not Found)
+
+
+
+apiRequest@queryClient.ts:28checkConnectionStatus@zapi-integration.tsx:121
+
+
+
+Erro na requisição GET para /api/channels/21/qr-code: Error: Canal não encontrado
+
+    at apiRequest (queryClient.ts:43:17)
+
+    at async checkConnectionStatus (zapi-integration.tsx:121:26)
+
+Mt.forEach.n.<computed> @ Console.js:61
+
+apiRequest @ queryClient.ts:85
+
+await in apiRequest
+
+checkConnectionStatus @ zapi-integration.tsx:121
+
+callCallback2 @ chunk-RPCDYKBN.js?v=61062b91:3674
+
+invokeGuardedCallbackDev @ chunk-RPCDYKBN.js?v=61062b91:3699
+
+invokeGuardedCallback @ chunk-RPCDYKBN.js?v=61062b91:3733
+
+invokeGuardedCallbackAndCatchFirstError @ chunk-RPCDYKBN.js?v=61062b91:3736
+
+executeDispatch @ chunk-RPCDYKBN.js?v=61062b91:7014
+
+processDispatchQueueItemsInOrder @ chunk-RPCDYKBN.js?v=61062b91:7034
+
+processDispatchQueue @ chunk-RPCDYKBN.js?v=61062b91:7043
+
+dispatchEventsForPlugins @ chunk-RPCDYKBN.js?v=61062b91:7051
+
+(anonymous) @ chunk-RPCDYKBN.js?v=61062b91:7174
+
+batchedUpdates$1 @ chunk-RPCDYKBN.js?v=61062b91:18913
+
+batchedUpdates @ chunk-RPCDYKBN.js?v=61062b91:3579
+
+dispatchEventForPluginEventSystem @ chunk-RPCDYKBN.js?v=61062b91:7173
+
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-RPCDYKBN.js?v=61062b91:5478
+
+dispatchEvent @ chunk-RPCDYKBN.js?v=61062b91:5472
+
+dispatchDiscreteEvent @ chunk-RPCDYKBN.js?v=61062b91:5449
+
+
+
+
+
+Console.js:61
+
+Erro ao verificar status da conexão: Error: Canal não encontrado at apiRequest (queryClient.ts:43:17) at async checkConnectionStatus (zapi-integration.tsx:121:26)
+
+Mt.forEach.n.<computed>@Console.js:61checkConnectionStatus@zapi-integration.tsx:150
+
+
+
+Estou tendo dificuldade com a integração do meu sistema com o zapi. Especialmente para pegar o qrcode de conexão.
+
+
+
+https://www.postman.com/docs-z-api/z-api-s-public-workspace/folder/kovxq19/pegar-qrcode
+
+https://www.postman.com/docs-z-api/z-api-s-public-workspace/folder/kzrcm9n/minha-instncia?tab=overview
+
+https://developer.z-api.io/instance/qrcode

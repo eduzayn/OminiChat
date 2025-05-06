@@ -1,0 +1,148 @@
+Problema Principal: "Canal não encontrado"
+Este erro indica que o backend da sua aplicação não conseguiu localizar um canal com o ID 21 no seu banco de dados.
+
+Causa Provável: Não existe um registro na sua tabela channels do banco de dados com id = 21, ou o canal com ID 21 não está configurado corretamente para ser um canal do WhatsApp utilizando o provedor "zapi".
+
+Analisando o arquivo db/seed.ts do seu projeto, são criados canais para "WhatsApp Business" (usando Twilio por padrão), "Instagram Direct" e "Facebook Messenger". Não há uma criação explícita de um canal com ID 21 ou um canal especificamente configurado para Z-API durante a inicialização do banco de dados com dados de exemplo.
+
+Correção:
+
+Verifique a Existência e Configuração do Canal:
+
+Criação do Canal: Certifique-se de que um canal destinado à integração Z-API exista no seu banco de dados. Se você está testando com o ID 21, você precisará:
+
+Adicionar um novo canal através da interface da sua aplicação (se houver essa funcionalidade).
+
+Ou, para desenvolvimento/teste, modificar o arquivo db/seed.ts para incluir um canal WhatsApp configurado para Z-API. Por exemplo:
+
+TypeScript
+
+// Em db/seed.ts, dentro da criação de canais:
+{
+  name: "WhatsApp via Z-API",
+  type: "whatsapp",
+  isActive: true,
+  config: {
+    provider: "zapi",
+    // instanceId e token podem ser deixados em branco aqui se 
+    // você usa variáveis de ambiente ZAPI_INSTANCE_ID e ZAPI_TOKEN
+    // ou preenchê-los se forem específicos para este canal.
+    instanceId: process.env.ZAPI_INSTANCE_ID || "SEU_ZAPI_INSTANCE_ID_ESPECIFICO_CANAL",
+    token: process.env.ZAPI_TOKEN || "SEU_ZAPI_TOKEN_ESPECIFICO_CANAL"
+  }
+},
+Lembre-se de que o ID será atribuído automaticamente pelo banco de dados. Você precisará usar o ID correto gerado ao invés de 21 fixo no frontend, ou garantir que o canal que você quer usar tenha de fato o ID 21.
+
+Configuração do Provedor: O canal no banco de dados deve ter type como "whatsapp" e no objeto config, a propriedade provider deve ser "zapi".
+
+Credenciais Z-API:
+
+O arquivo server/services/channels/zapi.ts (na função getQRCodeForChannel) e server/handlers/channels.ts tentam usar instanceId e token da configuração do canal.
+
+Se não encontrados, eles utilizam as variáveis de ambiente ZAPI_INSTANCE_ID e ZAPI_TOKEN. Garanta que estas variáveis de ambiente estejam corretamente configuradas no seu servidor OU que cada canal Z-API no banco de dados tenha seu próprio instanceId e token válidos no campo config.
+
+Endpoint no Backend (server/handlers/channels.ts):
+
+A rota app.get(\${apiPrefix}/channels/:id/qr-code`, ...)neste arquivo é responsável por buscar o canal. Se o canal não é encontrado no banco de dados com o ID fornecido (no seu caso,21`), ela retorna o erro "Canal não encontrado".
+Verifique se a lógica dentro deste handler, antes de chamar zapiService.getQRCodeForChannel, não está prematuramente retornando o erro 404 devido a alguma outra condição (por exemplo, se o channel.type não for whatsapp ou channel.config.provider não for zapi).
+
+Potencial Problema Secundário: Lógica de Busca do QR Code na Z-API
+Mesmo que o canal 21 existisse e estivesse corretamente configurado, a forma como o QR Code é solicitado à Z-API em server/services/channels/zapi.ts pode precisar de ajustes.
+
+Problema: A função getQRCodeForChannel no arquivo server/services/channels/zapi.ts atualmente tenta obter o QR Code fazendo uma chamada GET para o endpoint /qr-code da Z-API e espera um JSON com um campo como base64, qrcode, value ou image. A documentação da Z-API (e os seus links) indica que /qr-code pode retornar os bytes brutos da imagem (Source 133), enquanto /qr-code/image retorna a imagem codificada em Base64 (Source 134). Se o endpoint /qr-code não retorna o JSON esperado, a sua função pode falhar em extrair o QR Code.
+
+Correção Sugerida em server/services/channels/zapi.ts:
+
+Utilize o Endpoint /qr-code/image: Este endpoint é mais direto para obter a string Base64 da imagem do QR Code.
+
+No arquivo server/services/channels/zapi.ts, dentro da função getQRCodeForChannel, após a verificação de status da conexão:
+
+TypeScript
+
+// console.log(`Instância ${instanceId} não está conectada, solicitando QR code`); // Linha original
+
+// Substitua o bloco try-catch para obter o QR Code por:
+console.log(`Instância ${instanceId} não está conectada, solicitando QR code via /qr-code/image`);
+try {
+  const qrResponse = await axios.get(
+    `${BASE_URL}/instances/${instanceId}/token/${token}/qr-code/image`, // Endpoint alterado
+    {
+      headers: getHeadersWithToken(token) // getHeadersWithToken já inclui Client-Token
+    }
+  );
+
+  let qrCodeData = null;
+  // A Z-API pode retornar o base64 diretamente ou encapsulado em um JSON.
+  // Verifique a estrutura real da resposta da Z-API para este endpoint.
+  if (qrResponse.data) {
+    if (typeof qrResponse.data === 'string' && qrResponse.data.startsWith('data:image')) {
+      qrCodeData = qrResponse.data;
+    } else if (typeof qrResponse.data === 'string' && qrResponse.data.length > 100) { // Heurística para string base64
+      qrCodeData = `data:image/png;base64,${qrResponse.data}`;
+    } else if (qrResponse.data.qrcode) {
+      qrCodeData = qrResponse.data.qrcode.startsWith('data:image') ? qrResponse.data.qrcode : `data:image/png;base64,${qrResponse.data.qrcode}`;
+    } else if (qrResponse.data.base64) {
+      qrCodeData = qrResponse.data.base64.startsWith('data:image') ? qrResponse.data.base64 : `data:image/png;base64,${qrResponse.data.base64}`;
+    } else if (qrResponse.data.value && typeof qrResponse.data.value === 'string') { // Outra possibilidade
+       qrCodeData = qrResponse.data.value.startsWith('data:image') ? qrResponse.data.value : `data:image/png;base64,${qrResponse.data.value}`;
+    } else if (qrResponse.data.image) {
+        qrCodeData = qrResponse.data.image.startsWith('data:image') ? qrResponse.data.image : `data:image/png;base64,${qrResponse.data.image}`;
+    }
+  }
+
+  if (qrCodeData) {
+    console.log("QR code (base64) obtido com sucesso da Z-API via /qr-code/image");
+    return {
+      status: "waiting_scan",
+      message: "Aguardando leitura do QR Code",
+      qrCode: qrCodeData
+    };
+  } else {
+    console.error("Resposta da Z-API (/qr-code/image) não contém QR code em formato reconhecível:", qrResponse.data);
+    // Tentar a lógica de fallback para /qr-code (como no código original) ou retornar erro.
+    // Para simplificar, vamos retornar erro aqui se /qr-code/image falhar em prover o dado esperado.
+    return {
+      status: "error",
+      message: "QR Code (base64) não disponível no momento via /qr-code/image. Resposta: " + JSON.stringify(qrResponse.data)
+    };
+  }
+} catch (qrError: any) {
+  console.error("Erro ao obter QR code da Z-API via /qr-code/image:", qrError.message);
+  // Aqui você pode manter sua lógica de tentar /restart e depois /qr-code se desejar,
+  // ou simplesmente retornar o erro.
+  // Se qrError.response.data contiver informações úteis, inclua-as.
+  const errorDetails = qrError.response?.data?.message || qrError.response?.data || qrError.message;
+  return {
+    status: "error",
+    message: `Não foi possível obter o QR Code para conexão: ${errorDetails}`
+  };
+}
+Client-Token: A função getHeadersWithToken em server/services/channels/zapi.ts parece incluir corretamente o Client-Token. Certifique-se de que o valor do token da sua conta Z-API (obtido no painel da Z-API) está sendo usado corretamente, seja através da configuração do canal ou variáveis de ambiente.
+Resumo das Ações Recomendadas:
+Resolva o Problema do Canal:
+
+Garanta que um canal WhatsApp exista no seu banco de dados com o ID que o frontend está tentando acessar (ou atualize o frontend para usar um ID válido).
+
+Configure este canal com type: "whatsapp" e config: { provider: "zapi", ... }.
+
+Verifique se as credenciais instanceId e token da Z-API estão corretas para este canal (ou nas variáveis de ambiente).
+
+Ajuste a Busca do QR Code no Backend:
+
+Modifique server/services/channels/zapi.ts na função getQRCodeForChannel para usar preferencialmente o endpoint /qr-code/image da Z-API, que é mais indicado para obter a string Base64 diretamente.
+
+Trate adequadamente a resposta para extrair a string Base64 do QR Code.
+
+Verifique o Client-Token da Z-API:
+
+Confirme que o Client-Token da sua conta Z-API está sendo corretamente enviado em todas as requisições para a Z-API a partir do seu backend (server/services/channels/zapi.ts).
+
+Ao seguir estes passos, você deverá conseguir resolver o erro "Canal não encontrado" e obter o QR Code para a conexão com a Z-API.
+
+Referências Externas Fornecidas:
+
+Z-API Postman - Pegar QRCode
+
+Z-API Postman - Minha Instância
+
+Z-API Developer - Instance QR Code

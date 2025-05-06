@@ -275,15 +275,15 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       console.log("Iniciando diagnóstico Z-API...");
       
       // 1. Verificar canais disponíveis
-      const availableChannels = await db.query.schema.channels.findMany();
+      const availableChannels = await db.query.channels.findMany();
       const zapiChannels = availableChannels.filter(c => 
         c.type === "whatsapp" && 
         (c.config as any)?.provider === "zapi"
       );
       
       // 2. Verificar canal 23 especificamente
-      const channel23 = await db.query.schema.channels.findFirst({
-        where: eq(schema.channels.id, 23)
+      const channel23 = await db.query.channels.findFirst({
+        where: eq(channels.id, 23)
       });
       
       // 3. Verificar variáveis de ambiente
@@ -752,8 +752,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
     try {
       const channelId = parseInt(req.params.id);
       
-      const channel = await db.query.schema.channels.findFirst({
-        where: eq(schema.channels.id, channelId)
+      const channel = await db.query.channels.findFirst({
+        where: eq(channels.id, channelId)
       });
       
       if (!channel) {
@@ -916,7 +916,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       // Delete channel
       await db
         .delete(channels)
-        .where(eq(schema.channels.id, channelId));
+        .where(eq(channels.id, channelId));
       
       // Notify clients about the deleted channel
       broadcastToClients({

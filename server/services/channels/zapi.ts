@@ -264,7 +264,7 @@ export class ZAPIClient {
           error: 'INVALID_CREDENTIALS',
           message: 'ID de instância inválido. Verifique o instanceId no painel da Z-API.',
           status: 'error',
-          attempted_configs: errors.map(e => e.config_used)
+          failed_attempts: errors.map(e => e.config_used)
         };
       }
       

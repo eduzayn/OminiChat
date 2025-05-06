@@ -41,7 +41,7 @@ export function ZAPIIntegrationDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentTab, setCurrentTab] = useState('config');
   const [channelForm, setChannelForm] = useState({
-    id: null as number | null,
+    id: undefined as number | undefined,
     name: 'WhatsApp via Z-API',
     type: 'whatsapp',
     isActive: true,
@@ -158,13 +158,11 @@ export function ZAPIIntegrationDialog({
     setIsSubmitting(true);
     
     try {
-      // Preparar dados para envio
-      const { id, ...channelDataWithoutId } = channelForm;
-      
+      // Preparar dados para envio - sem incluir o ID em novas criações
       const payload = {
-        // Se tiver ID (edição), incluir o ID
-        ...(id ? { id } : {}),
-        ...channelDataWithoutId,
+        name: channelForm.name,
+        type: channelForm.type,
+        isActive: channelForm.isActive,
         config: {
           provider: 'zapi',
           // Se usar predefinido, enviar apenas o provider para usar as variáveis de ambiente
@@ -174,6 +172,11 @@ export function ZAPIIntegrationDialog({
           } : {}),
         },
       };
+      
+      // Adicionar ID somente se estiver editando (id existente e diferente de undefined)
+      if (channelForm.id !== undefined) {
+        (payload as any).id = channelForm.id;
+      }
       
       console.log("Enviando payload:", JSON.stringify(payload));
       

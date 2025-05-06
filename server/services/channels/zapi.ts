@@ -307,10 +307,7 @@ export async function sendDocumentMessage(
         caption: caption || ''
       },
       {
-        headers: {
-          'Client-Token': token,
-          'Content-Type': 'application/json'
-        }
+        headers: getHeadersWithToken(token)
       }
     );
     
@@ -368,10 +365,7 @@ export async function sendAudioMessage(
         audio: audioUrl
       },
       {
-        headers: {
-          'Client-Token': token,
-          'Content-Type': 'application/json'
-        }
+        headers: getHeadersWithToken(token)
       }
     );
     
@@ -416,10 +410,7 @@ export async function syncContacts(channel: Channel): Promise<{ status: string; 
     const response = await axios.get(
       `${BASE_URL}/instances/${instanceId}/token/${token}/contacts`,
       {
-        headers: {
-          'Client-Token': token,
-          'Content-Type': 'application/json'
-        }
+        headers: getHeadersWithToken(token)
       }
     );
     
@@ -464,10 +455,7 @@ export async function checkConnectionStatus(channel: Channel): Promise<{ status:
     const response = await axios.get(
       `${BASE_URL}/instances/${instanceId}/token/${token}/status`,
       {
-        headers: {
-          'Client-Token': token,
-          'Content-Type': 'application/json'
-        }
+        headers: getHeadersWithToken(token)
       }
     );
     

@@ -1,49 +1,12 @@
 import Sidebar from "@/components/sidebar";
-import ConversationList from "@/components/conversation-list";
-import ConversationView from "@/components/conversation-view";
-import CustomerProfile from "@/components/customer-profile";
 import { Helmet } from "react-helmet";
-import { useEffect } from "react";
-import { useConversation } from "@/context/conversation-context";
-import { useSocket } from "@/context/socket-context";
-import { useAuth } from "@/context/auth-context";
-import { Message } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/context/auth-context";
 
 function Dashboard() {
-  const { socket, addListener } = useSocket();
   const { user } = useAuth();
-  const { activeConversation } = useConversation();
   const { toast } = useToast();
-
-  // Set up notifications for new messages using the proper socket addListener API
-  useEffect(() => {
-    if (socket && user) {
-      const handleNewMessage = (message: Message) => {
-        // Log para diagnóstico
-        console.log("Dashboard: Notificação de nova mensagem recebida:", message);
-        
-        // If the message is not from an agent and not in the active conversation
-        if (!message.isFromAgent && 
-            (!activeConversation || Number(message.conversationId) !== Number(activeConversation.id))) {
-          // Show a notification
-          toast({
-            title: `Nova mensagem de ${message.contact?.name || "Cliente"}`,
-            description: message.content,
-            duration: 5000
-          });
-        }
-      };
-      
-      // Usar a função addListener que já foi importada no topo do componente
-      const removeListener = addListener("new_message", handleNewMessage);
-      
-      return () => {
-        // Limpar listener ao desmontar
-        removeListener();
-      };
-    }
-  }, [socket, user, activeConversation, toast, addListener]);
 
   return (
     <>
@@ -57,10 +20,19 @@ function Dashboard() {
       
       <div className="flex h-screen overflow-hidden">
         <Sidebar />
-        <div className="flex flex-1 overflow-hidden">
-          <ConversationList />
-          <ConversationView />
-          <CustomerProfile />
+        <div className="flex-1 flex justify-center items-center bg-neutral-50">
+          <div className="max-w-md text-center">
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center">
+                <i className="ri-inbox-fill text-3xl text-primary-600"></i>
+              </div>
+            </div>
+            <h2 className="text-2xl font-bold mb-2">Caixa de Entrada</h2>
+            <p className="text-neutral-600 mb-6">
+              A caixa de entrada está temporariamente indisponível. Estamos realizando atualizações para melhorar sua experiência.
+            </p>
+            <Button className="mx-auto">Recarregar página</Button>
+          </div>
         </div>
       </div>
     </>

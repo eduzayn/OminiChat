@@ -1,28 +1,75 @@
+import Sidebar from "@/components/sidebar";
+import ConversationList from "@/components/conversation-list";
+import ConversationView from "@/components/conversation-view";
+import CustomerProfile from "@/components/customer-profile";
 import { Helmet } from "react-helmet";
-import { useLocation } from "wouter";
+import { useAuth } from "@/context/auth-context";
+import { useSocket } from "@/context/socket-context";
+import { useConversation } from "@/context/conversation-context";
+import { useToast } from "@/hooks/use-toast";
 import { useEffect } from "react";
+import { Message } from "@shared/schema";
 
 /**
- * Página do Dashboard - completamente removida conforme solicitado
+ * Dashboard é o componente principal da aplicação que exibe a caixa de entrada unificada.
+ * Este componente carrega a estrutura básica da interface: barra lateral, lista de conversas,
+ * visualização da conversa ativa e detalhes do cliente.
  */
 function Dashboard() {
-  const [location, setLocation] = useLocation();
-  
+  const { user } = useAuth();
+  const { activeConversation } = useConversation();
+  const { toast } = useToast();
+  const { socket, addListener } = useSocket();
+
+  // Configura o listener para novas mensagens para mostrar notificações
   useEffect(() => {
-    // Redireciona para a página inicial
-    setLocation("/");
-  }, [setLocation]);
+    if (!socket || !user) return;
+
+    // Log para fins de diagnóstico
+    console.log("Dashboard: Configurando listener para novas mensagens");
+    
+    // Função que será executada quando uma nova mensagem for recebida
+    const handleNewMessage = (message: Message) => {
+      console.log("Dashboard: Notificação de nova mensagem recebida:", message);
+      
+      // Notifica apenas se a mensagem não for do agente (ou seja, é do cliente)
+      // e se não for da conversa atualmente ativa
+      if (!message.isFromAgent && 
+          (!activeConversation || Number(message.conversationId) !== Number(activeConversation.id))) {
+        toast({
+          title: `Nova mensagem de ${message.contact?.name || "Cliente"}`,
+          description: message.content,
+          duration: 5000
+        });
+      }
+    };
+    
+    // Registra o listener usando a API do socket-context
+    const removeListener = addListener("new_message", handleNewMessage);
+    
+    // Limpa o listener quando o componente for desmontado
+    return () => {
+      console.log("Dashboard: Removendo listener de novas mensagens");
+      removeListener();
+    };
+  }, [socket, user, activeConversation, toast, addListener]);
 
   return (
     <>
       <Helmet>
-        <title>Dashboard | OmniConnect</title>
+        <title>Caixa de Entrada | OmniConnect</title>
+        <link 
+          href="https://cdn.jsdelivr.net/npm/remixicon@2.5.0/fonts/remixicon.css" 
+          rel="stylesheet" 
+        />
       </Helmet>
       
-      <div className="flex justify-center items-center h-screen">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Página Removida</h1>
-          <p className="text-gray-600 mb-8">A caixa de entrada foi completamente removida conforme solicitado.</p>
+      <div className="flex h-screen overflow-hidden">
+        <Sidebar />
+        <div className="flex flex-1 overflow-hidden">
+          <ConversationList />
+          <ConversationView />
+          <CustomerProfile />
         </div>
       </div>
     </>

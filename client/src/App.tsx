@@ -6,7 +6,6 @@ import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import Login from "@/pages/login";
-import InboxPage from "@/pages/inbox";
 import ContactsPage from "@/pages/contacts";
 import CRMDashboard from "@/pages/crm/index";
 import PipelineView from "@/pages/crm/pipeline";
@@ -54,7 +53,6 @@ function Router() {
       
       {/* 1. Módulo de Comunicação Omnichannel */}
       <Route path="/" component={Dashboard} />
-      <Route path="/inbox" component={InboxPage} />
       
       {/* 2. Módulo de IA */}
       <Route path="/ai" component={AIAssistantPage} />

@@ -310,6 +310,41 @@ export async function processZapiWebhook(channelId: number, webhook: any, isTest
       eventData.isGroupMessage = !!messageData.isGroup;
     }
     
+    // Verificar se é uma notificação de status de mensagem que precisamos processar
+    if (webhook.type === 'MessageStatusCallback' && webhook.ids && webhook.ids.length > 0) {
+      console.log('[Z-API] Recebido status de mensagem:', webhook);
+      
+      // Se é um status de uma nova mensagem RECEBIDA e não temos ela no sistema,
+      // vamos tentar simular uma mensagem recebida para evitar perder mensagens
+      if ((webhook.status === 'RECEIVED' || webhook.status === 'READ') && 
+          webhook.phone && !webhook.isGroup) {
+        
+        // Verificamos se é um telefone que ainda não temos conversa
+        const existingConversation = await db.query.conversations.findFirst({
+          where: and(
+            eq(conversations.channelId, channelId),
+            sql`exists (
+              select 1 from ${contacts} 
+              where ${contacts.id} = ${conversations.contactId} 
+              and ${contacts.phone} = ${webhook.phone}
+            )`
+          )
+        });
+        
+        if (!existingConversation) {
+          console.log(`[Z-API] Detectada possível mensagem nova de telefone desconhecido: ${webhook.phone}`);
+          
+          // Simular uma mensagem para criar o contato e a conversa
+          eventData.isMessage = true;
+          eventData.phone = webhook.phone;
+          eventData.messageId = webhook.ids[0] || 'unknown-' + Date.now();
+          eventData.text = "(Nova mensagem recebida)"; // Mensagem genérica
+          eventData.timestamp = webhook.momment ? new Date(webhook.momment) : new Date();
+          eventData.senderName = ""; // Nome desconhecido
+        }
+      }
+    }
+    
     // Se não for uma mensagem ou não tiver identificado o formato corretamente
     if (!eventData.isMessage || !eventData.phone) {
       console.log('[Z-API] Evento recebido não é uma mensagem ou formato não reconhecido:', webhook);

@@ -311,7 +311,6 @@ export default function IntegrationsPage() {
                   <>
                     {getChannelsByProvider('zapi').map((channel) => (
                       <div key={channel.id} className="mb-6 last:mb-0">
-                        <h3 className="font-medium text-lg mb-4">{channel.name}</h3>
                         <ZAPIWebhookConfig channelId={channel.id} />
                       </div>
                     ))}

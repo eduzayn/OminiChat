@@ -119,8 +119,24 @@ export function ZAPIIntegrationDialog({
     try {
       // Se for um canal existente, verifica o status usando o ID
       if (channelForm.id) {
-        // Usar o endpoint de QR code em vez do test-connection
-        // Este endpoint verifica o status e retorna QR code se necessário
+        // Verificar status da conexão usando teste explícito
+        const testResponse = await apiRequest<any>(
+          'POST',
+          `/api/channels/${channelForm.id}/test-connection`,
+          null
+        );
+        
+        console.log("Resposta do teste de conexão:", JSON.stringify(testResponse));
+        
+        // Se o teste direto indicar que está conectado, confiar nessa informação
+        if (testResponse && testResponse.success === true) {
+          setConnectionStatus('connected');
+          setQrCode(null);
+          console.log("Conexão confirmada via test-connection");
+          return;
+        }
+        
+        // Caso contrário, verificar através do endpoint de QRCode
         const response = await apiRequest<any>(
           'GET',
           `/api/channels/${channelForm.id}/qrcode`,
@@ -129,15 +145,32 @@ export function ZAPIIntegrationDialog({
         
         console.log("Resposta do endpoint QR code:", JSON.stringify(response));
         
-        if (response.success && response.status === "connected") {
+        // Verificar se a resposta contém informação sobre um status "connected"
+        // ou se a mensagem indica que já está conectado
+        if (
+          (response.success && response.status === "connected") || 
+          (response.success && response.message && response.message.includes("conectado")) ||
+          (response.success && response.status === "success" && !response.qrcode && !response.qrCode)
+        ) {
           setConnectionStatus('connected');
           setQrCode(null);
-        } else if (response.success && response.status === "waiting_scan" && (response.qrcode || response.qrCode)) {
+        } 
+        // Verificar se temos QR code para exibir (aguardando leitura)
+        else if (response.success && response.status === "waiting_scan" && (response.qrcode || response.qrCode)) {
           setConnectionStatus('disconnected');
           setQrCode(response.qrcode || response.qrCode);
-          
           console.log("QR Code recebido para leitura");
-        } else {
+        } 
+        // Verificar casos específicos que indicam conexão mesmo com status diferente
+        else if (
+          response.error && 
+          (response.error.includes("already connected") || response.error.includes("You are connected"))
+        ) {
+          setConnectionStatus('connected');
+          setQrCode(null);
+          console.log("Conexão detectada por mensagem de erro específica");
+        }
+        else {
           setConnectionStatus('disconnected');
           console.log("Status da conexão:", response.status);
         }

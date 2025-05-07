@@ -112,8 +112,29 @@ export function registerMediaTestRoutes(app: Express, apiPrefix: string) {
     }
   });
   
+  // Rota simples para verificar se o endpoint está funcionando
+  app.get(`${apiPrefix}/video-test-status`, (req, res) => {
+    console.log("Video test status endpoint hit");
+    res.status(200).json({
+      success: true,
+      message: "Video test endpoint is working",
+      timestamp: new Date().toISOString()
+    });
+  });
+  
+  // Adicionando CORS específico para esta rota de teste
+  app.options(`${apiPrefix}/channels/:id/video-test`, (req, res) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, api-key, Authorization');
+    res.status(200).send('OK');
+  });
+
   // Rota específica para teste de vídeo
   app.post(`${apiPrefix}/channels/:id/video-test`, async (req: Request, res: Response) => {
+    // Permitir CORS para testes
+    res.header('Access-Control-Allow-Origin', '*');
+    
     // Verificação de autenticação simplificada para facilitar testes - USAR APENAS EM DESENVOLVIMENTO
     const apiKey = req.headers['api-key'] || req.query.apiKey;
     if (!req.session?.userId && (!apiKey || apiKey !== 'test-key-123')) {
@@ -122,6 +143,8 @@ export function registerMediaTestRoutes(app: Express, apiPrefix: string) {
         message: "Não autenticado. Use uma sessão válida ou forneça o header 'api-key'"
       });
     }
+    
+    console.log("[VideoTest] Recebendo requisição de teste para envio de vídeo");
     try {
       const channelId = parseInt(req.params.id);
       

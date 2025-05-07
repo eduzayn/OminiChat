@@ -1478,29 +1478,46 @@ export async function configureWebhook(
     let webhookConfigured = false;
     let configError = null;
     
-    // === ETAPA 1: Configurar o Webhook para "Ao Receber" mensagem ===
-    // De acordo com a documentação oficial: https://www.postman.com/docs-z-api/z-api-s-public-workspace/request/n8n3eg9/ao-receber
+    // === CONFIGURAÇÃO PRINCIPAL: Configurar o Webhook usando API mais recente ===
+    // De acordo com a documentação atual da Z-API: webhook unificado
     try {
-      console.log(`[Z-API] Etapa 1: Configurando webhook para recebimento de mensagens...`);
+      console.log(`[Z-API] Configurando webhook usando a API unificada...`);
       
-      // Configurar o evento "Ao Receber" conforme documentação
-      const receiveResponse = await axios.post(
-        `${BASE_URL}/instances/${instanceId}/token/${token}/webhook/receive`,
-        {
-          value: finalWebhookUrl
-        },
+      // Configurar o webhook usando o endpoint e método atual
+      const webhookConfig = {
+        url: finalWebhookUrl,
+        webhookFeatures: {
+          receiveAllNotifications: features.receiveAllNotifications || true,
+          messageReceived: features.messageReceived || true,
+          messageCreate: features.messageCreate || true,
+          statusChange: features.statusChange || true,
+          presenceChange: features.presenceChange || true,
+          deviceConnected: features.deviceConnected || true,
+          receiveByEmail: features.receiveByEmail || false
+        }
+      };
+      
+      console.log(`[Z-API] Payload de configuração do webhook:`, JSON.stringify(webhookConfig, null, 2));
+      
+      // Usando método PUT em vez de POST como recomendado pela documentação mais recente
+      const webhookResponse = await axios.put(
+        `${BASE_URL}/instances/${instanceId}/token/${token}/webhook`,
+        webhookConfig,
         { headers }
       );
       
-      console.log(`[Z-API] Resposta da configuração de Webhook Ao Receber:`, 
-        JSON.stringify(receiveResponse.data, null, 2));
+      console.log(`[Z-API] Resposta da configuração do Webhook:`, 
+        JSON.stringify(webhookResponse.data, null, 2));
       
       webhookConfigured = true;
     } catch (error) {
       if (error instanceof Error) {
-        console.log("[Z-API] Erro na configuração do webhook Ao Receber:", error.message);
+        console.log("[Z-API] Erro na configuração do webhook via API unificada:", error.message);
         if (axios.isAxiosError(error)) {
           console.log("[Z-API] Detalhes do erro:", JSON.stringify(error.response?.data, null, 2));
+          
+          // Como estamos usando a API mais recente, tentar alternativa em caso de falha
+          configError = error;
         }
       }
     }

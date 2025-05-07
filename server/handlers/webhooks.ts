@@ -294,7 +294,10 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
   app.post(`${apiPrefix}/webhooks/zapi/:channelId`, async (req: Request, res: Response) => {
     try {
       const channelId = parseInt(req.params.channelId);
-      console.log(`Webhook Z-API recebido para canal ${channelId}:`, JSON.stringify(req.body, null, 2));
+      console.log(`[ZAPI Webhook] Recebido para Canal ID: ${channelId}`);
+      console.log('[ZAPI Webhook] Headers:', JSON.stringify(req.headers, null, 2));
+      console.log('[ZAPI Webhook] Body:', JSON.stringify(req.body, null, 2));
+      console.log('[ZAPI Webhook] Params:', JSON.stringify(req.params, null, 2));
       
       // Verificar se o canal existe
       const channel = await db.query.channels.findFirst({
@@ -302,8 +305,12 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
       });
       
       if (!channel) {
+        console.log(`[ZAPI Webhook] ERRO: Canal ${channelId} não encontrado`);
         return res.status(404).json({ message: "Canal não encontrado" });
       }
+      
+      console.log(`[ZAPI Webhook] Canal encontrado: ${channel.name}, tipo: ${channel.type}`);
+      
 
       // Verificar tipo de evento recebido
       const webhook = req.body;

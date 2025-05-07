@@ -1,0 +1,121 @@
+A Z-API (e a maioria das APIs de mensagens) usa webhooks para notificar seu sistema em tempo real quando uma nova mensagem chega na sua instância do WhatsApp. Se o seu sistema não está recebendo essas notificações, ou não as está processando corretamente, as mensagens não aparecerão.
+
+Aqui está um guia passo a passo para diagnosticar e resolver isso:
+
+1. Verifique a Configuração do Webhook na Z-API:
+
+URL do Webhook:
+
+No seu código server/services/channels/zapi.ts, a função setupZAPIChannel tenta configurar um webhook. A URL gerada é algo como:
+
+const webhookUrl = process.env.BASE_URL
+  ? `${process.env.BASE_URL}/api/webhooks/zapi/${channel.id}`
+  : `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}/api/webhooks/zapi/${channel.id}`;
+Confirme se esta URL está correta e publicamente acessível pela internet. A Z-API precisa conseguir enviar uma requisição POST para essa URL. Se você estiver rodando localmente sem um túnel (como ngrok), a Z-API não conseguirá alcançar seu servidor. Se estiver no Replit, a URL https://SEU_REPL_SLUG.replit.dev/api/webhooks/zapi/SEU_CHANNEL_ID deve estar correta.
+
+HTTPS é Obrigatório: A Z-API exige que as URLs de webhook sejam HTTPS (Source 279). Sua URL gerada parece levar isso em conta se process.env.BASE_URL estiver configurado com HTTPS ou se estiver usando o domínio do Replit.
+
+Painel da Z-API:
+
+Acesse o painel de administração da sua instância na Z-API.
+
+Verifique a seção de configuração de webhooks (geralmente chamada de "Webhooks", "Integrações" ou similar).
+
+Confirme se a URL acima está configurada lá para o evento de recebimento de mensagens (on-message-received ou equivalente, conforme Source 274). A documentação "Integração Completa com Z-API_.txt" (Source 8, 272) detalha os tipos de webhooks.
+
+Verifique se não há erros de configuração reportados no painel da Z-API para o seu webhook.
+
+Quais Eventos Estão Ativados:
+
+No setupZAPIChannel, você está tentando registrar o webhook com webhookFeatures: { receiveAllNotifications: true }. Isso é bom. Verifique no painel da Z-API se os eventos de recebimento de mensagem estão de fato ativos para a URL configurada. O evento principal que você precisa é o on-message-received (ou ReceivedCallback, conforme Source 280, 281).
+
+2. Teste o Endpoint do Webhook no Seu Backend:
+
+Verifique o Handler (server/handlers/webhooks.ts):
+
+Você tem um handler para app.post(\${apiPrefix}/webhooks/zapi/:channelId`, ...)` neste arquivo. É aqui que as mensagens da Z-API deveriam chegar.
+
+Adicione Logs Detalhados: No início deste handler, coloque console.log para registrar o corpo (req.body), os cabeçalhos (req.headers) e os parâmetros (req.params) de cada requisição que chega. Isso ajudará a ver se a Z-API está sequer tentando enviar algo.
+
+TypeScript
+
+app.post(`${apiPrefix}/webhooks/zapi/:channelId`, async (req: Request, res: Response) => {
+  const channelId = parseInt(req.params.channelId);
+  console.log(`[ZAPI Webhook] Recebido para Canal ID: ${channelId}`);
+  console.log('[ZAPI Webhook] Headers:', JSON.stringify(req.headers, null, 2));
+  console.log('[ZAPI Webhook] Body:', JSON.stringify(req.body, null, 2));
+  // ... resto do seu código
+});
+Teste com o Postman ou similar:
+
+Envie uma requisição POST manual para a URL do seu webhook (ex: https://SEU_REPL_SLUG.replit.dev/api/webhooks/zapi/SEU_CHANNEL_ID) usando uma ferramenta como o Postman.
+
+No corpo da requisição, simule um payload de mensagem recebida da Z-API. Você pode encontrar exemplos de payloads na documentação da Z-API (Source 281, 27) ou nos logs da Z-API (se disponíveis). Um exemplo simplificado baseado no seu código seria:
+
+JSON
+
+{
+  "isMessage": true,
+  "phone": "5511999999999", // Número de quem enviou
+  "senderName": "Nome do Contato",
+  "text": "Olá, esta é uma mensagem de teste!",
+  "messageId": "unique_message_id_from_whatsapp"
+  // Outros campos que a Z-API envia...
+}
+Verifique se o seu handler processa essa requisição corretamente e se os logs aparecem no console do seu servidor. Se houver erros aqui, eles precisam ser corrigidos.
+
+3. Analise o Processamento da Mensagem no Handler do Webhook:
+
+Validação e Extração de Dados:
+
+Seu handler em server/handlers/webhooks.ts verifica eventData.isMessage, eventData.phone e eventData.text. Certifique-se de que o payload real enviado pela Z-API corresponda a esses campos ou ajuste seu código para extrair os dados corretamente. (Source 281 mostra um payload típico).
+
+Criação/Busca de Contato e Conversa:
+
+O código busca ou cria um contato baseado no eventData.phone.
+
+Depois, busca ou cria uma conversa para esse contato e channelId.
+
+Se houver erros nessas etapas (ex: falha ao conectar ao banco, dados inválidos), a mensagem não será salva.
+
+Salvamento da Mensagem:
+
+A mensagem é inserida na tabela messages. Verifique se insertMessageSchema.safeParse(messageData) está validando corretamente.
+
+Confirme se broadcastToClients({ type: 'new_message', ... }) está sendo chamado e se os seus clientes WebSocket estão recebendo essa notificação.
+
+Resposta Automática (AI):
+
+A lógica de resposta automática (shouldAutoReply) é chamada. Se houver erros aqui, eles podem impedir o processamento completo, embora a mensagem original já deva ter sido salva antes disso.
+
+4. Verifique a Conexão da Instância Z-API:
+
+Status da Instância: Use o endpoint /status da Z-API (como você faz na função checkConnectionStatus em server/services/channels/zapi.ts) para garantir que sua instância esteja de fato "Conectada" (connected: true). Se não estiver, você não receberá mensagens.
+
+Telefone Conectado: Verifique no seu celular se a sessão do WhatsApp Web/Dispositivos Conectados correspondente à Z-API está ativa. Às vezes, essa sessão pode ser desconectada pelo WhatsApp.
+
+5. Logs da Z-API (se disponíveis):
+
+Alguns provedores de API oferecem logs de webhooks enviados. Verifique no painel da Z-API se há um histórico de tentativas de envio de webhooks para a sua URL e se eles estão resultando em sucesso (HTTP 200 OK) ou erro.
+
+6. Firewall e Acessibilidade da Rede:
+
+Se o seu servidor estiver atrás de um firewall ou em uma rede restrita, certifique-se de que ele permite tráfego de entrada dos IPs da Z-API na porta que seu servidor está escutando (geralmente 443 para HTTPS). No Replit, isso geralmente é gerenciado automaticamente.
+
+Resumo dos Pontos de Verificação Cruciais:
+
+Configuração do Webhook na Z-API: A URL está correta, é HTTPS, está ativa para eventos de recebimento de mensagens e é publicamente acessível?
+
+Handler do Webhook no Backend (server/handlers/webhooks.ts):
+
+Está recebendo as requisições da Z-API? (Verifique com logs).
+
+Está processando o payload corretamente?
+
+Está salvando as mensagens no banco de dados?
+
+Está transmitindo para os clientes via WebSocket?
+
+Status da Conexão Z-API: A instância está conectada ao WhatsApp?
+
+Se após verificar esses pontos o problema persistir, os logs detalhados que você adicionou ao handler do webhook serão sua principal ferramenta para entender onde o processo está falhando quando a Z-API tenta enviar uma mensagem.

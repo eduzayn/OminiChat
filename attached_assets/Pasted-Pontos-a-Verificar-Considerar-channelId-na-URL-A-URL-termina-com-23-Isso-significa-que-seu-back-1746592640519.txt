@@ -1,0 +1,37 @@
+Pontos a Verificar/Considerar:
+
+channelId na URL: A URL termina com /23. Isso significa que seu backend em server/handlers/webhooks.ts receberá 23 como req.params.channelId.
+
+Confirme que no seu banco de dados existe um canal com id = 23 e que este canal está corretamente configurado como type: "whatsapp" e config: { provider: "zapi", ... }. Se o ID do canal Z-API no seu banco de dados for diferente, essa URL de webhook não corresponderá ao canal correto no seu sistema.
+
+Acessibilidade da URL do Webhook:
+
+A URL https://0eb8be2b-04a6-47e5-bbf1-dd3bd83018b0-00-2m0jsmtd34bj0.picard.replit.dev é o endereço público do seu Replit.
+
+Certifique-se de que seu Replit está rodando e que o servidor Express está escutando requisições nesse caminho. Se o Replit estiver dormindo ou o servidor tiver caído, a Z-API não conseguirá entregar os webhooks.
+
+Lógica no Handler do Backend (server/handlers/webhooks.ts):
+
+Como mencionei antes, mesmo que a Z-API envie o webhook corretamente para sua URL, a lógica dentro do seu handler precisa processar o payload da Z-API corretamente.
+
+O console.log que sugeri adicionar no início do handler app.post(\${apiPrefix}/webhooks/zapi/:channelId`, ...)` é crucial. Envie uma mensagem para o seu número conectado à Z-API (de outro WhatsApp) e veja se esses logs aparecem no console do seu Replit.
+
+Se nenhum log aparecer, o problema é que a Z-API não está conseguindo alcançar sua URL, ou não está enviando o webhook (verifique o painel da Z-API por erros de entrega de webhook).
+
+Se os logs aparecerem, o problema está na lógica dentro do seu handler (como ele extrai os dados, salva no banco, etc.).
+
+Estrutura do Payload da Z-API:
+
+Seu handler espera campos como eventData.isMessage, eventData.phone, eventData.text, eventData.senderName, eventData.messageId.
+
+Você precisa confirmar (através dos logs do req.body ou da documentação da Z-API para o evento on-message-received) que esses são os campos corretos e que eles contêm os dados que você espera. A documentação da Z-API (Source 281, 27) para "Upon receiving" (on-message-received) mostra uma estrutura de payload. Compare-a com o que você está tentando acessar em eventData. Por exemplo, eventData.text pode ser eventData.text.message ou algo similar dependendo da estrutura exata.
+
+Conclusão Parcial sobre a Configuração:
+
+Visualmente, no painel da Z-API (conforme a imagem), a configuração das URLs de webhook para os diversos eventos parece estar correta no sentido de que você apontou todos os eventos para o seu endpoint de backend.
+
+O "jeito certo" depende de:
+
+A URL estar correta e acessível (seu Replit rodando e o channelId=23 corresponder a um canal Z-API válido no seu sistema).
+
+Seu backend estar preparado para receber e processar o formato de payload que a Z-API envia para cada um desses eventos, especialmente o on-message-received.

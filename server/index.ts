@@ -19,6 +19,15 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Configurar middleware de upload de arquivos
+app.use(fileUpload({
+  useTempFiles: true,
+  tempFileDir: '/tmp/',
+  limits: { fileSize: 10 * 1024 * 1024 }, // limite de 10MB
+  abortOnLimit: true,
+  createParentPath: true
+}));
+
 // Configure session middleware
 const PgSession = connectPgSimple(session);
 app.use(session({

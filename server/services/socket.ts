@@ -66,6 +66,9 @@ export function setupWebSocketServer(wss: WebSocketServer, db: any): void {
             userId = msgUserId;
             userRole = messageData.role || 'user';
             
+            // Garantir que userRole nunca seja null
+            if (!userRole) userRole = 'user';
+            
             // Registrar esse cliente
             clients.set(userId, ws);
             clientRoles.set(userId, userRole); // Armazenar o papel do usuário
@@ -244,6 +247,11 @@ export function setupWebSocketServer(wss: WebSocketServer, db: any): void {
   
   // Monitoramento avançado de clientes e keep-alive com ping/pong
   const pingInterval = setInterval(() => {
+    if (wss.clients.size === 0) {
+      console.log('Nenhum cliente conectado para ping');
+      return;
+    }
+    
     console.log(`Realizando ping em ${wss.clients.size} clientes WebSocket`);
     
     wss.clients.forEach((ws: WebSocket) => {
@@ -251,35 +259,61 @@ export function setupWebSocketServer(wss: WebSocketServer, db: any): void {
       if (ws.readyState === WebSocket.OPEN) {
         // Marcar o cliente como não responsivo até que responda ao ping
         (ws as any).isAlive = false;
+        (ws as any).pingAttempts = ((ws as any).pingAttempts || 0) + 1;
         
-        // Enviar ping (protocolo WebSocket nativo)
-        ws.ping();
-        
-        // Enviar ping como mensagem JSON também (alternativa para alguns clientes que não respondem ao ping nativo)
         try {
+          // Enviar ping (protocolo WebSocket nativo)
+          ws.ping();
+          
+          // Enviar ping como mensagem JSON também (alternativa para alguns clientes que não respondem ao ping nativo)
           ws.send(JSON.stringify({
             type: 'ping',
             timestamp: Date.now(),
             serverTime: new Date().toISOString()
           }));
+          
+          // Se o cliente atingiu muitas tentativas, registra um aviso
+          if ((ws as any).pingAttempts > 2) {
+            console.warn(`Cliente com ${(ws as any).pingAttempts} tentativas de ping sem sucesso`);
+          }
         } catch (error: unknown) {
-          console.error('Erro ao enviar ping como mensagem:', error);
+          console.error('Erro ao enviar ping:', error);
+          // Se não conseguir enviar ping, a conexão provavelmente está quebrada
+          console.log('Terminando conexão devido a erro no ping');
+          try {
+            ws.terminate();
+          } catch (e) {
+            console.error('Erro ao terminar WebSocket após falha de ping:', e);
+          }
         }
       }
     });
-  }, 30000); // Ping a cada 30 segundos
+  }, 20000); // Ping a cada 20 segundos (mais frequente)
   
   // Verificar clientes não responsivos e remover
   const terminateInterval = setInterval(() => {
+    let terminatedCount = 0;
+    
     wss.clients.forEach((ws: WebSocket) => {
-      // Se o cliente não respondeu ao último ping, desconectar
+      // Se o cliente não respondeu ao último ping e está aberto, desconectar
       if ((ws as any).isAlive === false && ws.readyState === WebSocket.OPEN) {
-        console.log('Terminando conexão de cliente não responsivo');
-        ws.terminate();
-        return;
+        // Se tem muitas tentativas sem resposta ou estado inválido
+        if ((ws as any).pingAttempts >= 3 || ws.readyState !== WebSocket.OPEN) {
+          console.log('Terminando conexão de cliente não responsivo');
+          try {
+            ws.terminate();
+            terminatedCount++;
+          } catch (e) {
+            console.error('Erro ao terminar conexão não responsiva:', e);
+          }
+        }
       }
     });
-  }, 45000); // Verificar a cada 45 segundos (após ciclo de ping)
+    
+    if (terminatedCount > 0) {
+      console.log(`Terminadas ${terminatedCount} conexões não responsivas`);
+    }
+  }, 30000); // Verificar a cada 30 segundos (após ciclo de ping)
   
   // Configurar callback de pong para marcar clientes como responsivos
   wss.on('connection', (ws: WebSocket) => {

@@ -124,14 +124,31 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         console.log("Conexão WebSocket estabelecida");
         setConnected(true);
         
-        // Enviar mensagem de autenticação
-        ws.send(JSON.stringify({
-          type: "authenticate",
-          data: {
-            userId: user.id,
-            role: user.role
+        // Enviar mensagem de autenticação (com retry se falhar)
+        const sendAuth = () => {
+          try {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                type: "authenticate",
+                data: {
+                  userId: user.id,
+                  role: user.role
+                }
+              }));
+            } else {
+              console.warn(`WebSocket não está aberto para autenticação (estado: ${ws.readyState})`);
+              // Tentar novamente em 1 segundo se a conexão não estiver pronta
+              setTimeout(sendAuth, 1000);
+            }
+          } catch (e) {
+            console.error("Erro ao enviar autenticação:", e);
+            // Tentar novamente em 2 segundos
+            setTimeout(sendAuth, 2000);
           }
-        }));
+        };
+        
+        // Iniciar o processo de autenticação
+        sendAuth();
         
         // Configurar ping/pong para manter a conexão ativa
         pingIntervalRef = setInterval(() => {
@@ -239,20 +256,34 @@ export function SocketProvider({ children }: { children: ReactNode }) {
             // Adicionando log de substituição para remover referência ao Z-API
             console.log("WebSocket conectado. Pronto para receber notificações em tempo real");
             
-            toast({
-              title: "Conexão estabelecida",
-              description: "Você está conectado e receberá notificações em tempo real",
-              duration: 3000
-            });
+            // Não vamos mostrar notificação para cada autenticação bem-sucedida
+            // pois já temos o toast de conexão estabelecida
+            // Só mostrar toast no modo de desenvolvimento
+            if (import.meta.env.DEV) {
+              toast({
+                title: "Autenticação concluída",
+                description: "Conexão autenticada. Pronto para receber notificações",
+                duration: 2000
+              });
+            }
           }
           else if (data.type === "authentication_error") {
             console.error('Erro de autenticação WebSocket:', data);
+            
+            // Mostrar alerta e tentar reconectar
             toast({
-              title: "Erro de conexão",
-              description: "Houve um problema com a conexão em tempo real",
+              title: "Erro de autenticação",
+              description: data.data?.message || "Falha na autenticação. Tentando novamente...",
               variant: "destructive",
               duration: 5000
             });
+            
+            // Fechar conexão atual e forçar reconexão
+            setTimeout(() => {
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.close(4001, "Erro de autenticação, forçando reconexão");
+              }
+            }, 1000);
           }
           else if (data.type === "connection_stats") {
             // Atualizar estatísticas de conexão (clientes ativos, etc)
@@ -295,14 +326,29 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     };
   }, [user, connectWebSocket]);
   
-  // Notificar mudanças no estado da conexão
+  // Notificar mudanças no estado da conexão apenas quando reconecta após falha
+  // Usando uma ref para rastrear se já mostrou o toast inicial
+  const initialConnectRef = useRef(false);
+  const wasDisconnectedRef = useRef(false);
+  
   useEffect(() => {
     if (connected) {
-      toast({
-        title: "Conexão estabelecida",
-        description: "Você está conectado ao sistema de comunicação em tempo real",
-        duration: 3000
-      });
+      // Só mostrar o toast de conexão se:
+      // 1. For a primeira conexão (e só uma vez por sessão)
+      // 2. Reconectar após desconexão
+      if (!initialConnectRef.current || wasDisconnectedRef.current) {
+        initialConnectRef.current = true;
+        wasDisconnectedRef.current = false;
+        
+        toast({
+          title: "Conexão estabelecida",
+          description: "Você está conectado ao sistema de comunicação em tempo real",
+          duration: 3000
+        });
+      }
+    } else {
+      // Marcar que estava desconectado para mostrar o toast na reconexão
+      wasDisconnectedRef.current = true;
     }
   }, [connected, toast]);
 

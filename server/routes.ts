@@ -40,6 +40,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   
   // Create WebSocket server
+  // Configurar WebSocket Server para comunicação em tempo real
   const wss = new WebSocketServer({ 
     server: httpServer, 
     path: '/ws' 
@@ -47,6 +48,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Setup WebSocket handlers
   setupWebSocketServer(wss, db);
+  
+  // Exportar a instância WebSocketServer e a função de broadcast para usar em outros módulos
+  // como os handlers de webhooks para Z-API
+  global.wss = wss;
+  // Importar a função broadcastToClients para uso global
+  import('./services/socket').then(module => {
+    global.broadcastToClients = module.broadcastToClients;
+    console.log('Função broadcastToClients disponibilizada globalmente');
+  }).catch(err => {
+    console.error('Erro ao importar función broadcastToClients:', err);
+  });
 
   return httpServer;
 }

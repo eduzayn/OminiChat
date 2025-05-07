@@ -568,13 +568,47 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
           .returning();
         
         // Notificar clientes sobre nova mensagem
-        broadcastToClients({
-          type: 'new_message',
-          data: {
-            ...message,
-            contact
+        console.log(`[Z-API Webhook] Nova mensagem recebida e salva: ${message.id} de ${contact.name}`);
+        
+        // Buscar detalhes completos para enviar via WebSocket
+        const fullMessage = {
+          ...message,
+          contact,
+          conversation: {
+            id: conversation.id,
+            channelId: channel.id,
+            channelType: channel.type,
+            contactId: contact.id
           }
-        });
+        };
+        
+        // Log para depuração
+        console.log(`[Z-API Webhook] Enviando notificação em tempo real via WebSocket: ID=${message.id}`);
+        
+        try {
+          // Utilizar o broadcastToClients global (importado em server/routes.ts)
+          // @ts-ignore - O TypeScript não reconhece o broadcastToClients como global
+          if (typeof global.broadcastToClients === 'function') {
+            // @ts-ignore
+            global.broadcastToClients({
+              type: 'new_message',
+              data: fullMessage
+            });
+            console.log('[Z-API Webhook] Notificação enviada via WebSocket com sucesso');
+          } else {
+            console.error('[Z-API Webhook] Erro: broadcastToClients não está disponível como função global');
+            // Fallback para a versão local se disponível
+            if (typeof broadcastToClients === 'function') {
+              broadcastToClients({
+                type: 'new_message',
+                data: fullMessage
+              });
+              console.log('[Z-API Webhook] Notificação enviada via WebSocket local com sucesso');
+            }
+          }
+        } catch (wsError) {
+          console.error('[Z-API Webhook] Erro ao transmitir mensagem via WebSocket:', wsError);
+        }
         
         // Verificar se deve enviar resposta automática
         // Obter as mensagens anteriores para contexto
@@ -618,13 +652,44 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
             .returning();
           
           // Notificar clientes sobre a resposta automática
-          broadcastToClients({
-            type: 'new_message',
-            data: {
-              ...autoReplyMessage,
-              contact
+          console.log(`[Z-API Webhook] Nova resposta automática para mensagem: ${autoReplyMessage.id}`);
+          
+          // Resposta completa com dados contextuais
+          const fullAutoReply = {
+            ...autoReplyMessage,
+            contact,
+            conversation: {
+              id: conversation.id,
+              channelId: channel.id,
+              channelType: channel.type,
+              contactId: contact.id
             }
-          });
+          };
+          
+          try {
+            // Utilizar o broadcastToClients global (importado em server/routes.ts)
+            // @ts-ignore - O TypeScript não reconhece o broadcastToClients como global
+            if (typeof global.broadcastToClients === 'function') {
+              // @ts-ignore
+              global.broadcastToClients({
+                type: 'new_message',
+                data: fullAutoReply
+              });
+              console.log('[Z-API Webhook] Notificação de resposta automática enviada via WebSocket');
+            } else {
+              console.error('[Z-API Webhook] Erro: global.broadcastToClients não disponível');
+              // Fallback para a versão local se disponível
+              if (typeof broadcastToClients === 'function') {
+                broadcastToClients({
+                  type: 'new_message',
+                  data: fullAutoReply
+                });
+                console.log('[Z-API Webhook] Notificação enviada via broadcast local');
+              }
+            }
+          } catch (wsError) {
+            console.error('[Z-API Webhook] Erro ao transmitir resposta automática via WebSocket:', wsError);
+          }
           
           // Enviar a resposta automática para o WhatsApp via Z-API
           try {

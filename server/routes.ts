@@ -16,6 +16,7 @@ import { setupWebSocketServer } from "./services/socket";
 import { registerRestartSessionRoute } from "./handlers/restart-session";
 import { registerWebhookDiagnosticRoute } from "./handlers/webhook-diagnostic";
 import { registerWebhookSimulationRoutes } from "./handlers/webhook-simulation";
+import { registerMediaTestRoutes } from "./handlers/media-test";
 
 
 export async function registerRoutes(app: Express): Promise<Server> {

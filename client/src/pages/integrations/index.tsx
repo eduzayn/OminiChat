@@ -20,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { IntegrationCard } from './components/integration-card';
 import { MetaIntegrationDialog } from './components/meta-integration';
 import { ZAPIChannelDialog } from '@/components/dialogs/zapi-channel-dialog';
+import { ZAPIDiagnosticPanel } from '@/components/zapi-diagnostic-panel';
 import { ZAPIWebhookConfig } from './components/zapi-webhook-config';
 import { toast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
@@ -285,75 +286,7 @@ export default function IntegrationsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex flex-col space-y-4">
-                  <div className="bg-blue-50 rounded-md p-4">
-                    <h3 className="text-md font-medium text-blue-800 mb-2">Z-API Status</h3>
-                    <p className="text-sm text-blue-700">
-                      Use esta seção para verificar o status das suas integrações com a Z-API. 
-                      Canais conectados e configurados adequadamente serão exibidos abaixo.
-                    </p>
-                  </div>
-                  
-                  <div className="flex justify-end">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => refetchChannels()}
-                    >
-                      <RefreshCcw className="h-4 w-4 mr-2" />
-                      Verificar Status
-                    </Button>
-                  </div>
-                  
-                  {getChannelsByProvider('zapi').length === 0 ? (
-                    <div className="text-center py-4 text-neutral-500">
-                      Nenhum canal Z-API configurado. Use a seção "Integrações de WhatsApp" para adicionar um novo canal.
-                    </div>
-                  ) : (
-                    <div className="grid gap-4">
-                      {getChannelsByProvider('zapi').map((channel) => (
-                        <div key={channel.id} className="border rounded-md p-4">
-                          <div className="flex justify-between items-center mb-2">
-                            <h3 className="font-medium">{channel.name}</h3>
-                            <div className={`flex items-center ${
-                              getChannelStatus(channel) === 'connected' 
-                                ? 'text-green-600' 
-                                : 'text-red-600'
-                            }`}>
-                              {getChannelStatus(channel) === 'connected' ? (
-                                <>
-                                  <Check className="h-4 w-4 mr-1" />
-                                  <span className="text-sm">Conectado</span>
-                                </>
-                              ) : (
-                                <>
-                                  <AlertCircle className="h-4 w-4 mr-1" />
-                                  <span className="text-sm">Desconectado</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex justify-end space-x-2 mt-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => testChannelConnection(channel.id)}
-                            >
-                              Testar Conexão
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handleEditChannel(channel)}
-                            >
-                              Configurar
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <ZAPIDiagnosticPanel />
               </CardContent>
             </Card>
 
@@ -611,13 +544,15 @@ export default function IntegrationsPage() {
       <MetaIntegrationDialog
         open={metaDialogOpen}
         onOpenChange={setMetaDialogOpen}
-        existingChannel={selectedChannel}
       />
 
-      <ZAPIIntegrationDialog
+      <ZAPIChannelDialog
         open={zapiDialogOpen}
         onOpenChange={setZapiDialogOpen}
         existingChannel={selectedChannel}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['/api/channels'] });
+        }}
       />
     </>
   );

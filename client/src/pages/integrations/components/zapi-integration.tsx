@@ -422,15 +422,21 @@ export function ZAPIIntegrationDialog({
                         <span>WhatsApp conectado e funcionando</span>
                       </div>
                     ) : connectionStatus === 'disconnected' ? (
-                      <div className="flex items-center text-red-600">
-                        <AlertCircle className="h-5 w-5 mr-2" />
-                        <span>WhatsApp desconectado</span>
+                      <div className="flex flex-col">
+                        <div className="flex items-center text-red-600">
+                          <AlertCircle className="h-5 w-5 mr-2" />
+                          <span>WhatsApp desconectado - necessário reconectar</span>
+                        </div>
+                        <p className="text-sm text-red-500 mt-2">
+                          Atenção: Enquanto o WhatsApp estiver desconectado, não será possível enviar ou receber mensagens.
+                          Escaneie o QR Code abaixo para conectar seu WhatsApp.
+                        </p>
                       </div>
                     ) : (
                       <div className="flex items-center text-gray-600">
                         <span>Status desconhecido</span>
                       </div>
-                    )}
+                    )
                   </div>
                   
                   {/* QR Code para conexão, se disponível */}
@@ -452,17 +458,62 @@ export function ZAPIIntegrationDialog({
                 </CardContent>
                 <CardFooter>
                   <div className="flex flex-col space-y-2 w-full">
-                    <Button 
-                      onClick={checkConnectionStatus} 
-                      variant="outline" 
-                      className="w-full"
-                    >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Verificar conexão
-                    </Button>
+                    <div className="flex space-x-2">
+                      <Button 
+                        onClick={checkConnectionStatus} 
+                        variant="outline" 
+                        className="flex-1"
+                        disabled={connectionStatus === 'loading'}
+                      >
+                        <RefreshCw className={`h-4 w-4 mr-2 ${connectionStatus === 'loading' ? 'animate-spin' : ''}`} />
+                        Verificar conexão
+                      </Button>
+                      
+                      <Button 
+                        onClick={async () => {
+                          setConnectionStatus('loading');
+                          try {
+                            const response = await apiRequest<any>(
+                              'POST',
+                              `/api/channels/${channelForm.id}/restart-session`,
+                              null
+                            );
+                            
+                            if (response && response.success) {
+                              toast({
+                                title: 'Sessão reiniciada',
+                                description: 'A sessão do WhatsApp foi reiniciada. Aguarde alguns instantes e tente verificar a conexão novamente.',
+                              });
+                              // Esperar um curto período e então verificar o status novamente para obter o QR Code
+                              setTimeout(() => {
+                                checkConnectionStatus();
+                              }, 2000);
+                            } else {
+                              throw new Error(response.message || 'Erro ao reiniciar sessão');
+                            }
+                          } catch (error) {
+                            console.error("Erro ao reiniciar sessão:", error);
+                            toast({
+                              title: 'Erro ao reiniciar',
+                              description: error instanceof Error ? error.message : 'Erro ao reiniciar sessão do WhatsApp',
+                              variant: 'destructive',
+                            });
+                            setConnectionStatus('disconnected');
+                          }
+                        }}
+                        variant="destructive" 
+                        className="flex-1"
+                        disabled={connectionStatus === 'loading'}
+                      >
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Reiniciar sessão
+                      </Button>
+                    </div>
+                    
                     {connectionStatus === 'disconnected' && (
                       <p className="text-sm text-center text-amber-600">
-                        Se o QR Code não aparecer, tente novamente em alguns segundos. O serviço pode estar gerando um novo código.
+                        Se o QR Code não aparecer, tente reiniciar a sessão e verificar novamente. 
+                        O serviço pode estar gerando um novo código.
                       </p>
                     )}
                   </div>

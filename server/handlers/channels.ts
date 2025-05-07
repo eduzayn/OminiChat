@@ -24,7 +24,8 @@ import {
   testZapiInstances,
   checkWebhookStatus,
   configureWebhook,
-  sendTestMessageToInbox
+  sendTestMessageToInbox,
+  restartSession
 } from "../services/channels/zapi";
 
 // Middleware to check if user is authenticated

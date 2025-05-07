@@ -1204,7 +1204,7 @@ export async function checkWebhookStatus(channel: Channel): Promise<{
     const expectedWebhookUrl = `${baseUrl}/api/webhooks/zapi/${channel.id}`;
     
     try {
-      // Tentativa 1: Verificar webhook usando a API v2 - se retornar erro, isso é normal, pois a API está em transição
+      // Verificar webhook usando a API unificada mais recente da Z-API
       const headers = getHeadersWithToken(token, ZAPI_CLIENT_TOKEN);
       
       console.log(`[Z-API] Fazendo requisição GET para ${BASE_URL}/instances/${instanceId}/token/${token}/webhook`);
@@ -1218,11 +1218,26 @@ export async function checkWebhookStatus(channel: Channel): Promise<{
         
         console.log(`[Z-API] Resposta da verificação de webhook:`, JSON.stringify(response.data, null, 2));
         
-        // Compatibilidade com APIs antigas da Z-API que retornam 'value' em vez de 'url'
-        const webhookUrl = response.data?.url || response.data?.value || null;
+        // Compatibilidade com todas as versões da API Z-API (nova e antiga)
+        // A API mais recente retorna objeto com 'url', a antiga retorna objeto com 'value'
+        // Algumas versões podem retornar diretamente a string da URL
+        let webhookUrl = null;
+        if (typeof response.data === 'string' && response.data.startsWith('http')) {
+          // Caso 1: Resposta é diretamente a URL como string
+          webhookUrl = response.data;
+        } else if (response.data?.url) {
+          // Caso 2: Resposta tem formato { url: "https://..." }
+          webhookUrl = response.data.url;
+        } else if (response.data?.value && typeof response.data.value === 'string') {
+          // Caso 3: Resposta tem formato { value: "https://..." }
+          webhookUrl = response.data.value;
+        }
+        
         const isConfigured = !!webhookUrl && webhookUrl.length > 0;
         
         // Extrair features do webhook se existirem
+        // API nova: webhookFeatures é um objeto com propriedades booleanas
+        // API antiga: pode não ter essas propriedades
         const webhookFeatures = response.data?.webhookFeatures || {};
         
         return {
@@ -1522,68 +1537,34 @@ export async function configureWebhook(
       }
     }
     
-    // === ETAPA 2: Configurar o Webhook para "Ao Conectar" ===
-    // De acordo com a documentação oficial: https://www.postman.com/docs-z-api/z-api-s-public-workspace/request/zux9mdd/ao-conectar
-    try {
-      console.log(`[Z-API] Etapa 2: Configurando webhook para evento de conexão...`);
-      
-      const connectResponse = await axios.post(
-        `${BASE_URL}/instances/${instanceId}/token/${token}/webhook/connect`,
-        {
-          value: finalWebhookUrl
-        },
-        { headers }
-      );
-      
-      console.log(`[Z-API] Resposta da configuração de Webhook Ao Conectar:`, 
-        JSON.stringify(connectResponse.data, null, 2));
-      
-      webhookConfigured = true;
-    } catch (error) {
-      if (error instanceof Error) {
-        console.log("[Z-API] Erro na configuração do webhook Ao Conectar:", error.message);
-      }
-    }
-    
-    // === ETAPA 3: Configurar o Webhook para "Ao Desconectar" ===
-    // De acordo com a documentação oficial: https://www.postman.com/docs-z-api/z-api-s-public-workspace/request/6q2yfbj/ao-desconectar
-    try {
-      console.log(`[Z-API] Etapa 3: Configurando webhook para evento de desconexão...`);
-      
-      const disconnectResponse = await axios.post(
-        `${BASE_URL}/instances/${instanceId}/token/${token}/webhook/disconnect`,
-        {
-          value: finalWebhookUrl
-        },
-        { headers }
-      );
-      
-      console.log(`[Z-API] Resposta da configuração de Webhook Ao Desconectar:`, 
-        JSON.stringify(disconnectResponse.data, null, 2));
-    } catch (error) {
-      if (error instanceof Error) {
-        console.log("[Z-API] Erro na configuração do webhook Ao Desconectar:", error.message);
-      }
-    }
-    
-    // === ETAPA 4: Configurar o Webhook para "Ao Enviar" mensagem ===
-    // De acordo com a documentação oficial: https://www.postman.com/docs-z-api/z-api-s-public-workspace/request/q0hpv11/ao-enviar
-    try {
-      console.log(`[Z-API] Etapa 4: Configurando webhook para evento de envio...`);
-      
-      const sendResponse = await axios.post(
-        `${BASE_URL}/instances/${instanceId}/token/${token}/webhook/send`,
-        {
-          value: finalWebhookUrl
-        },
-        { headers }
-      );
-      
-      console.log(`[Z-API] Resposta da configuração de Webhook Ao Enviar:`, 
-        JSON.stringify(sendResponse.data, null, 2));
-    } catch (error) {
-      if (error instanceof Error) {
-        console.log("[Z-API] Erro na configuração do webhook Ao Enviar:", error.message);
+    // Não precisamos mais das etapas adicionais 2, 3, 4 já que a nova API configura tudo em uma única chamada
+    // Se a primeira chamada falhar, tentaremos um método alternativo (fallback)
+    if (!webhookConfigured) {
+      try {
+        console.log(`[Z-API] Tentativa alternativa: Configurando webhook usando método legado...`);
+        
+        // Tentar configurar usando endpoint de webhook simples (método alternativo)
+        const fallbackResponse = await axios.post(
+          `${BASE_URL}/instances/${instanceId}/token/${token}/webhook`,
+          {
+            url: finalWebhookUrl,
+            // Incluir opções mais simples para versões mais antigas da API
+            enabled: true,
+            messageTypes: ["all"]
+          },
+          { headers }
+        );
+        
+        console.log(`[Z-API] Resposta da configuração alternativa de Webhook:`, 
+          JSON.stringify(fallbackResponse.data, null, 2));
+        
+        // Se chegamos aqui, a configuração foi bem-sucedida
+        webhookConfigured = true;
+      } catch (fallbackError) {
+        if (fallbackError instanceof Error) {
+          console.log("[Z-API] Erro na configuração alternativa de webhook:", fallbackError.message);
+          // Não definimos configError aqui para tentar ainda outro método se necessário
+        }
       }
     }
     

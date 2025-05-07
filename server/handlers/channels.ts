@@ -10,7 +10,7 @@ import {
   contacts,
   messages
 } from "@shared/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { setupChannel } from "../services/channels/whatsapp";
 import { setupInstagramChannel } from "../services/channels/instagram";
@@ -1090,10 +1090,57 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
         }
       }
       
-      // Delete channel
+      // Verificar e remover conversas e mensagens relacionadas primeiro
+      try {
+        // 1. Identificar todas as conversas associadas a este canal
+        const relatedConversations = await db
+          .select({ id: conversations.id })
+          .from(conversations)
+          .where(eq(conversations.channelId, channelId));
+        
+        if (relatedConversations.length > 0) {
+          console.log(`Encontradas ${relatedConversations.length} conversas associadas ao canal ${channelId}. Removendo-as antes de excluir o canal.`);
+          
+          // Extrair IDs de conversas
+          const conversationIds = relatedConversations.map(conv => conv.id);
+          
+          // 2. Remover mensagens associadas a essas conversas
+          const deletedMessages = await db
+            .delete(messages)
+            .where(inArray(messages.conversationId, conversationIds))
+            .returning();
+          
+          console.log(`${deletedMessages.length} mensagens de ${conversationIds.length} conversas removidas.`);
+          
+          // 3. Remover pagamentos associados (se houver)
+          const deletedPayments = await db
+            .delete(payments)
+            .where(inArray(payments.conversationId, conversationIds))
+            .returning();
+            
+          if (deletedPayments.length > 0) {
+            console.log(`${deletedPayments.length} registros de pagamento removidos.`);
+          }
+          
+          // 4. Remover as conversas
+          const deletedConversations = await db
+            .delete(conversations)
+            .where(eq(conversations.channelId, channelId))
+            .returning();
+          
+          console.log(`${deletedConversations.length} conversas removidas.`);
+        }
+      } catch (error) {
+        console.error("Erro ao remover conversas associadas:", error);
+        throw error; // Propagar erro para ser capturado pelo catch externo
+      }
+      
+      // 5. Agora podemos excluir o canal com segurança
       await db
         .delete(channels)
         .where(eq(channels.id, channelId));
+      
+      console.log(`Canal ${channelId} removido com sucesso.`);
       
       // Notify clients about the deleted channel
       broadcastToClients({

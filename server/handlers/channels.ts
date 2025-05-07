@@ -718,7 +718,16 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
     }
   });
   
-  // Get QR Code for WhatsApp channel (usando rota qrcode sem hífen para manter compatibilidade)
+  // Rotas de QR Code para WhatsApp (com e sem hífen para garantir compatibilidade)
+  
+  // Versão com hífen (anterior)
+  app.get(`${apiPrefix}/channels/:id/qr-code`, isAuthenticated, async (req, res) => {
+    // Redirecionar para versão sem hífen
+    const channelId = req.params.id;
+    res.redirect(`${apiPrefix}/channels/${channelId}/qrcode`);
+  });
+  
+  // Versão sem hífen (nova padrão)
   app.get(`${apiPrefix}/channels/:id/qrcode`, isAuthenticated, async (req, res) => {
     try {
       const channelId = parseInt(req.params.id);

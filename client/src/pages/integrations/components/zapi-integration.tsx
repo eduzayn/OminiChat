@@ -123,7 +123,7 @@ export function ZAPIIntegrationDialog({
         // Este endpoint verifica o status e retorna QR code se necessário
         const response = await apiRequest<any>(
           'GET',
-          `/api/channels/${channelForm.id}/qr-code`,
+          `/api/channels/${channelForm.id}/qrcode`,
           null
         );
         

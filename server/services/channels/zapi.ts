@@ -291,6 +291,7 @@ export async function sendTextMessage(
     }
     
     // Formatação do número do WhatsApp de acordo com a documentação ATUAL da Z-API
+    // Remove todos os caracteres não numéricos
     let formattedPhone = to.replace(/\D/g, '');
     
     // Se o número não tiver o código do país, adiciona o código do Brasil (55)
@@ -298,11 +299,10 @@ export async function sendTextMessage(
       formattedPhone = `55${formattedPhone}`;
     }
     
-    // IMPORTANTE: A versão mais recente da Z-API NÃO utiliza o sufixo @c.us para o número
     console.log(`[Z-API] Enviando texto para ${formattedPhone} (original: ${to}): "${content}"`);
     console.log(`[Z-API] Usando instância: ${instanceId} e token: ${token.slice(0, 5)}...`);
     
-    // Headers completos conforme a documentação
+    // Headers completos conforme a documentação atualizada
     const headers = {
       'Content-Type': 'application/json',
       'Client-Token': clientToken
@@ -310,42 +310,72 @@ export async function sendTextMessage(
     
     console.log(`[Z-API] Headers:`, JSON.stringify(headers));
     
-    // Enviar mensagem usando o endpoint de v1/send-text conforme documentação
-    // https://developer.z-api.io/message/send-text e https://www.postman.com/docs-z-api/z-api-s-public-workspace/
-    // Payload exatamente conforme documentação: https://www.postman.com/docs-z-api/z-api-s-public-workspace/folder/4aisbsg/messages
-    const response = await axios.post(
-      `${BASE_URL}/instances/${instanceId}/token/${token}/send-text`,
-      {
-        phone: formattedPhone,
-        message: content
-      },
-      { headers }
-    );
+    // Enviar mensagem usando o endpoint conforme documentação atual:
+    // https://www.postman.com/docs-z-api/z-api-s-public-workspace/request/p8ttncb/enviar-texto-simples
+    const url = `${BASE_URL}/instances/${instanceId}/token/${token}/message/text`;
+    
+    console.log(`[Z-API] URL de envio: ${url}`);
+    
+    // Payload conforme a documentação atual da Z-API
+    const payload = {
+      phone: formattedPhone,
+      text: content,
+      isGroup: false // Assumindo que não é grupo por padrão
+    };
+    
+    console.log(`[Z-API] Payload:`, JSON.stringify(payload, null, 2));
+    
+    const response = await axios.post(url, payload, { headers });
     
     console.log(`[Z-API] Resposta de envio:`, JSON.stringify(response.data, null, 2));
     
-    // Verificar resposta de acordo com a documentação atualizada
-    if (response.data && (response.data.messageId || response.data.id || response.data.zaapId)) {
-      const messageId = response.data.messageId || response.data.id || response.data.zaapId;
-      console.log(`[Z-API] Mensagem enviada com sucesso, ID: ${messageId}`);
+    // Verificar resposta conforme a documentação atualizada
+    if (response.data) {
+      if (response.data.messageId || response.data.id || response.data.zaapId) {
+        const messageId = response.data.messageId || response.data.id || response.data.zaapId;
+        console.log(`[Z-API] Mensagem enviada com sucesso, ID: ${messageId}`);
+        return {
+          status: "success",
+          messageId: messageId
+        };
+      } else if (response.data.value === true || response.data.sent === true) {
+        // Algumas versões da API retornam o campo value/sent como true para indicar sucesso
+        console.log(`[Z-API] Mensagem enviada com sucesso, resposta sem ID`);
+        
+        // Verificar se há algum outro identificador na resposta
+        const alternativeId = response.data.id || response.data.messageId || response.data.messageId || Date.now().toString();
+        
+        return {
+          status: "success",
+          messageId: alternativeId
+        };
+      } else if (typeof response.data === 'string' && response.data.includes('success')) {
+        // Algumas versões podem retornar apenas uma string de sucesso
+        console.log(`[Z-API] Mensagem enviada com sucesso, resposta em formato string`);
+        return {
+          status: "success",
+          messageId: `msg_${Date.now()}`
+        };
+      }
+    }
+    
+    // Se chegamos até aqui, a resposta não tem o formato esperado
+    console.error(`[Z-API] Resposta de envio em formato inesperado:`, response.data);
+    
+    // Tentar interpretar mesmo assim para evitar falsos negativos
+    if (response.status >= 200 && response.status < 300) {
+      console.log(`[Z-API] Considerando mensagem enviada pelo código HTTP ${response.status} de sucesso`);
       return {
         status: "success",
-        messageId: messageId
-      };
-    } else if (response.data && response.data.value) {
-      // Algumas versões da API retornam o campo value como true para indicar sucesso
-      console.log(`[Z-API] Mensagem enviada com sucesso, resposta sem ID (usar Z-API mais recente)`);
-      return {
-        status: "success",
-        messageId: "unknown" // Não temos ID neste caso
-      };
-    } else {
-      console.error(`[Z-API] Resposta de erro inesperada:`, response.data);
-      return {
-        status: "error",
-        message: "Falha ao enviar mensagem via Z-API: Resposta sem ID de mensagem"
+        messageId: `unknown_${Date.now()}`,
+        message: "Mensagem possivelmente enviada, mas formato de resposta não reconhecido"
       };
     }
+    
+    return {
+      status: "error",
+      message: "Falha ao enviar mensagem via Z-API: Resposta em formato não reconhecido"
+    };
   } catch (error) {
     console.error("Erro ao enviar mensagem Z-API:", error);
     
@@ -354,9 +384,18 @@ export async function sendTextMessage(
       console.error(`[Z-API] Status: ${error.response?.status}`);
       console.error(`[Z-API] Dados:`, error.response?.data);
       
+      // Se o erro incluir 'Could not find source instance', a instância pode estar desconectada
+      if (error.response?.data?.error?.includes('find source instance') || 
+          error.response?.data?.message?.includes('find source instance')) {
+        return {
+          status: "error",
+          message: "Instância Z-API não encontrada ou desconectada. Verifique a conexão do WhatsApp."
+        };
+      }
+      
       return {
         status: "error",
-        message: `Erro Z-API: ${error.response?.status || ''} - ${error.response?.data?.error || error.message || "Erro na requisição"}`
+        message: `Erro Z-API: ${error.response?.status || ''} - ${error.response?.data?.error || error.response?.data?.message || error.message || "Erro na requisição"}`
       };
     }
     
@@ -1376,7 +1415,7 @@ export async function configureWebhook(
       baseUrl = 'https://0eb8be2b-04a6-47e5-bbf1-dd3bd83018b0-00-2m0jsmtd34bj0.picard.replit.dev';
     }
     
-    // URL do webhook - se não for fornecida, cria uma URL baseada na URL atual da aplicação
+    // URL do webhook - garantindo que seja uma URL acessível externamente
     // e inclui o ID do canal para roteamento correto
     const finalWebhookUrl = webhookUrl || `${baseUrl}/api/webhooks/zapi/${channel.id}`;
     
@@ -1393,114 +1432,103 @@ export async function configureWebhook(
     console.log(`[Z-API] URL do webhook: ${finalWebhookUrl}`);
     console.log(`[Z-API] Instância: ${instanceId}`);
     
-    // Headers com o Client-Token correto
+    // Headers com o Client-Token correto - isso é fundamental para autenticação na API
     const headers = getHeadersWithToken(token, clientToken);
     console.log(`[Z-API] Headers para configuração do webhook:`, JSON.stringify(headers, null, 2));
     
-    // Configurar o webhook na Z-API usando os vários endpoints disponíveis (para compatibilidade)
+    // Configurar o webhook na Z-API usando os endpoints conforme a documentação atual
     let webhookConfigured = false;
     let configError = null;
     
-    // Método 1: Configuração via API v2 (on-webhook)
+    // === ETAPA 1: Configurar o Webhook para "Ao Receber" mensagem ===
+    // De acordo com a documentação oficial: https://www.postman.com/docs-z-api/z-api-s-public-workspace/request/n8n3eg9/ao-receber
     try {
-      console.log(`[Z-API] Método 1: Configurando webhook via on-webhook...`);
+      console.log(`[Z-API] Etapa 1: Configurando webhook para recebimento de mensagens...`);
       
-      // Payload para a API v2 (baseado na documentação oficial e implementação que funcionou)
-      // Incluindo explicitamente onMessageReceived que é o evento necessário para receber mensagens
-      const payload = {
-        on: {
-          events: {
-            onSend: features.messageCreate,
-            onReceive: features.messageReceived,
-            onMessageReceived: true, // Garantir que este evento específico esteja ativado
-            onMessage: true, // Versões antigas usam onMessage também
-            onStatus: features.statusChange,
-            onPresence: features.presenceChange,
-            onConnect: features.deviceConnected,
-            onDisconnect: true
-          },
-          url: finalWebhookUrl
+      // Configurar o evento "Ao Receber" conforme documentação
+      const receiveResponse = await axios.post(
+        `${BASE_URL}/instances/${instanceId}/token/${token}/webhook/receive`,
+        {
+          value: finalWebhookUrl
+        },
+        { headers }
+      );
+      
+      console.log(`[Z-API] Resposta da configuração de Webhook Ao Receber:`, 
+        JSON.stringify(receiveResponse.data, null, 2));
+      
+      webhookConfigured = true;
+    } catch (error) {
+      if (error instanceof Error) {
+        console.log("[Z-API] Erro na configuração do webhook Ao Receber:", error.message);
+        if (axios.isAxiosError(error)) {
+          console.log("[Z-API] Detalhes do erro:", JSON.stringify(error.response?.data, null, 2));
         }
-      };
-      
-      console.log(`[Z-API] Payload:`, JSON.stringify(payload, null, 2));
-      
-      const response = await axios.post(
-        `${BASE_URL}/instances/${instanceId}/token/${token}/on-webhook`,
-        payload,
-        { headers }
-      );
-      
-      console.log(`[Z-API] Resposta da configuração via on-webhook:`, 
-        JSON.stringify(response.data, null, 2));
-      
-      webhookConfigured = true;
-    } catch (error) {
-      // A API pode retornar erro mesmo quando configura corretamente
-      // "Unable to find matching target resource method"
-      if (error instanceof Error) {
-        configError = error;
-        console.log("[Z-API] Erro no método 1 (tentando outros métodos):", error.message);
       }
     }
     
-    // Método 2: Configuração via webhook endpoint direto
+    // === ETAPA 2: Configurar o Webhook para "Ao Conectar" ===
+    // De acordo com a documentação oficial: https://www.postman.com/docs-z-api/z-api-s-public-workspace/request/zux9mdd/ao-conectar
     try {
-      console.log(`[Z-API] Método 2: Configurando webhook via endpoint webhook...`);
-      const response = await axios.post(
-        `${BASE_URL}/instances/${instanceId}/token/${token}/webhook`,
-        { webhook: finalWebhookUrl },
+      console.log(`[Z-API] Etapa 2: Configurando webhook para evento de conexão...`);
+      
+      const connectResponse = await axios.post(
+        `${BASE_URL}/instances/${instanceId}/token/${token}/webhook/connect`,
+        {
+          value: finalWebhookUrl
+        },
         { headers }
       );
       
-      console.log(`[Z-API] Resposta da configuração via webhook:`, 
-        JSON.stringify(response.data, null, 2));
+      console.log(`[Z-API] Resposta da configuração de Webhook Ao Conectar:`, 
+        JSON.stringify(connectResponse.data, null, 2));
       
       webhookConfigured = true;
     } catch (error) {
-      // Ignorar erros, pois é apenas uma tentativa alternativa
       if (error instanceof Error) {
-        console.log("[Z-API] Erro no método 2 (tentando outros métodos):", error.message);
+        console.log("[Z-API] Erro na configuração do webhook Ao Conectar:", error.message);
       }
     }
     
-    // Método 3: Configuração via on-message-received (foco específico em mensagens recebidas)
+    // === ETAPA 3: Configurar o Webhook para "Ao Desconectar" ===
+    // De acordo com a documentação oficial: https://www.postman.com/docs-z-api/z-api-s-public-workspace/request/6q2yfbj/ao-desconectar
     try {
-      console.log(`[Z-API] Método 3: Configurando webhook via on-message-received...`);
-      const response = await axios.post(
-        `${BASE_URL}/instances/${instanceId}/token/${token}/on-message-received`,
-        { value: finalWebhookUrl },
+      console.log(`[Z-API] Etapa 3: Configurando webhook para evento de desconexão...`);
+      
+      const disconnectResponse = await axios.post(
+        `${BASE_URL}/instances/${instanceId}/token/${token}/webhook/disconnect`,
+        {
+          value: finalWebhookUrl
+        },
         { headers }
       );
       
-      console.log(`[Z-API] Resposta da configuração via on-message-received:`, 
-        JSON.stringify(response.data, null, 2));
-      
-      // Este é um método complementar, portanto não alteramos o status de sucesso
+      console.log(`[Z-API] Resposta da configuração de Webhook Ao Desconectar:`, 
+        JSON.stringify(disconnectResponse.data, null, 2));
     } catch (error) {
-      // Ignorar erros, pois é um método complementar
       if (error instanceof Error) {
-        console.log("[Z-API] Erro no método 3 (complementar, pode ser ignorado):", error.message);
+        console.log("[Z-API] Erro na configuração do webhook Ao Desconectar:", error.message);
       }
     }
     
-    // Método 4: Configuração via callback (mais uma alternativa)
+    // === ETAPA 4: Configurar o Webhook para "Ao Enviar" mensagem ===
+    // De acordo com a documentação oficial: https://www.postman.com/docs-z-api/z-api-s-public-workspace/request/q0hpv11/ao-enviar
     try {
-      console.log(`[Z-API] Método 4: Configurando webhook via callback...`);
-      const response = await axios.post(
-        `${BASE_URL}/instances/${instanceId}/token/${token}/callback`,
-        { value: finalWebhookUrl },
+      console.log(`[Z-API] Etapa 4: Configurando webhook para evento de envio...`);
+      
+      const sendResponse = await axios.post(
+        `${BASE_URL}/instances/${instanceId}/token/${token}/webhook/send`,
+        {
+          value: finalWebhookUrl
+        },
         { headers }
       );
       
-      console.log(`[Z-API] Resposta da configuração via callback:`, 
-        JSON.stringify(response.data, null, 2));
-      
-      webhookConfigured = true;
+      console.log(`[Z-API] Resposta da configuração de Webhook Ao Enviar:`, 
+        JSON.stringify(sendResponse.data, null, 2));
     } catch (error) {
-      // Ignorar erros, pois é apenas uma tentativa alternativa
       if (error instanceof Error) {
-        console.log("[Z-API] Erro no método 4 (pode ser ignorado):", error.message);
+        console.log("[Z-API] Erro na configuração do webhook Ao Enviar:", error.message);
       }
     }
     

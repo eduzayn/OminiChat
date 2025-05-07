@@ -297,10 +297,6 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
       console.log(`[ZAPI Webhook] Recebido para Canal ID: ${channelId}`);
       console.log('[ZAPI Webhook] Headers:', JSON.stringify(req.headers, null, 2));
       console.log('[ZAPI Webhook] Body:', JSON.stringify(req.body, null, 2));
-      console.log('[ZAPI Webhook] Params:', JSON.stringify(req.params, null, 2));
-      console.log('[ZAPI Webhook] Query:', JSON.stringify(req.query, null, 2));
-      console.log('[ZAPI Webhook] Method:', req.method);
-      console.log('[ZAPI Webhook] Path:', req.path);
       
       // Verificar se é uma mensagem ou algum outro tipo de notificação
       const webhook = req.body;

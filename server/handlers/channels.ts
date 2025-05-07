@@ -1276,11 +1276,11 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
   app.post(`${apiPrefix}/channels/:id/configure-webhook`, isAuthenticated, async (req: Request, res: Response) => {
     try {
       const channelId = parseInt(req.params.id);
+      const userId = req.session.userId;
       const { webhookUrl, webhookFeatures } = req.body || {};
       
-      console.log("Configurando webhook:", { 
-        channelId, 
-        webhookUrl, 
+      console.log(`[ConfigWebhook] Usuário ${userId} configurando webhook para canal ${channelId}:`, { 
+        webhookUrl: webhookUrl || "(usando URL padrão)", 
         webhookFeatures: webhookFeatures ? JSON.stringify(webhookFeatures) : "não especificado" 
       });
       
@@ -1290,6 +1290,7 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       });
       
       if (!channel) {
+        console.log(`[ConfigWebhook] Canal ${channelId} não encontrado`);
         return res.status(404).json({
           success: false,
           message: "Canal não encontrado"
@@ -1299,17 +1300,20 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
       // Verificar o tipo de canal e provider
       if (channel.type === "whatsapp" && channel.config?.provider === "zapi") {
         // Configurar webhook com as features específicas do Z-API
+        console.log(`[ConfigWebhook] Configurando webhook Z-API para canal ${channelId}`);
         const zapiService = await import("../services/channels/zapi");
         const result = await zapiService.configureWebhook(channel, webhookUrl, webhookFeatures);
         
-        console.log("Resposta da configuração de webhook:", result);
+        console.log(`[ConfigWebhook] Resposta da configuração de webhook para canal ${channelId}:`, result);
         
         if (result.status === "success") {
           return res.json({
             success: true,
             message: result.message || "Webhook configurado com sucesso",
             webhookUrl: result.webhookUrl,
-            configured: true
+            configured: true,
+            // Incluir informações de features para exibição no frontend
+            webhookFeatures: result.webhookFeatures
           });
         } else {
           return res.status(400).json({

@@ -137,20 +137,21 @@ export function registerWebhookDiagnosticRoute(app: Express, apiPrefix: string) 
     }
   });
   
-  // Endpoint para verificar status do webhook com detalhes adicionais
-  app.get(`${apiPrefix}/channels/:id/webhook-status`, isAuthenticated, async (req, res) => {
+  // Endpoint para verificar status do webhook com detalhes adicionais (ROTA DESABILITADA)
+  // IMPORTANTE: Esta rota foi desabilitada porque estava conflitando com uma rota idêntica em channels.ts
+  app.get(`${apiPrefix}/webhook-diagnostic/channel/:id/status`, isAuthenticated, async (req, res) => {
     try {
       const channelId = parseInt(req.params.id);
       const userId = req.session.userId;
       
-      console.log(`[WebhookStatus] Requisição para Canal ID: ${channelId}, Usuário ID: ${userId}`);
+      console.log(`[WebhookStatus Diagnostic] Requisição para Canal ID: ${channelId}, Usuário ID: ${userId}`);
       
       const channel = await db.query.channels.findFirst({
         where: eq(channels.id, channelId)
       });
       
       if (!channel) {
-        console.log(`[WebhookStatus] Canal ${channelId} não encontrado`);
+        console.log(`[WebhookStatus Diagnostic] Canal ${channelId} não encontrado`);
         return res.status(404).json({
           success: false,
           message: "Canal não encontrado"

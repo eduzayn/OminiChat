@@ -91,28 +91,36 @@ export function ZAPIWebhookConfig({ channelId }: { channelId: number }) {
     if (!channelId) return;
     
     setConfiguring(true);
+    console.log(`Iniciando configuração do webhook para canal ${channelId}...`);
     
     try {
+      // Coletar todas as configurações para o webhook
+      const webhookFeatures = {
+        // Ativamos receiveAllNotifications quando todos principais eventos estão habilitados
+        receiveAllNotifications: webhookConfig.onMessageReceived && webhookConfig.onMessageSent && webhookConfig.onStatusChange,
+        // Garantimos que messageReceived esteja ativo (campo crucial)
+        messageReceived: webhookConfig.onMessageReceived,
+        messageCreate: webhookConfig.onMessageSent,
+        statusChange: webhookConfig.onStatusChange,
+        presenceChange: webhookConfig.onChatPresence,
+        deviceConnected: webhookConfig.onConnected,
+        receiveByEmail: webhookConfig.notifyByEmail
+      };
+      
+      console.log(`Enviando configurações:`, JSON.stringify(webhookFeatures, null, 2));
+      
       const response = await fetch(`/api/channels/${channelId}/configure-webhook`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          webhookFeatures: {
-            receiveAllNotifications: webhookConfig.onMessageReceived && webhookConfig.onMessageSent && webhookConfig.onStatusChange,
-            messageReceived: webhookConfig.onMessageReceived,
-            messageCreate: webhookConfig.onMessageSent,
-            statusChange: webhookConfig.onStatusChange,
-            presenceChange: webhookConfig.onChatPresence,
-            deviceConnected: webhookConfig.onConnected,
-            receiveByEmail: webhookConfig.notifyByEmail
-          }
+          webhookFeatures
         })
       });
       
       const data = await response.json();
-      console.log("Configuração do webhook:", data);
+      console.log("Resposta da configuração do webhook:", data);
       
       if (data.success) {
         setWebhookStatus('configured');
@@ -120,9 +128,14 @@ export function ZAPIWebhookConfig({ channelId }: { channelId: number }) {
         
         toast.toast({
           title: 'Webhook configurado',
-          description: 'Webhook configurado com sucesso para receber mensagens do WhatsApp',
+          description: 'Webhook configurado com sucesso. A configuração será mantida mesmo se você sair ou recarregar a página.',
           variant: 'default'
         });
+        
+        // Aguardar um momento antes de verificar o status para dar tempo do banco de dados atualizar
+        setTimeout(() => {
+          checkWebhookStatus();
+        }, 1000);
       } else {
         toast.toast({
           title: 'Erro ao configurar webhook',

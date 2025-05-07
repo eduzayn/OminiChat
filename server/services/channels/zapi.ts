@@ -683,7 +683,8 @@ export async function sendVideoMessage(
     
     console.log(`[Z-API DEBUG] Enviando vídeo para ${formattedPhone} (original: ${to}): "${videoUrl}"`);
     console.log(`[Z-API DEBUG] Caption: "${caption || 'sem legenda'}"`);
-    console.log(`[Z-API DEBUG] Endpoint: ${BASE_URL}/instances/${instanceId}/token/${token}/send-video`);
+    console.log(`[Z-API DEBUG] Token: "${token.substring(0, 4)}...${token.substring(token.length - 4)}"`);
+    console.log(`[Z-API DEBUG] InstanceID: "${instanceId}"`);
     
     // Headers completos para requisição
     const headers = {
@@ -691,69 +692,116 @@ export async function sendVideoMessage(
       'Client-Token': clientToken
     };
     
-    // Payload completo para análise
-    const payload = {
-      phone: formattedPhone,
-      video: videoUrl,
-      caption: caption || '' // Legenda opcional
-    };
+    // Endpoint para envio de vídeo
+    const endpoint = `${BASE_URL}/instances/${instanceId}/token/${token}/send-video`;
+    console.log(`[Z-API DEBUG] Chamando endpoint: ${endpoint}`);
     
-    console.log(`[Z-API DEBUG] Headers: ${JSON.stringify(headers)}`);
-    console.log(`[Z-API DEBUG] Payload: ${JSON.stringify(payload)}`);
+    // Faremos múltiplas tentativas com diferentes formatos aceitos pela API
+    let lastError: any = null;
     
-    // Enviar vídeo usando o endpoint e payload corretos conforme documentação Z-API
-    // https://developer.z-api.io/message/send-message-video
-    const response = await axios.post(
-      `${BASE_URL}/instances/${instanceId}/token/${token}/send-video`,
-      {
-        phone: formattedPhone,
-        video: videoUrl,
-        caption: caption || '' // Legenda opcional
-      },
-      { headers }
-    );
-    
-    console.log(`[Z-API] Resposta de envio de vídeo:`, JSON.stringify(response.data, null, 2));
-    
-    // Verificar resposta de acordo com documentação
-    if (response.data && (response.data.messageId || response.data.id || response.data.zaapId)) {
-      const messageId = response.data.messageId || response.data.id || response.data.zaapId;
-      console.log(`[Z-API] Vídeo enviado com sucesso, ID: ${messageId}`);
-      return {
-        status: "success",
-        messageId: messageId
-      };
-    } else if (response.data && response.data.value) {
-      // Algumas versões da API retornam o campo value como true para indicar sucesso
-      console.log(`[Z-API] Vídeo enviado com sucesso, resposta sem ID (usar Z-API mais recente)`);
-      return {
-        status: "success",
-        messageId: "unknown" // Não temos ID neste caso
-      };
-    } else {
-      console.error(`[Z-API] Resposta de erro ao enviar vídeo:`, response.data);
-      return {
-        status: "error",
-        message: "Falha ao enviar vídeo via Z-API: Resposta sem ID de mensagem"
-      };
-    }
-  } catch (error) {
-    console.error("Erro ao enviar vídeo Z-API:", error);
-    
-    // Log detalhado para diagnóstico
-    if (axios.isAxiosError(error)) {
-      console.error(`[Z-API] Status: ${error.response?.status}`);
-      console.error(`[Z-API] Dados:`, error.response?.data);
+    // Tentativa 1: Usando linkVideo (documentação mais recente)
+    try {
+      console.log("[Z-API DEBUG] Tentativa 1: Usando campo 'linkVideo'");
+      const response = await axios.post(
+        endpoint,
+        {
+          phone: formattedPhone,
+          linkVideo: videoUrl,
+          caption: caption || ''
+        },
+        { headers }
+      );
       
+      console.log(`[Z-API DEBUG] Resposta 1:`, JSON.stringify(response.data, null, 2));
+      
+      if (response.data && (response.data.messageId || response.data.id || response.data.zaapId || response.data.value === true)) {
+        const messageId = response.data.messageId || response.data.id || response.data.zaapId || "unknown";
+        return {
+          status: "success",
+          messageId
+        };
+      }
+    } catch (err: any) {
+      console.error("[Z-API DEBUG] Erro na tentativa 1:", err.message);
+      lastError = err;
+    }
+    
+    // Tentativa 2: Usando video (documentação anterior)
+    try {
+      console.log("[Z-API DEBUG] Tentativa 2: Usando campo 'video'");
+      const response = await axios.post(
+        endpoint,
+        {
+          phone: formattedPhone,
+          video: videoUrl,
+          caption: caption || ''
+        },
+        { headers }
+      );
+      
+      console.log(`[Z-API DEBUG] Resposta 2:`, JSON.stringify(response.data, null, 2));
+      
+      if (response.data && (response.data.messageId || response.data.id || response.data.zaapId || response.data.value === true)) {
+        const messageId = response.data.messageId || response.data.id || response.data.zaapId || "unknown";
+        return {
+          status: "success",
+          messageId
+        };
+      }
+    } catch (err: any) {
+      console.error("[Z-API DEBUG] Erro na tentativa 2:", err.message);
+      lastError = err;
+    }
+    
+    // Tentativa 3: Usando o endpoint genérico send-media
+    try {
+      console.log("[Z-API DEBUG] Tentativa 3: Usando endpoint 'send-media'");
+      const mediaEndpoint = `${BASE_URL}/instances/${instanceId}/token/${token}/send-media`;
+      
+      const response = await axios.post(
+        mediaEndpoint,
+        {
+          phone: formattedPhone,
+          url: videoUrl,
+          type: 'video',
+          caption: caption || ''
+        },
+        { headers }
+      );
+      
+      console.log(`[Z-API DEBUG] Resposta 3:`, JSON.stringify(response.data, null, 2));
+      
+      if (response.data && (response.data.messageId || response.data.id || response.data.zaapId || response.data.value === true)) {
+        const messageId = response.data.messageId || response.data.id || response.data.zaapId || "unknown";
+        return {
+          status: "success",
+          messageId
+        };
+      }
+    } catch (err: any) {
+      console.error("[Z-API DEBUG] Erro na tentativa 3:", err.message);
+      lastError = err;
+    }
+    
+    // Se chegamos aqui, todas as tentativas falharam
+    console.error("[Z-API DEBUG] Todas as tentativas de envio de vídeo falharam");
+    
+    if (lastError && axios.isAxiosError(lastError)) {
       return {
         status: "error",
-        message: `Erro Z-API: ${error.response?.status || ''} - ${error.response?.data?.error || error.message || "Erro na requisição"}`
+        message: `Erro Z-API: ${lastError.response?.status || ''} - ${lastError.response?.data?.error || lastError.message}`
       };
     }
     
     return {
       status: "error",
-      message: error instanceof Error ? error.message : "Erro desconhecido ao enviar vídeo via Z-API"
+      message: "Falha ao enviar vídeo após múltiplas tentativas"
+    };
+  } catch (error: any) {
+    console.error("[Z-API DEBUG] Erro geral:", error.message);
+    return {
+      status: "error",
+      message: `Erro ao enviar vídeo: ${error.message}`
     };
   }
 }

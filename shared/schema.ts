@@ -135,6 +135,7 @@ export const channels = pgTable("channels", {
   type: text("type").notNull(), // whatsapp, instagram, facebook
   isActive: boolean("is_active").default(true),
   config: jsonb("config").$type<ChannelConfig>().default({}),
+  metadata: jsonb("metadata").default({}),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -361,7 +362,15 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type Contact = typeof contacts.$inferSelect;
 export type InsertContact = z.infer<typeof insertContactSchema>;
 
-export type Channel = typeof channels.$inferSelect;
+export type Channel = typeof channels.$inferSelect & {
+  metadata?: {
+    webhookUrl?: string;
+    webhookReceiveCount?: number;
+    lastWebhookReceived?: string;
+    lastWebhookSetup?: string;
+    [key: string]: any;
+  };
+};
 export type InsertChannel = z.infer<typeof insertChannelSchema>;
 
 export type Conversation = typeof conversations.$inferSelect & {

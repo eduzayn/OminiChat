@@ -154,7 +154,7 @@ export function ZAPITestPanel() {
     try {
       const response = await apiRequest<any>(
         'GET',
-        `/api/channels/${selectedChannel}/qr-code`,
+        `/api/channels/${selectedChannel}/qrcode`,
         null
       );
       

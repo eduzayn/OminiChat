@@ -718,8 +718,8 @@ export function registerChannelRoutes(app: Express, apiPrefix: string) {
     }
   });
   
-  // Get QR Code for WhatsApp channel
-  app.get(`${apiPrefix}/channels/:id/qr-code`, isAuthenticated, async (req, res) => {
+  // Get QR Code for WhatsApp channel (usando rota qrcode sem hífen para manter compatibilidade)
+  app.get(`${apiPrefix}/channels/:id/qrcode`, isAuthenticated, async (req, res) => {
     try {
       const channelId = parseInt(req.params.id);
       const userId = req.session?.userId;

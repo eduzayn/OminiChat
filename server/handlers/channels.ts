@@ -8,7 +8,8 @@ import {
   channels,
   conversations,
   contacts,
-  messages
+  messages,
+  payments
 } from "@shared/schema";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { z } from "zod";

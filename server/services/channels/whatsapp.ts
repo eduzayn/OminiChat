@@ -242,7 +242,7 @@ export async function sendWhatsAppMessage(
   channel: Channel,
   to: string,
   content: string,
-  type: 'text' | 'image' | 'file' | 'voice' = 'text',
+  type: 'text' | 'image' | 'file' | 'voice' | 'video' = 'text',
   mediaUrl?: string,
   fileName?: string
 ): Promise<{ status: string; message?: string; messageId?: string }> {
@@ -273,6 +273,11 @@ export async function sendWhatsAppMessage(
             return { status: "error", message: "URL de mídia obrigatória para mensagens de áudio" };
           }
           return zapiService.sendAudioMessage(channel, to, mediaUrl);
+        case 'video':
+          if (!mediaUrl) {
+            return { status: "error", message: "URL de mídia obrigatória para mensagens de vídeo" };
+          }
+          return zapiService.sendVideoMessage(channel, to, mediaUrl, content);
         default:
           return zapiService.sendTextMessage(channel, to, content);
       }
@@ -296,7 +301,7 @@ async function sendMetaWhatsAppMessage(
   channel: Channel,
   to: string,
   content: string,
-  type: 'text' | 'image' | 'file' | 'voice' = 'text',
+  type: 'text' | 'image' | 'file' | 'voice' | 'video' = 'text',
   mediaUrl?: string
 ): Promise<{ status: string; message?: string; messageId?: string }> {
   try {
@@ -360,6 +365,22 @@ async function sendMetaWhatsAppMessage(
           type: "audio",
           audio: {
             link: mediaUrl
+          }
+        };
+        break;
+        
+      case 'video':
+        if (!mediaUrl) {
+          return { status: "error", message: "Media URL is required for video messages" };
+        }
+        requestData = {
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: formattedPhone,
+          type: "video",
+          video: {
+            link: mediaUrl,
+            caption: content || undefined
           }
         };
         break;

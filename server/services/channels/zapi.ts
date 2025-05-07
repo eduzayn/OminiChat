@@ -648,6 +648,107 @@ export async function sendDocumentMessage(
 }
 
 /**
+ * Envia mensagem de vídeo via Z-API
+ * @param channel Canal configurado
+ * @param to Número de telefone de destino
+ * @param videoUrl URL do vídeo a ser enviado
+ * @param caption Legenda opcional para o vídeo
+ * @returns Status do envio com ID da mensagem
+ */
+export async function sendVideoMessage(
+  channel: Channel,
+  to: string,
+  videoUrl: string,
+  caption?: string
+): Promise<{ status: string; message?: string; messageId?: string }> {
+  try {
+    const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
+    const token = channel.config?.token || ZAPI_TOKEN;
+    const clientToken = channel.config?.clientToken || ZAPI_CLIENT_TOKEN;
+    
+    if (!instanceId || !token) {
+      return {
+        status: "error",
+        message: "Credenciais Z-API não configuradas"
+      };
+    }
+    
+    // Formatação do número do WhatsApp conforme documentação
+    let formattedPhone = to.replace(/\D/g, '');
+    
+    // Se o número não tiver o código do país, adiciona o código do Brasil (55)
+    if (formattedPhone.length <= 11) {
+      formattedPhone = `55${formattedPhone}`;
+    }
+    
+    console.log(`[Z-API] Enviando vídeo para ${formattedPhone} (original: ${to}): "${videoUrl}"`);
+    
+    // Headers completos para requisição
+    const headers = {
+      'Content-Type': 'application/json',
+      'Client-Token': clientToken
+    };
+    
+    console.log(`[Z-API] Headers para envio de vídeo:`, JSON.stringify(headers));
+    
+    // Enviar vídeo usando o endpoint e payload corretos conforme documentação Z-API
+    // https://developer.z-api.io/message/send-message-video
+    const response = await axios.post(
+      `${BASE_URL}/instances/${instanceId}/token/${token}/send-video`,
+      {
+        phone: formattedPhone,
+        video: videoUrl,
+        caption: caption || '' // Legenda opcional
+      },
+      { headers }
+    );
+    
+    console.log(`[Z-API] Resposta de envio de vídeo:`, JSON.stringify(response.data, null, 2));
+    
+    // Verificar resposta de acordo com documentação
+    if (response.data && (response.data.messageId || response.data.id || response.data.zaapId)) {
+      const messageId = response.data.messageId || response.data.id || response.data.zaapId;
+      console.log(`[Z-API] Vídeo enviado com sucesso, ID: ${messageId}`);
+      return {
+        status: "success",
+        messageId: messageId
+      };
+    } else if (response.data && response.data.value) {
+      // Algumas versões da API retornam o campo value como true para indicar sucesso
+      console.log(`[Z-API] Vídeo enviado com sucesso, resposta sem ID (usar Z-API mais recente)`);
+      return {
+        status: "success",
+        messageId: "unknown" // Não temos ID neste caso
+      };
+    } else {
+      console.error(`[Z-API] Resposta de erro ao enviar vídeo:`, response.data);
+      return {
+        status: "error",
+        message: "Falha ao enviar vídeo via Z-API: Resposta sem ID de mensagem"
+      };
+    }
+  } catch (error) {
+    console.error("Erro ao enviar vídeo Z-API:", error);
+    
+    // Log detalhado para diagnóstico
+    if (axios.isAxiosError(error)) {
+      console.error(`[Z-API] Status: ${error.response?.status}`);
+      console.error(`[Z-API] Dados:`, error.response?.data);
+      
+      return {
+        status: "error",
+        message: `Erro Z-API: ${error.response?.status || ''} - ${error.response?.data?.error || error.message || "Erro na requisição"}`
+      };
+    }
+    
+    return {
+      status: "error",
+      message: error instanceof Error ? error.message : "Erro desconhecido ao enviar vídeo via Z-API"
+    };
+  }
+}
+
+/**
  * Envia mensagem de áudio via Z-API
  * @param channel Canal configurado
  * @param to Número de telefone de destino

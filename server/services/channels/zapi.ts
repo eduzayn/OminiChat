@@ -171,8 +171,23 @@ export async function setupZAPIChannel(channel: Channel): Promise<{ status: stri
     // Configurar webhook para recebimento de mensagens (PASSO CRUCIAL)
     console.log(`[Z-API] Iniciando configuração do webhook para canal ${channel.id}...`);
     
-    // Chamar a função configureWebhook com features ativadas para garantir que recebemos as mensagens
-    const webhookResult = await configureWebhook(channel, undefined, {
+    // Determinar a URL base da aplicação para webhooks
+    let baseUrl = '';
+    if (process.env.APP_URL) {
+      baseUrl = process.env.APP_URL;
+    } else if (process.env.REPLIT_DOMAINS) {
+      baseUrl = `https://${process.env.REPLIT_DOMAINS.split(',')[0]}`;
+    } else {
+      // URL da Replit atual baseada na ID do projeto
+      baseUrl = 'https://0eb8be2b-04a6-47e5-bbf1-dd3bd83018b0-00-2m0jsmtd34bj0.picard.replit.dev';
+    }
+    
+    // URL do webhook específica para este canal
+    const webhookUrl = `${baseUrl}/api/webhooks/zapi/${channel.id}`;
+    console.log(`[Z-API] URL do webhook a ser configurada: ${webhookUrl}`);
+    
+    // Chamar a função configureWebhook com todos os eventos necessários ativados e URL explícita
+    const webhookResult = await configureWebhook(channel, webhookUrl, {
       receiveAllNotifications: true,
       messageReceived: true,
       messageCreate: true,
@@ -183,9 +198,32 @@ export async function setupZAPIChannel(channel: Channel): Promise<{ status: stri
     
     if (webhookResult.status === "success") {
       console.log(`[Z-API] Webhook configurado com sucesso: ${webhookResult.webhookUrl}`);
+      
+      // Armazenar a URL do webhook na configuração do canal para referência futura
+      try {
+        // Importar db para atualizar o canal
+        const { db } = await import("../../db");
+        const { channels } = await import("../../shared/schema");
+        const { eq } = await import("drizzle-orm");
+        
+        // Atualizar a configuração do canal com informações do webhook
+        const updatedConfig = {
+          ...(channel.config as Record<string, any>),
+          webhookUrl: webhookResult.webhookUrl
+        };
+        
+        await db.update(channels)
+          .set({ config: updatedConfig })
+          .where(eq(channels.id, channel.id));
+          
+        console.log(`[Z-API] Configuração do canal atualizada com URL do webhook`);
+      } catch (dbError) {
+        console.error("[Z-API] Erro ao atualizar configuração do canal:", dbError);
+        // Continuamos mesmo com erro de atualização do canal
+      }
     } else {
       console.warn(`[Z-API] Alerta: Problema na configuração do webhook: ${webhookResult.message}`);
-      // Continuamos o fluxo mesmo com erro no webhook
+      // Continuamos o fluxo mesmo com erro no webhook, mas registramos o alerta
     }
 
     try {

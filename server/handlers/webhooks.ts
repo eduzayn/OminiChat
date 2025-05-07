@@ -311,6 +311,15 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
         });
       }
       
+      // Log especial se for mensagem de verificação do Z-API
+      if (webhook.event === 'verification' || (webhook.type === 'verification')) {
+        console.log('[ZAPI Webhook] Evento de verificação recebido:', JSON.stringify(webhook, null, 2));
+        return res.status(200).json({
+          success: true,
+          message: "Verificação do Z-API recebida com sucesso"
+        });
+      }
+      
       // Verificar se o canal existe
       const channel = await db.query.channels.findFirst({
         where: eq(channels.id, channelId)

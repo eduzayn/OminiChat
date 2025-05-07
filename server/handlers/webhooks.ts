@@ -298,6 +298,22 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
       console.log('[ZAPI Webhook] Headers:', JSON.stringify(req.headers, null, 2));
       console.log('[ZAPI Webhook] Body:', JSON.stringify(req.body, null, 2));
       console.log('[ZAPI Webhook] Params:', JSON.stringify(req.params, null, 2));
+      console.log('[ZAPI Webhook] Query:', JSON.stringify(req.query, null, 2));
+      console.log('[ZAPI Webhook] Method:', req.method);
+      console.log('[ZAPI Webhook] Path:', req.path);
+      
+      // Verificar se é uma mensagem ou algum outro tipo de notificação
+      const webhook = req.body;
+      
+      // IMPORTANTE: Sempre responder com 200 para o Z-API, mesmo em caso de erro, 
+      // para evitar tentativas de reenvio desnecessárias
+      if (!webhook) {
+        console.log('[ZAPI Webhook] ALERTA: Corpo da requisição vazio');
+        return res.status(200).json({
+          success: true,
+          message: "Webhook recebido, mas corpo vazio"
+        });
+      }
       
       // Verificar se o canal existe
       const channel = await db.query.channels.findFirst({
@@ -306,15 +322,48 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
       
       if (!channel) {
         console.log(`[ZAPI Webhook] ERRO: Canal ${channelId} não encontrado`);
-        return res.status(404).json({ message: "Canal não encontrado" });
+        // Mesmo com erro, responder com 200 para Z-API
+        return res.status(200).json({ 
+          success: false,
+          error: "canal_not_found",
+          message: "Canal não encontrado no sistema" 
+        });
       }
       
       console.log(`[ZAPI Webhook] Canal encontrado: ${channel.name}, tipo: ${channel.type}`);
       
+      // Atualizar as estatísticas de webhook no metadado do canal
+      try {
+        const { db } = await import("../../db");
+        const { channels } = await import("../../shared/schema");
+        const { eq } = await import("drizzle-orm");
+        
+        // Obter canal atual para acessar metadados
+        const [currentChannel] = await db.select()
+          .from(channels)
+          .where(eq(channels.id, channelId));
+          
+        if (currentChannel) {
+          // Preparar metadados atualizados
+          const metadata = {
+            ...(currentChannel.metadata || {}),
+            lastWebhookReceived: new Date().toISOString(),
+            webhookReceiveCount: ((currentChannel.metadata?.webhookReceiveCount || 0) + 1),
+            lastWebhookBody: JSON.stringify(webhook).substring(0, 500) // Limitando tamanho
+          };
+          
+          // Atualizar o canal
+          await db.update(channels)
+            .set({ metadata })
+            .where(eq(channels.id, channelId));
+            
+          console.log(`[ZAPI Webhook] Estatísticas de webhook atualizadas para o canal ${channelId}`);
+        }
+      } catch (dbError) {
+        // Apenas log de erro, não interrompe o fluxo
+        console.error('[ZAPI Webhook] Erro ao atualizar estatísticas:', dbError);
+      }
 
-      // Verificar tipo de evento recebido
-      const webhook = req.body;
-      
       // Normalizar os dados do webhook para um formato padrão
       // Z-API pode enviar diferentes formatos de evento
       let eventData = {
@@ -330,9 +379,30 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
         fileName: null
       };
       
+      // Tratar o formato mais recente da Z-API primeiro
+      if (webhook?.value?.messageId) {
+        // Nova versão (formato value)
+        console.log('[Z-API] Processando novo formato (value):', webhook);
+        const value = webhook.value;
+        
+        eventData.isMessage = true;
+        eventData.phone = value.phone || value.from || '';
+        eventData.text = value.message || value.text || value.body || '';
+        eventData.messageId = value.messageId || value.id || '';
+        eventData.senderName = value.senderName || value.name || '';
+        eventData.timestamp = value.timestamp ? new Date(value.timestamp) : new Date();
+        eventData.isGroupMessage = !!value.isGroup;
+        
+        // Verificar mídia
+        if (value.isMedia || value.hasMedia || value.mediaType) {
+          eventData.mediaType = value.mediaType || '';
+          eventData.mediaUrl = value.mediaUrl || value.media?.url || '';
+          eventData.fileName = value.fileName || value.media?.fileName || '';
+        }
+      }
       // Formato principal baseado na documentação oficial do Z-API para mensagens recebidas
       // https://developer.z-api.io/webhooks/on-message-received
-      if (webhook.event === 'onMessageReceived' && webhook.phone && webhook.instanceId) {
+      else if (webhook.event === 'onMessageReceived' && webhook.phone) {
         console.log('[Z-API] Processando evento onMessageReceived:', webhook);
         
         eventData.isMessage = true;

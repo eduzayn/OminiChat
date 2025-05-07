@@ -22,6 +22,7 @@ import { MetaIntegrationDialog } from './components/meta-integration';
 import { ZAPIChannelDialog } from '@/components/dialogs/zapi-channel-dialog';
 // Removida a importação do painel de teste que não é mais necessário
 import { ZAPIWebhookConfig } from './components/zapi-webhook-config';
+import VideoTesteWebSocket from './components/videoteste-websocket';
 import { toast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 

@@ -181,6 +181,283 @@ export function setupWebSocketServer(wss: WebSocketServer, db: any): void {
             });
           }
         }
+        
+        // Handle Z-API direct test via WebSocket
+        else if (messageType === 'zapiDirectTest') {
+          console.log(`[ZAPI-WS-Test] Solicitação de teste direto Z-API recebida de usuário ${userId}`);
+          
+          // Realizar um teste simples de conectividade com a Z-API
+          try {
+            const axios = require('axios');
+            
+            // Obter credenciais
+            const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID || "3DF871A7ADFB20FB49998E66062CE0C1";
+            const ZAPI_TOKEN = process.env.ZAPI_TOKEN || "A4E42029C248B72DA0842F47";
+            const ZAPI_CLIENT_TOKEN = process.env.ZAPI_CLIENT_TOKEN;
+            
+            // URL base para requisições
+            const BASE_URL = "https://api.z-api.io";
+            
+            // Endpoint para verificar status da instância
+            const statusEndpoint = `${BASE_URL}/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/status`;
+            
+            // Configurar headers
+            const headers = {
+              'Content-Type': 'application/json'
+            };
+            
+            if (ZAPI_CLIENT_TOKEN) {
+              headers['Client-Token'] = ZAPI_CLIENT_TOKEN;
+            }
+            
+            // Executar a requisição e retornar o resultado via WebSocket
+            axios.get(statusEndpoint, { headers })
+              .then(response => {
+                console.log(`[ZAPI-WS-Test] Resposta da Z-API:`, response.data);
+                
+                // Enviar resposta ao cliente via WebSocket
+                if (userId) {
+                  sendToUser(userId, {
+                    type: 'zapiDirectTestResult',
+                    data: {
+                      success: true,
+                      message: "Teste Z-API via WebSocket bem-sucedido",
+                      timestamp: new Date().toISOString(),
+                      responseData: response.data
+                    }
+                  });
+                }
+              })
+              .catch(error => {
+                console.error(`[ZAPI-WS-Test] Erro na requisição:`, error);
+                
+                // Preparar dados do erro para envio via WebSocket
+                const errorData = {
+                  message: error.message,
+                  status: error.response?.status,
+                  data: error.response?.data
+                };
+                
+                // Enviar resposta de erro ao cliente
+                if (userId) {
+                  sendToUser(userId, {
+                    type: 'zapiDirectTestResult',
+                    data: {
+                      success: false,
+                      message: "Erro na requisição Z-API via WebSocket",
+                      error: errorData,
+                      timestamp: new Date().toISOString()
+                    }
+                  });
+                }
+              });
+          } catch (error) {
+            console.error(`[ZAPI-WS-Test] Erro geral:`, error);
+            
+            // Enviar resposta de erro ao cliente
+            if (userId) {
+              sendToUser(userId, {
+                type: 'zapiDirectTestResult',
+                data: {
+                  success: false,
+                  message: "Erro ao realizar teste Z-API via WebSocket",
+                  error: error instanceof Error ? error.message : "Erro desconhecido",
+                  timestamp: new Date().toISOString()
+                }
+              });
+            }
+          }
+        }
+        
+        // Handle video test request via WebSocket
+        else if (messageType === 'zapiSendVideo') {
+          console.log(`[ZAPI-Video-WS] Solicitação de envio de vídeo recebida de usuário ${userId}`);
+          
+          // Extrair dados da mensagem
+          const { to, videoUrl, caption } = messageData;
+          
+          if (!to || !videoUrl) {
+            // Responder com erro se dados estiverem incompletos
+            if (userId) {
+              sendToUser(userId, {
+                type: 'zapiSendVideoResult',
+                data: {
+                  success: false,
+                  message: "Dados incompletos. Número e URL do vídeo são obrigatórios",
+                  timestamp: new Date().toISOString()
+                }
+              });
+            }
+            return;
+          }
+          
+          try {
+            const axios = require('axios');
+            
+            // Obter credenciais
+            const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID || "3DF871A7ADFB20FB49998E66062CE0C1";
+            const ZAPI_TOKEN = process.env.ZAPI_TOKEN || "A4E42029C248B72DA0842F47";
+            const ZAPI_CLIENT_TOKEN = process.env.ZAPI_CLIENT_TOKEN;
+            const BASE_URL = "https://api.z-api.io";
+            
+            // Formatação do número
+            let formattedPhone = to.replace(/\D/g, '');
+            if (formattedPhone.length <= 11) {
+              formattedPhone = `55${formattedPhone}`;
+            }
+            
+            // Headers para requisição
+            const headers = {
+              'Content-Type': 'application/json'
+            };
+            
+            if (ZAPI_CLIENT_TOKEN) {
+              headers['Client-Token'] = ZAPI_CLIENT_TOKEN;
+            }
+            
+            // Tentar métodos diferentes, um após o outro
+            console.log(`[ZAPI-Video-WS] Iniciando tentativas de envio para ${formattedPhone}`);
+            
+            // Função para tentar cada método
+            const tryMethods = async () => {
+              let results = [];
+              let success = false;
+              
+              // Tentativa 1: Usando linkVideo
+              try {
+                console.log("[ZAPI-Video-WS] Tentativa 1: Usando campo 'linkVideo'");
+                const url1 = `${BASE_URL}/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-video`;
+                
+                const response1 = await axios.post(url1, {
+                  phone: formattedPhone,
+                  linkVideo: videoUrl,
+                  caption: caption || ''
+                }, { headers });
+                
+                results.push({
+                  method: "linkVideo",
+                  success: true,
+                  data: response1.data
+                });
+                
+                success = true;
+              } catch (error1) {
+                results.push({
+                  method: "linkVideo",
+                  success: false,
+                  error: error1.message,
+                  response: error1.response?.data
+                });
+              }
+              
+              // Tentativa 2: Usando campo 'video'
+              if (!success) {
+                try {
+                  console.log("[ZAPI-Video-WS] Tentativa 2: Usando campo 'video'");
+                  const url2 = `${BASE_URL}/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-video`;
+                  
+                  const response2 = await axios.post(url2, {
+                    phone: formattedPhone,
+                    video: videoUrl,
+                    caption: caption || ''
+                  }, { headers });
+                  
+                  results.push({
+                    method: "video",
+                    success: true,
+                    data: response2.data
+                  });
+                  
+                  success = true;
+                } catch (error2) {
+                  results.push({
+                    method: "video",
+                    success: false,
+                    error: error2.message,
+                    response: error2.response?.data
+                  });
+                }
+              }
+              
+              // Tentativa 3: Usando endpoint genérico send-media
+              if (!success) {
+                try {
+                  console.log("[ZAPI-Video-WS] Tentativa 3: Usando endpoint 'send-media'");
+                  const url3 = `${BASE_URL}/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-media`;
+                  
+                  const response3 = await axios.post(url3, {
+                    phone: formattedPhone,
+                    url: videoUrl,
+                    type: 'video',
+                    caption: caption || ''
+                  }, { headers });
+                  
+                  results.push({
+                    method: "send-media",
+                    success: true,
+                    data: response3.data
+                  });
+                  
+                  success = true;
+                } catch (error3) {
+                  results.push({
+                    method: "send-media",
+                    success: false,
+                    error: error3.message,
+                    response: error3.response?.data
+                  });
+                }
+              }
+              
+              return { success, results };
+            };
+            
+            // Executar as tentativas e responder ao cliente
+            tryMethods().then(({ success, results }) => {
+              console.log(`[ZAPI-Video-WS] Tentativas concluídas. Sucesso: ${success}`);
+              
+              if (userId) {
+                sendToUser(userId, {
+                  type: 'zapiSendVideoResult',
+                  data: {
+                    success,
+                    message: success ? "Vídeo enviado com sucesso" : "Falha ao enviar vídeo em todas as tentativas",
+                    results,
+                    timestamp: new Date().toISOString()
+                  }
+                });
+              }
+            }).catch(error => {
+              console.error(`[ZAPI-Video-WS] Erro geral nas tentativas:`, error);
+              
+              if (userId) {
+                sendToUser(userId, {
+                  type: 'zapiSendVideoResult',
+                  data: {
+                    success: false,
+                    message: "Erro interno ao processar tentativas de envio de vídeo",
+                    error: error instanceof Error ? error.message : "Erro desconhecido",
+                    timestamp: new Date().toISOString()
+                  }
+                });
+              }
+            });
+          } catch (error) {
+            console.error(`[ZAPI-Video-WS] Erro geral:`, error);
+            
+            if (userId) {
+              sendToUser(userId, {
+                type: 'zapiSendVideoResult',
+                data: {
+                  success: false,
+                  message: "Erro ao processar solicitação de envio de vídeo",
+                  error: error instanceof Error ? error.message : "Erro desconhecido",
+                  timestamp: new Date().toISOString()
+                }
+              });
+            }
+          }
+        }
       } catch (error) {
         console.error('Error processing WebSocket message:', error);
       }

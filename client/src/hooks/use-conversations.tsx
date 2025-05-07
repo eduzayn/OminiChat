@@ -35,7 +35,7 @@ export function useConversations() {
     }
   });
   
-  // Extrair o array de conversas da resposta (lidar com estrutura nula)
+  // Extrai o array de conversas da resposta (lidar com estrutura nula)
   const conversations = data?.data || [];
 
   const assignConversation = useMutation({

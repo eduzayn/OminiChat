@@ -41,85 +41,108 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
       const query = req.query.query as string | undefined;
       const assignedTo = req.query.assignedTo ? Number(req.query.assignedTo) : undefined;
       
-      try {
-        // Usar abordagem alternativa com query builder integrado do Drizzle
-        let conversationsResult = await db.query.conversations.findMany({
-          orderBy: [desc(conversations.createdAt)],
-          limit: limit,
-          offset: (page - 1) * limit
-        });
-        
-        // Buscar detalhes relacionados (contato, canal, última mensagem)
-        const conversationsWithDetails = await Promise.all(
-          conversationsResult.map(async (conversation) => {
-            // Buscar contato
-            const contact = await db.query.contacts.findFirst({
-              where: eq(contacts.id, conversation.contactId)
-            });
-            
-            // Buscar canal
-            const channel = await db.query.channels.findFirst({
-              where: eq(channels.id, conversation.channelId)
-            });
-            
-            // Buscar última mensagem
-            const lastMessage = await db.query.messages.findFirst({
-              where: eq(messages.conversationId, conversation.id),
-              orderBy: [desc(messages.createdAt)],
-              limit: 1
-            });
-            
-            // Buscar agente atribuído
-            let assignedUser = null;
-            if (conversation.assignedTo) {
-              assignedUser = await db.query.users.findFirst({
-                where: eq(users.id, conversation.assignedTo)
-              });
-            }
-            
-            return {
-              ...conversation,
-              contact,
-              channel,
-              lastMessage,
-              assignedUser
-            };
-          })
-        );
-        
-        // Obter número total de conversas para paginação
-        const countResult = await db.select({ count: sql`count(*)` }).from(conversations);
-        const totalCount = Number(countResult[0].count) || 0;
-        const totalPages = Math.ceil(totalCount / limit);
-        
-        return res.json({
-          data: conversationsWithDetails,
-          pagination: {
-            page,
-            limit,
-            totalCount,
-            totalPages
-          }
-        });
-      } catch (dbError) {
-        console.error("Erro na consulta principal:", dbError);
-        
-        // Usar abordagem mais simples caso a anterior falhe
-        const simpleConversations = await db.query.conversations.findMany({
-          limit: limit
-        });
-        
-        // Retornar dados mínimos
-        return res.json({
-          data: simpleConversations,
-          pagination: {
-            page: 1,
-            limit: limit,
-            totalCount: simpleConversations.length,
-            totalPages: 1
-          }
-        });
+      // Construir a consulta base
+      let queryBuilder = db.select({
+        id: conversations.id,
+        status: conversations.status,
+        lastMessageAt: conversations.lastMessageAt,
+        createdAt: conversations.createdAt,
+        channelId: conversations.channelId,
+        contactId: conversations.contactId,
+        assignedTo: conversations.assignedTo,
+        unreadCount: conversations.unreadCount,
+        metadata: conversations.metadata
+      })
+      .from(conversations)
+      .orderBy(desc(conversations.lastMessageAt));
+      
+      // Aplicar filtros se fornecidos
+      const whereConditions: SQL[] = [];
+      
+      if (status) {
+        whereConditions.push(eq(conversations.status, status));
       }
+      
+      if (channelId) {
+        whereConditions.push(eq(conversations.channelId, channelId));
+      }
+      
+      if (assignedTo !== undefined) {
+        if (assignedTo === 0) {
+          // Conversas não atribuídas
+          whereConditions.push(sql`${conversations.assignedTo} IS NULL`);
+        } else {
+          // Conversas atribuídas a um agente específico
+          whereConditions.push(eq(conversations.assignedTo, assignedTo));
+        }
+      }
+      
+      // Aplicar os filtros à consulta
+      if (whereConditions.length > 0) {
+        queryBuilder = queryBuilder.where(and(...whereConditions));
+      }
+      
+      // Adicionar paginação
+      const offset = (page - 1) * limit;
+      queryBuilder = queryBuilder.limit(limit).offset(offset);
+      
+      const conversationsResult = await queryBuilder;
+      
+      // Buscar detalhes relacionados (contato, canal, última mensagem)
+      const conversationsWithDetails = await Promise.all(
+        conversationsResult.map(async (conversation) => {
+          // Buscar contato
+          const contact = await db.query.contacts.findFirst({
+            where: eq(contacts.id, conversation.contactId)
+          });
+          
+          // Buscar canal
+          const channel = await db.query.channels.findFirst({
+            where: eq(channels.id, conversation.channelId)
+          });
+          
+          // Buscar última mensagem
+          const lastMessage = await db.query.messages.findFirst({
+            where: eq(messages.conversationId, conversation.id),
+            orderBy: desc(messages.createdAt),
+            limit: 1
+          });
+          
+          // Buscar agente atribuído
+          let assignedUser = null;
+          if (conversation.assignedTo) {
+            assignedUser = await db.query.users.findFirst({
+              where: eq(users.id, conversation.assignedTo)
+            });
+          }
+          
+          return {
+            ...conversation,
+            contact,
+            channel,
+            lastMessage,
+            assignedUser
+          };
+        })
+      );
+      
+      // Contar total para paginação
+      const countResult = await db
+        .select({ count: sql`count(*)` })
+        .from(conversations);
+        
+      const totalCount = Number(countResult[0].count);
+      const totalPages = Math.ceil(totalCount / limit);
+      
+      return res.json({
+        data: conversationsWithDetails,
+        pagination: {
+          page,
+          limit,
+          totalCount,
+          totalPages
+        }
+      });
     } catch (error) {
       console.error("Error fetching conversations:", error);
       return res.status(500).json({ message: "Internal server error" });

@@ -473,11 +473,14 @@ export function ZAPIIntegrationDialog({
                         onClick={async () => {
                           setConnectionStatus('loading');
                           try {
+                            console.log(`Reiniciando sessão para canal ID: ${channelForm.id}`);
                             const response = await apiRequest<any>(
                               'POST',
                               `/api/channels/${channelForm.id}/restart-session`,
                               null
                             );
+                            
+                            console.log("Resposta do reinício de sessão:", response);
                             
                             if (response && response.success) {
                               toast({
@@ -489,7 +492,7 @@ export function ZAPIIntegrationDialog({
                                 checkConnectionStatus();
                               }, 2000);
                             } else {
-                              throw new Error(response.message || 'Erro ao reiniciar sessão');
+                              throw new Error(response?.message || 'Erro ao reiniciar sessão');
                             }
                           } catch (error) {
                             console.error("Erro ao reiniciar sessão:", error);
@@ -503,7 +506,7 @@ export function ZAPIIntegrationDialog({
                         }}
                         variant="destructive" 
                         className="flex-1"
-                        disabled={connectionStatus === 'loading'}
+                        disabled={connectionStatus === 'loading' || !channelForm.id}
                       >
                         <RefreshCw className="h-4 w-4 mr-2" />
                         Reiniciar sessão

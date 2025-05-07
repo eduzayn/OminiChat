@@ -57,6 +57,35 @@ export async function simulateWebhookMessage(options: SimulateWebhookOptions) {
         id: `SIMULATED_${Date.now()}`,
         timestamp: Date.now()
       };
+    } else if (eventType === 'ReceivedCallback') {
+      // Novo formato da Z-API
+      webhookPayload = {
+        isStatusReply: false,
+        chatLid: null,
+        connectedPhone: "553171761350",
+        waitingMessage: false,
+        isEdit: false,
+        isGroup: false,
+        isNewsletter: false,
+        instanceId: "3DF871A7ADFB20FB49998E66062CE0C1",
+        messageId: `SIMULATED_${Date.now()}`,
+        phone,
+        fromMe: false,
+        momment: Date.now(),
+        status: "RECEIVED",
+        chatName: senderName,
+        senderPhoto: null,
+        senderName,
+        photo: null,
+        broadcast: false,
+        participantLid: null,
+        forwarded: false,
+        type: "ReceivedCallback",
+        fromApi: false,
+        text: {
+          message
+        }
+      };
     } else if (eventType === 'DeliveryCallback') {
       // Simulação de callback de entrega
       webhookPayload = {

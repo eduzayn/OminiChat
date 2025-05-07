@@ -719,6 +719,20 @@ export function ZAPITestPanel() {
                   Status da integração do canal com a caixa de entrada do sistema.
                 </p>
                 
+                <div className="mt-4 mb-2">
+                  <Button onClick={() => testInboxMessage()} disabled={!selectedChannel}>
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    Simular Mensagem na Caixa de Entrada
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="border rounded-md p-4">
+                <h3 className="text-lg font-medium">Simulador de Webhook</h3>
+                <p className="text-sm text-gray-500 mt-1 mb-3">
+                  Simule o recebimento de mensagens do WhatsApp em tempo real.
+                </p>
+                
                 <div className="flex items-center gap-2 mb-4">
                   <div className="font-medium">Status da Conexão:</div>
                   {connectionStatus === 'connected' ? (

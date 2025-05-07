@@ -122,6 +122,224 @@ export function registerMediaTestRoutes(app: Express, apiPrefix: string) {
     });
   });
   
+  // Rota para testar diretamente o envio de vídeo via Z-API sem autenticação
+  app.post(`${apiPrefix}/zapi-send-video`, async (req, res) => {
+    try {
+      // Permitir CORS para testes
+      res.header('Access-Control-Allow-Origin', '*');
+      
+      // Importar módulo axios se necessário
+      const axios = require('axios');
+      
+      // Obter dados da requisição
+      const { to, videoUrl, caption } = req.body;
+      
+      if (!to || !videoUrl) {
+        return res.status(400).json({
+          success: false,
+          message: "Número de telefone (to) e URL do vídeo (videoUrl) são obrigatórios"
+        });
+      }
+      
+      // Obter credenciais do .env
+      const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID || "3DF871A7ADFB20FB49998E66062CE0C1";
+      const ZAPI_TOKEN = process.env.ZAPI_TOKEN || "A4E42029C248B72DA0842F47";
+      const ZAPI_CLIENT_TOKEN = process.env.ZAPI_CLIENT_TOKEN;
+      const BASE_URL = "https://api.z-api.io";
+      
+      console.log("[ZAPI-Video] Testando envio direto de vídeo");
+      console.log(`[ZAPI-Video] Para: ${to}`);
+      console.log(`[ZAPI-Video] URL do vídeo: ${videoUrl}`);
+      console.log(`[ZAPI-Video] Legenda: ${caption || 'Sem legenda'}`);
+      
+      // Formatação do número do telefone
+      let formattedPhone = to.replace(/\D/g, '');
+      if (formattedPhone.length <= 11) {
+        formattedPhone = `55${formattedPhone}`;
+      }
+      
+      console.log(`[ZAPI-Video] Número formatado: ${formattedPhone}`);
+      
+      // Headers para a requisição
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      
+      if (ZAPI_CLIENT_TOKEN) {
+        headers['Client-Token'] = ZAPI_CLIENT_TOKEN;
+      }
+      
+      // Vamos tentar três abordagens diferentes
+      let results = [];
+      let success = false;
+      
+      // Tentativa 1: Usando campo 'linkVideo'
+      try {
+        console.log("[ZAPI-Video] Tentando primeira opção (linkVideo)...");
+        const url1 = `${BASE_URL}/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-video`;
+        
+        const response1 = await axios.post(url1, {
+          phone: formattedPhone,
+          linkVideo: videoUrl,
+          caption: caption || ''
+        }, { headers });
+        
+        results.push({
+          method: "linkVideo",
+          success: true,
+          data: response1.data
+        });
+        
+        success = true;
+      } catch (error1) {
+        results.push({
+          method: "linkVideo",
+          success: false,
+          error: error1.message,
+          response: error1.response?.data
+        });
+      }
+      
+      // Tentativa 2: Usando campo 'video'
+      if (!success) {
+        try {
+          console.log("[ZAPI-Video] Tentando segunda opção (video)...");
+          const url2 = `${BASE_URL}/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-video`;
+          
+          const response2 = await axios.post(url2, {
+            phone: formattedPhone,
+            video: videoUrl,
+            caption: caption || ''
+          }, { headers });
+          
+          results.push({
+            method: "video",
+            success: true,
+            data: response2.data
+          });
+          
+          success = true;
+        } catch (error2) {
+          results.push({
+            method: "video",
+            success: false,
+            error: error2.message,
+            response: error2.response?.data
+          });
+        }
+      }
+      
+      // Tentativa 3: Usando endpoint genérico send-media
+      if (!success) {
+        try {
+          console.log("[ZAPI-Video] Tentando terceira opção (send-media)...");
+          const url3 = `${BASE_URL}/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-media`;
+          
+          const response3 = await axios.post(url3, {
+            phone: formattedPhone,
+            url: videoUrl,
+            type: 'video',
+            caption: caption || ''
+          }, { headers });
+          
+          results.push({
+            method: "send-media",
+            success: true,
+            data: response3.data
+          });
+          
+          success = true;
+        } catch (error3) {
+          results.push({
+            method: "send-media",
+            success: false,
+            error: error3.message,
+            response: error3.response?.data
+          });
+        }
+      }
+      
+      return res.status(success ? 200 : 400).json({
+        success: success,
+        message: success ? "Vídeo enviado com sucesso" : "Falha ao enviar vídeo em todas as tentativas",
+        results: results
+      });
+    } catch (error) {
+      console.error("[ZAPI-Video] Erro geral:", error);
+      
+      return res.status(500).json({
+        success: false,
+        message: "Erro ao testar envio de vídeo",
+        error: error instanceof Error ? error.message : "Erro desconhecido"
+      });
+    }
+  });
+  
+  // Configuração CORS para a rota de envio de vídeo
+  app.options(`${apiPrefix}/zapi-send-video`, (req, res) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.status(200).send('OK');
+  });
+  
+  // Rota para testar diretamente a API Z-API sem autenticação
+  app.get(`${apiPrefix}/zapi-direct-test`, async (req, res) => {
+    try {
+      // Importar módulo axios se necessário
+      const axios = require('axios');
+      
+      // Obter credenciais do .env
+      const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID || "3DF871A7ADFB20FB49998E66062CE0C1";
+      const ZAPI_TOKEN = process.env.ZAPI_TOKEN || "A4E42029C248B72DA0842F47";
+      const ZAPI_CLIENT_TOKEN = process.env.ZAPI_CLIENT_TOKEN;
+      
+      console.log("[ZAPI-Test] Fazendo chamada direta para Z-API");
+      console.log(`[ZAPI-Test] Instance ID: ${ZAPI_INSTANCE_ID}`);
+      console.log(`[ZAPI-Test] Token: ${ZAPI_TOKEN}`);
+      console.log(`[ZAPI-Test] Client-Token disponível: ${ZAPI_CLIENT_TOKEN ? 'Sim' : 'Não'}`);
+      
+      // Fazer uma chamada simples de status para a Z-API
+      const BASE_URL = "https://api.z-api.io";
+      const url = `${BASE_URL}/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/status`;
+      
+      console.log(`[ZAPI-Test] URL: ${url}`);
+      
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      
+      if (ZAPI_CLIENT_TOKEN) {
+        headers['Client-Token'] = ZAPI_CLIENT_TOKEN;
+      }
+      
+      console.log(`[ZAPI-Test] Headers: ${JSON.stringify(headers)}`);
+      
+      const response = await axios.get(url, { headers });
+      
+      console.log(`[ZAPI-Test] Resposta: ${JSON.stringify(response.data)}`);
+      
+      return res.status(200).json({
+        success: true,
+        message: "Teste direto Z-API concluído com sucesso",
+        data: response.data,
+        zapi_credentials: {
+          instance_id: ZAPI_INSTANCE_ID,
+          token_prefixo: ZAPI_TOKEN ? ZAPI_TOKEN.substring(0, 4) + '...' : null,
+          client_token_disponivel: !!ZAPI_CLIENT_TOKEN
+        }
+      });
+    } catch (error) {
+      console.error("[ZAPI-Test] Erro:", error);
+      
+      return res.status(500).json({
+        success: false,
+        message: "Erro ao testar Z-API diretamente",
+        error: error instanceof Error ? error.message : "Erro desconhecido"
+      });
+    }
+  });
+  
   // Adicionando CORS específico para esta rota de teste
   app.options(`${apiPrefix}/channels/:id/video-test`, (req, res) => {
     res.header('Access-Control-Allow-Origin', '*');

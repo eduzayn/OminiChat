@@ -810,10 +810,10 @@ export async function getQRCodeForChannel(channel: Channel): Promise<{ status: s
       };
     }
     
-    // Estrutura do header exatamente como esperado pela Z-API
+    // Estrutura do header exatamente como esperado pela Z-API (com C e T maiúsculos em Client-Token)
     const headers = {
       'Content-Type': 'application/json',
-      'client-token': clientToken,
+      'Client-Token': clientToken,
       'Accept': 'image/png,application/json'
     };
     
@@ -967,6 +967,7 @@ export async function disconnectSession(channel: Channel): Promise<{ status: str
   try {
     const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
     const token = channel.config?.token || ZAPI_TOKEN;
+    const clientToken = channel.config?.clientToken || ZAPI_CLIENT_TOKEN;
     
     if (!instanceId || !token) {
       return {
@@ -975,20 +976,41 @@ export async function disconnectSession(channel: Channel): Promise<{ status: str
       };
     }
     
+    // Headers atualizados conforme documentação
+    const headers = {
+      'Content-Type': 'application/json',
+      'Client-Token': clientToken
+    };
+    
+    console.log(`[Z-API] Desconectando sessão para instância ${instanceId}`);
+    console.log(`[Z-API] Headers para desconexão:`, JSON.stringify(headers));
+    
     // Desconectar sessão
     const response = await axios.get(
       `${BASE_URL}/instances/${instanceId}/token/${token}/disconnect`,
-      {
-        headers: getHeadersWithToken(token)
-      }
+      { headers }
     );
+    
+    console.log(`[Z-API] Resposta da desconexão:`, JSON.stringify(response.data, null, 2));
     
     return {
       status: "success",
       message: "Sessão desconectada com sucesso"
     };
   } catch (error) {
-    console.error("Erro ao desconectar sessão Z-API:", error);
+    console.error("[Z-API] Erro ao desconectar sessão:", error);
+    
+    // Log detalhado para diagnóstico
+    if (axios.isAxiosError(error)) {
+      console.error(`[Z-API] Status: ${error.response?.status}`);
+      console.error(`[Z-API] Dados:`, error.response?.data);
+      
+      return {
+        status: "error",
+        message: `Erro Z-API: ${error.response?.status || ''} - ${error.response?.data?.error || error.message || "Erro na requisição"}`
+      };
+    }
+    
     return {
       status: "error",
       message: error instanceof Error ? error.message : "Erro desconhecido ao desconectar sessão"
@@ -1005,6 +1027,7 @@ export async function restartSession(channel: Channel): Promise<{ status: string
   try {
     const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
     const token = channel.config?.token || ZAPI_TOKEN;
+    const clientToken = channel.config?.clientToken || ZAPI_CLIENT_TOKEN;
     
     if (!instanceId || !token) {
       return {
@@ -1013,20 +1036,41 @@ export async function restartSession(channel: Channel): Promise<{ status: string
       };
     }
     
+    // Headers atualizados conforme documentação
+    const headers = {
+      'Content-Type': 'application/json',
+      'Client-Token': clientToken
+    };
+    
+    console.log(`[Z-API] Reiniciando sessão para instância ${instanceId}`);
+    console.log(`[Z-API] Headers para reinicialização:`, JSON.stringify(headers));
+    
     // Reiniciar sessão
     const response = await axios.get(
       `${BASE_URL}/instances/${instanceId}/token/${token}/restart`,
-      {
-        headers: getHeadersWithToken(token)
-      }
+      { headers }
     );
+    
+    console.log(`[Z-API] Resposta da reinicialização:`, JSON.stringify(response.data, null, 2));
     
     return {
       status: "success",
-      message: "Sessão reiniciada com sucesso"
+      message: "Sessão reiniciada com sucesso. Aguarde alguns segundos e reconecte com QR Code."
     };
   } catch (error) {
-    console.error("Erro ao reiniciar sessão Z-API:", error);
+    console.error("[Z-API] Erro ao reiniciar sessão:", error);
+    
+    // Log detalhado para diagnóstico
+    if (axios.isAxiosError(error)) {
+      console.error(`[Z-API] Status: ${error.response?.status}`);
+      console.error(`[Z-API] Dados:`, error.response?.data);
+      
+      return {
+        status: "error",
+        message: `Erro Z-API: ${error.response?.status || ''} - ${error.response?.data?.error || error.message || "Erro na requisição"}`
+      };
+    }
+    
     return {
       status: "error",
       message: error instanceof Error ? error.message : "Erro desconhecido ao reiniciar sessão"

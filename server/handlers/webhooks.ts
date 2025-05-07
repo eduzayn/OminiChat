@@ -320,16 +320,22 @@ export async function processZapiWebhook(channelId: number, webhook: any, isTest
           webhook.phone && !webhook.isGroup) {
         
         // Verificamos se é um telefone que ainda não temos conversa
-        const existingConversation = await db.query.conversations.findFirst({
-          where: and(
-            eq(conversations.channelId, channelId),
-            sql`exists (
-              select 1 from ${contacts} 
-              where ${contacts.id} = ${conversations.contactId} 
-              and ${contacts.phone} = ${webhook.phone}
-            )`
-          )
+        // Primeiro buscamos o contato pelo número
+        const existingContact = await db.query.contacts.findFirst({
+          where: eq(contacts.phone, webhook.phone)
         });
+        
+        // Se temos o contato, verificamos se ele tem uma conversa ativa neste canal
+        let existingConversation = null;
+        if (existingContact) {
+          existingConversation = await db.query.conversations.findFirst({
+            where: and(
+              eq(conversations.channelId, channelId),
+              eq(conversations.contactId, existingContact.id),
+              eq(conversations.status, "active")
+            )
+          });
+        }
         
         if (!existingConversation) {
           console.log(`[Z-API] Detectada possível mensagem nova de telefone desconhecido: ${webhook.phone}`);

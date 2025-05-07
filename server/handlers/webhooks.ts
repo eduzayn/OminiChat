@@ -8,7 +8,7 @@ import {
   users,
   insertMessageSchema
 } from "@shared/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, gte } from "drizzle-orm";
 import { broadcastToClients } from "../services/socket";
 import { shouldAutoReply } from "../services/ai";
 

@@ -358,7 +358,14 @@ function ConversationView() {
       }
       
       // Processar a mensagem se pertence à conversa ativa
-      if (Number(message.conversationId) === Number(activeConversation.id)) {
+      // Garantir que a comparação de IDs é feita corretamente, convertendo para Number
+      const messageConvId = Number(message.conversationId);
+      const activeConvId = Number(activeConversation.id);
+      
+      // Debug adicional para rastrear problemas de correspondência de IDs
+      console.log(`Comparando IDs: Mensagem ConvID=${messageConvId} (${typeof messageConvId}), Ativa ConvID=${activeConvId} (${typeof activeConvId}), Igual: ${messageConvId === activeConvId}`);
+      
+      if (messageConvId === activeConvId) {
         console.log("Mensagem corresponde à conversa ativa. Adicionando à lista...");
         // Verificar se a mensagem já existe para evitar duplicação
         setMessages(prev => {

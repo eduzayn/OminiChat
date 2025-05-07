@@ -1,192 +1,267 @@
-import { useState } from "react";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Loader2, Check, AlertCircle } from "lucide-react";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Loader2, AlertCircle, CheckCircle, XCircle, RefreshCw, Link, CheckCircle2 } from "lucide-react";
+import apiRequest from "@/lib/apiRequest";
+import { useToast } from "@/hooks/use-toast";
 
-/**
- * Componente de diagnóstico Z-API para verificar o status da conexão
- */
-export function ZAPIDiagnosticPanel() {
+type WebhookDiagnosticProps = {
+  channelId: number;
+  onDiagnosticComplete?: () => void;
+};
+
+type DiagnosticReport = {
+  channelId: number;
+  channelName: string;
+  connectionStatus: {
+    connected: boolean;
+    status: string;
+    message: string;
+  };
+  webhookInitialStatus: {
+    configured: boolean;
+    status: string;
+    message: string;
+    webhookUrl: string | null;
+  };
+  webhookReconfiguration: {
+    success: boolean;
+    message: string;
+    webhookUrl: string | null;
+  };
+  webhookFinalStatus: {
+    configured: boolean;
+    status: string;
+    message: string;
+    webhookUrl: string | null;
+  };
+  channelMetadata: {
+    lastWebhookReceived: string | null;
+    webhookReceiveCount: number;
+    lastWebhookSetup: string | null;
+  };
+  recommendation: string;
+};
+
+const ZAPIDiagnosticPanel: React.FC<WebhookDiagnosticProps> = ({ channelId, onDiagnosticComplete }) => {
+  const [isRunning, setIsRunning] = useState(false);
+  const [report, setReport] = useState<DiagnosticReport | null>(null);
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
-  const [testResults, setTestResults] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState("status");
 
-  // Testar conexão com as instâncias Z-API
-  const testZAPIInstances = async () => {
-    setIsLoading(true);
-    
+  const runDiagnostic = async () => {
     try {
-      const response = await apiRequest<any>(
-        'GET',
-        '/api/zapi-diagnostic',
-        null
-      );
+      setIsRunning(true);
+      setReport(null);
       
-      console.log("Resultado do diagnóstico Z-API:", response);
-      setTestResults(response);
+      const response = await apiRequest(`/api/channels/${channelId}/diagnose-webhook`, {
+        method: "POST"
+      });
       
-      // Mostrar toast com o resultado
-      if (response.zapiConnectionTest?.webInstance?.success) {
-        toast({
-          title: 'Diagnóstico concluído',
-          description: 'Conexão com a Z-API está funcionando corretamente.',
-        });
+      if (response.success && response.diagnosticReport) {
+        setReport(response.diagnosticReport);
+        
+        // Notificar usuário com base no resultado
+        if (!response.diagnosticReport.connectionStatus.connected) {
+          toast({
+            title: "Problema de conexão detectado",
+            description: "O dispositivo não está conectado ao WhatsApp. Escaneie o QR Code para conectar.",
+            variant: "destructive"
+          });
+        } else if (!response.diagnosticReport.webhookFinalStatus.configured) {
+          toast({
+            title: "Problema com webhook detectado",
+            description: "O webhook não pôde ser configurado corretamente. Verifique as credenciais Z-API.",
+            variant: "destructive"
+          });
+        } else if (response.diagnosticReport.channelMetadata.webhookReceiveCount === 0) {
+          toast({
+            title: "Webhook configurado, mas sem mensagens",
+            description: "O webhook foi configurado, mas ainda não recebeu nenhuma mensagem. Envie uma mensagem de teste.",
+            variant: "default"
+          });
+        } else {
+          toast({
+            title: "Diagnóstico concluído",
+            description: "O webhook está configurado e funcionando corretamente.",
+            variant: "success"
+          });
+        }
       } else {
         toast({
-          title: 'Diagnóstico concluído',
-          description: 'Problemas detectados na conexão com a Z-API.',
-          variant: 'destructive',
+          title: "Erro no diagnóstico",
+          description: "Não foi possível completar o diagnóstico de webhook.",
+          variant: "destructive"
         });
       }
     } catch (error) {
-      console.error("Erro ao testar instâncias Z-API:", error);
+      console.error("Erro ao executar diagnóstico:", error);
       toast({
-        title: 'Erro',
-        description: 'Falha ao realizar diagnóstico Z-API.',
-        variant: 'destructive',
+        title: "Erro no diagnóstico",
+        description: "Ocorreu um erro ao diagnosticar o webhook.",
+        variant: "destructive"
       });
     } finally {
-      setIsLoading(false);
+      setIsRunning(false);
+      if (onDiagnosticComplete) onDiagnosticComplete();
     }
   };
 
   return (
-    <Tabs defaultValue="status" value={activeTab} onValueChange={setActiveTab}>
-      <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="status">Status</TabsTrigger>
-        <TabsTrigger value="diagnostic">Diagnóstico Completo</TabsTrigger>
-      </TabsList>
-      
-      <TabsContent value="status" className="space-y-4">
-        <div className="bg-blue-50 rounded-md p-4 mt-4">
-          <h3 className="text-md font-medium text-blue-800 mb-2">Verificação de Status</h3>
-          <p className="text-sm text-blue-700">
-            Verifique se os serviços Z-API estão conectados e funcionando corretamente.
-          </p>
-        </div>
-        
-        <div className="flex justify-end">
-          <Button
-            onClick={testZAPIInstances}
-            disabled={isLoading}
-            variant="outline"
-          >
-            {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Verificar Conexão
-          </Button>
-        </div>
-        
-        {testResults && testResults.zapiConnectionTest && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Status da Conexão</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between border-b pb-2">
-                  <span className="font-medium">Instância Web</span>
-                  {testResults.zapiConnectionTest.webInstance?.success ? (
-                    <div className="flex items-center text-green-600">
-                      <Check className="h-5 w-5 mr-2" />
-                      <span>Conectada</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center text-red-600">
-                      <AlertCircle className="h-5 w-5 mr-2" />
-                      <span>Desconectada</span>
-                    </div>
-                  )}
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle>Diagnóstico de Webhook</CardTitle>
+        <CardDescription>
+          Verifique e corrija problemas de configuração do webhook para recebimento de mensagens
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {!report ? (
+          <div className="flex flex-col items-center justify-center py-10 space-y-4">
+            {isRunning ? (
+              <>
+                <Loader2 className="w-12 h-12 animate-spin text-primary" />
+                <p className="text-lg font-medium">Executando diagnóstico completo...</p>
+                <p className="text-sm text-muted-foreground">
+                  Verificando conexão, status do webhook e realizando testes...
+                </p>
+              </>
+            ) : (
+              <>
+                <AlertCircle className="w-12 h-12 text-primary" />
+                <p className="text-lg font-medium">Diagnóstico de webhook</p>
+                <p className="text-sm text-muted-foreground text-center max-w-md">
+                  O diagnóstico verificará a conexão com o WhatsApp, configuração de webhook
+                  e tentará resolver problemas automaticamente.
+                </p>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <Alert variant={report.connectionStatus.connected ? "success" : "destructive"}>
+              <CheckCircle2 className="h-4 w-4" />
+              <AlertTitle>
+                Status da Conexão: {report.connectionStatus.connected ? "Conectado" : "Desconectado"}
+              </AlertTitle>
+              <AlertDescription>{report.connectionStatus.message}</AlertDescription>
+            </Alert>
+            
+            <Alert variant={report.webhookFinalStatus.configured ? "success" : "destructive"}>
+              <CheckCircle2 className="h-4 w-4" />
+              <AlertTitle>
+                Status do Webhook: {report.webhookFinalStatus.configured ? "Configurado" : "Não Configurado"}
+              </AlertTitle>
+              <AlertDescription>{report.webhookFinalStatus.message}</AlertDescription>
+            </Alert>
+            
+            {report.webhookFinalStatus.webhookUrl && (
+              <div className="flex items-center space-x-2 text-sm p-2 bg-muted rounded">
+                <Link className="h-4 w-4" />
+                <span className="font-medium">URL do Webhook:</span>
+                <code className="bg-muted-foreground/20 px-2 py-1 rounded text-xs break-all">
+                  {report.webhookFinalStatus.webhookUrl}
+                </code>
+              </div>
+            )}
+            
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Mensagens Recebidas:</span>
+                <Badge variant={report.channelMetadata.webhookReceiveCount > 0 ? "success" : "destructive"}>
+                  {report.channelMetadata.webhookReceiveCount}
+                </Badge>
+              </div>
+              
+              {report.channelMetadata.lastWebhookReceived && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Última Mensagem Recebida:</span>
+                  <span className="text-sm">
+                    {new Date(report.channelMetadata.lastWebhookReceived).toLocaleString()}
+                  </span>
                 </div>
-                
-                {testResults.environmentVariables && (
-                  <div className="border-b pb-2">
-                    <h3 className="font-medium mb-2">Variáveis de Ambiente</h3>
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div className="text-neutral-600">ZAPI_TOKEN:</div>
-                      <div>{testResults.environmentVariables.ZAPI_TOKEN}</div>
-                      <div className="text-neutral-600">ZAPI_INSTANCE_ID:</div>
-                      <div>{testResults.environmentVariables.ZAPI_INSTANCE_ID}</div>
-                      <div className="text-neutral-600">Client-Token:</div>
-                      <div>{testResults.environmentVariables.CLIENT_TOKEN_ZAPI || testResults.environmentVariables.ZAPI_CLIENT_TOKEN || "Não definido"}</div>
+              )}
+              
+              {report.channelMetadata.lastWebhookSetup && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Última Configuração:</span>
+                  <span className="text-sm">
+                    {new Date(report.channelMetadata.lastWebhookSetup).toLocaleString()}
+                  </span>
+                </div>
+              )}
+            </div>
+            
+            <Separator />
+            
+            <div className="space-y-2">
+              <h3 className="font-medium">Recomendação:</h3>
+              <p className="text-sm">{report.recommendation}</p>
+            </div>
+            
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="details">
+                <AccordionTrigger>Ver Detalhes Técnicos</AccordionTrigger>
+                <AccordionContent>
+                  <div className="space-y-4 text-xs">
+                    <div>
+                      <h4 className="font-medium">Status Inicial do Webhook:</h4>
+                      <p>{report.webhookInitialStatus.message}</p>
+                      {report.webhookInitialStatus.webhookUrl && (
+                        <p className="break-all">URL: {report.webhookInitialStatus.webhookUrl}</p>
+                      )}
+                    </div>
+                    
+                    <div>
+                      <h4 className="font-medium">Reconfiguração do Webhook:</h4>
+                      <p>Status: {report.webhookReconfiguration.success ? "Sucesso" : "Falha"}</p>
+                      <p>{report.webhookReconfiguration.message}</p>
+                    </div>
+                    
+                    <div>
+                      <h4 className="font-medium">Status Final do Webhook:</h4>
+                      <p>{report.webhookFinalStatus.message}</p>
+                      {report.webhookFinalStatus.webhookUrl && (
+                        <p className="break-all">URL: {report.webhookFinalStatus.webhookUrl}</p>
+                      )}
                     </div>
                   </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </div>
         )}
-      </TabsContent>
-      
-      <TabsContent value="diagnostic">
-        <Card className="w-full mt-4">
-          <CardHeader>
-            <CardTitle>Diagnóstico Detalhado</CardTitle>
-            <CardDescription>
-              Verificação completa da configuração Z-API
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {testResults && (
-              <div className="space-y-4 text-sm">
-                {testResults.zapiChannels && testResults.zapiChannels.length > 0 && (
-                  <div className="border rounded-md p-4">
-                    <h3 className="text-md font-medium mb-2">Canais Z-API ({testResults.zapiChannelsCount})</h3>
-                    <div className="space-y-2">
-                      {testResults.zapiChannels.map((channel: any, index: number) => (
-                        <div key={index} className="border-b last:border-b-0 pb-2 last:pb-0">
-                          <div className="flex justify-between">
-                            <span className="font-medium">{channel.name} (ID: {channel.id})</span>
-                            <span className={channel.isActive ? "text-green-600" : "text-red-600"}>
-                              {channel.isActive ? "Ativo" : "Inativo"}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {testResults.zapiConnectionTest && (
-                  <div className="border rounded-md p-4">
-                    <h3 className="text-md font-medium mb-2">Resposta da API Z-API</h3>
-                    <div className="bg-neutral-50 p-2 rounded text-xs font-mono overflow-auto max-h-[200px]">
-                      <pre>
-                        {JSON.stringify(testResults.zapiConnectionTest.webInstance?.data, null, 2)}
-                      </pre>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {!testResults && !isLoading && (
-              <div className="text-center py-6 text-gray-500">
-                Clique no botão abaixo para executar o diagnóstico completo
-              </div>
-            )}
-
-            {isLoading && (
-              <div className="flex justify-center items-center py-10">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            )}
-          </CardContent>
-          <CardFooter>
-            <Button 
-              onClick={testZAPIInstances} 
-              disabled={isLoading}
-              className="w-full"
-            >
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Executar Diagnóstico Completo
-            </Button>
-          </CardFooter>
-        </Card>
-      </TabsContent>
-    </Tabs>
+      </CardContent>
+      <CardFooter className="flex justify-between">
+        <Button 
+          variant="outline" 
+          onClick={() => setReport(null)}
+          disabled={isRunning || !report}
+        >
+          Limpar
+        </Button>
+        <Button 
+          onClick={runDiagnostic} 
+          disabled={isRunning}
+        >
+          {isRunning ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Executando...
+            </>
+          ) : (
+            <>
+              <RefreshCw className="mr-2 h-4 w-4" />
+              {report ? "Executar Novamente" : "Iniciar Diagnóstico"}
+            </>
+          )}
+        </Button>
+      </CardFooter>
+    </Card>
   );
-}
+};
+
+export default ZAPIDiagnosticPanel;

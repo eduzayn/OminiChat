@@ -14,6 +14,7 @@ import { registerOpportunityRoutes } from "./handlers/opportunities";
 import { registerOrganizationRoutes } from "./handlers/organizations";
 import { setupWebSocketServer } from "./services/socket";
 import { registerRestartSessionRoute } from "./handlers/restart-session";
+import { registerWebhookDiagnosticRoute } from "./handlers/webhook-diagnostic";
 
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -35,6 +36,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerOpportunityRoutes(app, apiPrefix);
   registerOrganizationRoutes(app, apiPrefix);
   registerRestartSessionRoute(app, apiPrefix);
+  registerWebhookDiagnosticRoute(app, apiPrefix);
 
   
   // Create WebSocket server

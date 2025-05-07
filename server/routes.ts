@@ -40,6 +40,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerRestartSessionRoute(app, apiPrefix);
   registerWebhookDiagnosticRoute(app, apiPrefix);
   registerWebhookSimulationRoutes(app, apiPrefix);
+  registerMediaTestRoutes(app, apiPrefix);
 
   
   // Create WebSocket server

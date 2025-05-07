@@ -681,7 +681,9 @@ export async function sendVideoMessage(
       formattedPhone = `55${formattedPhone}`;
     }
     
-    console.log(`[Z-API] Enviando vídeo para ${formattedPhone} (original: ${to}): "${videoUrl}"`);
+    console.log(`[Z-API DEBUG] Enviando vídeo para ${formattedPhone} (original: ${to}): "${videoUrl}"`);
+    console.log(`[Z-API DEBUG] Caption: "${caption || 'sem legenda'}"`);
+    console.log(`[Z-API DEBUG] Endpoint: ${BASE_URL}/instances/${instanceId}/token/${token}/send-video`);
     
     // Headers completos para requisição
     const headers = {
@@ -689,7 +691,15 @@ export async function sendVideoMessage(
       'Client-Token': clientToken
     };
     
-    console.log(`[Z-API] Headers para envio de vídeo:`, JSON.stringify(headers));
+    // Payload completo para análise
+    const payload = {
+      phone: formattedPhone,
+      video: videoUrl,
+      caption: caption || '' // Legenda opcional
+    };
+    
+    console.log(`[Z-API DEBUG] Headers: ${JSON.stringify(headers)}`);
+    console.log(`[Z-API DEBUG] Payload: ${JSON.stringify(payload)}`);
     
     // Enviar vídeo usando o endpoint e payload corretos conforme documentação Z-API
     // https://developer.z-api.io/message/send-message-video

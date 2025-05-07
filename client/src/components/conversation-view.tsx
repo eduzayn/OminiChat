@@ -753,19 +753,70 @@ function ConversationView() {
               <div className="space-y-2">
                 <h3 className="text-sm font-medium mb-2">Anexar arquivo</h3>
                 <div className="grid grid-cols-2 gap-2">
-                  <Button variant="outline" className="flex flex-col items-center justify-center p-3 h-auto space-y-1" onClick={() => toast({ description: "Função de imagem será implementada em breve." })}>
+                  {/* Input oculto para upload de imagem */}
+                  <input
+                    type="file"
+                    id="image-upload"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={(e) => handleFileUpload(e, 'image')}
+                  />
+                  <Button 
+                    variant="outline" 
+                    className="flex flex-col items-center justify-center p-3 h-auto space-y-1" 
+                    onClick={() => document.getElementById('image-upload')?.click()}
+                  >
                     <Image className="h-5 w-5 text-neutral-500" />
                     <span className="text-xs">Imagem</span>
                   </Button>
-                  <Button variant="outline" className="flex flex-col items-center justify-center p-3 h-auto space-y-1" onClick={() => toast({ description: "Função de documento será implementada em breve." })}>
+                  
+                  {/* Input oculto para upload de documento */}
+                  <input
+                    type="file"
+                    id="document-upload"
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.txt"
+                    onChange={(e) => handleFileUpload(e, 'file')}
+                  />
+                  <Button 
+                    variant="outline" 
+                    className="flex flex-col items-center justify-center p-3 h-auto space-y-1" 
+                    onClick={() => document.getElementById('document-upload')?.click()}
+                  >
                     <FileText className="h-5 w-5 text-neutral-500" />
                     <span className="text-xs">Documento</span>
                   </Button>
-                  <Button variant="outline" className="flex flex-col items-center justify-center p-3 h-auto space-y-1" onClick={() => toast({ description: "Função de áudio será implementada em breve." })}>
+                  
+                  {/* Input oculto para upload de áudio */}
+                  <input
+                    type="file"
+                    id="audio-upload"
+                    className="hidden"
+                    accept="audio/*"
+                    onChange={(e) => handleFileUpload(e, 'voice')}
+                  />
+                  <Button 
+                    variant="outline" 
+                    className="flex flex-col items-center justify-center p-3 h-auto space-y-1" 
+                    onClick={() => document.getElementById('audio-upload')?.click()}
+                  >
                     <Music className="h-5 w-5 text-neutral-500" />
                     <span className="text-xs">Áudio</span>
                   </Button>
-                  <Button variant="outline" className="flex flex-col items-center justify-center p-3 h-auto space-y-1" onClick={() => toast({ description: "Função de vídeo será implementada em breve." })}>
+                  
+                  {/* Input oculto para upload de vídeo */}
+                  <input
+                    type="file"
+                    id="video-upload"
+                    className="hidden"
+                    accept="video/*"
+                    onChange={(e) => handleFileUpload(e, 'video')}
+                  />
+                  <Button 
+                    variant="outline" 
+                    className="flex flex-col items-center justify-center p-3 h-auto space-y-1" 
+                    onClick={() => document.getElementById('video-upload')?.click()}
+                  >
                     <Video className="h-5 w-5 text-neutral-500" />
                     <span className="text-xs">Vídeo</span>
                   </Button>

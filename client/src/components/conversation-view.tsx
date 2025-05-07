@@ -286,7 +286,6 @@ function ConversationView() {
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [mediaUploading, setMediaUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   
@@ -525,69 +524,6 @@ function ConversationView() {
     }
   };
   
-  // Função para lidar com upload de arquivos
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, mediaType: 'image' | 'file' | 'voice' | 'video') => {
-    if (!activeConversation || !e.target.files || e.target.files.length === 0) return;
-    
-    const file = e.target.files[0];
-    
-    // Verificar tamanho do arquivo (limite de 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      toast({
-        variant: "destructive",
-        title: "Arquivo muito grande",
-        description: "O tamanho máximo permitido é de 10MB."
-      });
-      return;
-    }
-    
-    try {
-      setMediaUploading(true);
-      
-      // Criar FormData para o upload
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('mediaType', mediaType);
-      formData.append('conversationId', activeConversation.id.toString());
-      
-      // Enviar arquivo para o servidor
-      const response = await fetch(`/api/conversations/${activeConversation.id}/media`, {
-        method: 'POST',
-        body: formData
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.message || 'Erro ao enviar mídia');
-      }
-      
-      // Atualizar a lista de mensagens
-      queryClient.invalidateQueries({ 
-        queryKey: [`/api/conversations/${activeConversation.id}/messages`] 
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
-      
-      toast({
-        description: `${mediaType === 'image' ? 'Imagem' : 
-                       mediaType === 'file' ? 'Documento' : 
-                       mediaType === 'voice' ? 'Áudio' : 'Vídeo'} enviado com sucesso.`
-      });
-      
-    } catch (error) {
-      console.error("Erro ao enviar mídia:", error);
-      toast({
-        variant: "destructive",
-        title: "Erro ao enviar mídia",
-        description: error instanceof Error ? error.message : "Não foi possível enviar o arquivo. Tente novamente."
-      });
-    } finally {
-      setMediaUploading(false);
-      // Limpar o input file
-      e.target.value = '';
-    }
-  };
-
   const createPaymentRequest = async () => {
     if (!activeConversation) return;
     
@@ -817,70 +753,19 @@ function ConversationView() {
               <div className="space-y-2">
                 <h3 className="text-sm font-medium mb-2">Anexar arquivo</h3>
                 <div className="grid grid-cols-2 gap-2">
-                  {/* Input oculto para upload de imagem */}
-                  <input
-                    type="file"
-                    id="image-upload"
-                    className="hidden"
-                    accept="image/*"
-                    onChange={(e) => handleFileUpload(e, 'image')}
-                  />
-                  <Button 
-                    variant="outline" 
-                    className="flex flex-col items-center justify-center p-3 h-auto space-y-1" 
-                    onClick={() => document.getElementById('image-upload')?.click()}
-                  >
+                  <Button variant="outline" className="flex flex-col items-center justify-center p-3 h-auto space-y-1" onClick={() => toast({ description: "Função de imagem será implementada em breve." })}>
                     <Image className="h-5 w-5 text-neutral-500" />
                     <span className="text-xs">Imagem</span>
                   </Button>
-                  
-                  {/* Input oculto para upload de documento */}
-                  <input
-                    type="file"
-                    id="document-upload"
-                    className="hidden"
-                    accept=".pdf,.doc,.docx,.xls,.xlsx,.txt"
-                    onChange={(e) => handleFileUpload(e, 'file')}
-                  />
-                  <Button 
-                    variant="outline" 
-                    className="flex flex-col items-center justify-center p-3 h-auto space-y-1" 
-                    onClick={() => document.getElementById('document-upload')?.click()}
-                  >
+                  <Button variant="outline" className="flex flex-col items-center justify-center p-3 h-auto space-y-1" onClick={() => toast({ description: "Função de documento será implementada em breve." })}>
                     <FileText className="h-5 w-5 text-neutral-500" />
                     <span className="text-xs">Documento</span>
                   </Button>
-                  
-                  {/* Input oculto para upload de áudio */}
-                  <input
-                    type="file"
-                    id="audio-upload"
-                    className="hidden"
-                    accept="audio/*"
-                    onChange={(e) => handleFileUpload(e, 'voice')}
-                  />
-                  <Button 
-                    variant="outline" 
-                    className="flex flex-col items-center justify-center p-3 h-auto space-y-1" 
-                    onClick={() => document.getElementById('audio-upload')?.click()}
-                  >
+                  <Button variant="outline" className="flex flex-col items-center justify-center p-3 h-auto space-y-1" onClick={() => toast({ description: "Função de áudio será implementada em breve." })}>
                     <Music className="h-5 w-5 text-neutral-500" />
                     <span className="text-xs">Áudio</span>
                   </Button>
-                  
-                  {/* Input oculto para upload de vídeo */}
-                  <input
-                    type="file"
-                    id="video-upload"
-                    className="hidden"
-                    accept="video/*"
-                    onChange={(e) => handleFileUpload(e, 'video')}
-                  />
-                  <Button 
-                    variant="outline" 
-                    className="flex flex-col items-center justify-center p-3 h-auto space-y-1" 
-                    onClick={() => document.getElementById('video-upload')?.click()}
-                  >
+                  <Button variant="outline" className="flex flex-col items-center justify-center p-3 h-auto space-y-1" onClick={() => toast({ description: "Função de vídeo será implementada em breve." })}>
                     <Video className="h-5 w-5 text-neutral-500" />
                     <span className="text-xs">Vídeo</span>
                   </Button>

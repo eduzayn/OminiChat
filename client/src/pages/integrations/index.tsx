@@ -328,19 +328,6 @@ export default function IntegrationsPage() {
               </CardContent>
             </Card>
 
-            {/* Ferramenta de Diagnóstico de Vídeo Z-API */}
-            <Card className="mb-8">
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center">
-                  <CircuitBoard className="h-5 w-5 mr-2 text-purple-600" />
-                  Ferramenta de Diagnóstico de Vídeo Z-API
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <VideoTesteWebSocket />
-              </CardContent>
-            </Card>
-
             {/* Integrações de WhatsApp */}
             <Card className="mb-8">
               <CardHeader>

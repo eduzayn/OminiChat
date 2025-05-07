@@ -1,156 +1,132 @@
-import { type Express, type Request, type Response } from "express";
-import { eq, and, desc, SQL, asc, sql } from "drizzle-orm";
+import { Express } from "express";
 import { db } from "@db";
-import {
-  conversations,
-  messages,
-  contacts,
-  users,
+import { 
+  conversations, 
+  messages, 
+  contacts, 
   channels,
-  type Message,
-  notes,
-  activities
+  insertMessageSchema,
+  users,
+  activities,
+  InsertMessage
 } from "@shared/schema";
-// Função broadcastToClients é definida como global
-declare global {
-  var broadcastToClients: (data: any) => void;
-}
+import { eq, and, desc, asc, sql } from "drizzle-orm";
+import { z } from "zod";
+import { broadcastToClients } from "../services/socket";
 
-// Middleware de autenticação
+// Middleware to check if user is authenticated
 function isAuthenticated(req: any, res: any, next: any) {
-  if (req.session && req.session.userId) {
-    return next();
+  if (!req.session || !req.session.userId) {
+    return res.status(401).json({ message: "Unauthorized" });
   }
-  return res.status(401).json({ message: "Unauthorized" });
+  
+  next();
 }
 
-/**
- * Registra rotas relacionadas a conversas
- * @param app Aplicação Express
- * @param apiPrefix Prefixo da API
- */
 export function registerConversationRoutes(app: Express, apiPrefix: string) {
-  // Listar conversas
-  app.get(`${apiPrefix}/conversations`, isAuthenticated, async (req: Request, res: Response) => {
+  // Get all conversations
+  app.get(`${apiPrefix}/conversations`, isAuthenticated, async (req, res) => {
     try {
-      // Parâmetros de consulta para filtragem e paginação
-      const page = Number(req.query.page) || 1;
-      const limit = Number(req.query.limit) || 20;
-      const status = req.query.status as string | undefined;
-      const channelId = req.query.channelId ? Number(req.query.channelId) : undefined;
-      const query = req.query.query as string | undefined;
-      const assignedTo = req.query.assignedTo ? Number(req.query.assignedTo) : undefined;
+      // Get query params for filtering
+      const status = req.query.status as string;
+      const channelId = req.query.channelId ? parseInt(req.query.channelId as string) : undefined;
+      const assignedTo = req.query.assignedTo === "me" 
+        ? req.session.userId 
+        : req.query.assignedTo 
+          ? parseInt(req.query.assignedTo as string) 
+          : undefined;
+      const unassigned = req.query.unassigned === "true";
       
-      // Construir a consulta base
-      let queryBuilder = db.select({
+      // Build query conditions
+      let query = db.select({
         id: conversations.id,
+        contactId: conversations.contactId,
+        channelId: conversations.channelId,
+        assignedTo: conversations.assignedTo,
         status: conversations.status,
+        unreadCount: conversations.unreadCount,
         lastMessageAt: conversations.lastMessageAt,
         createdAt: conversations.createdAt,
-        channelId: conversations.channelId,
-        contactId: conversations.contactId,
-        assignedTo: conversations.assignedTo,
-        unreadCount: conversations.unreadCount,
-        metadata: conversations.metadata
+        updatedAt: conversations.updatedAt,
       })
-      .from(conversations)
-      .orderBy(desc(conversations.lastMessageAt));
+      .from(conversations);
       
-      // Aplicar filtros se fornecidos
-      const whereConditions: SQL[] = [];
+      const conditions = [];
       
       if (status) {
-        whereConditions.push(eq(conversations.status, status));
+        conditions.push(eq(conversations.status, status));
       }
       
       if (channelId) {
-        whereConditions.push(eq(conversations.channelId, channelId));
+        conditions.push(eq(conversations.channelId, channelId));
       }
       
-      if (assignedTo !== undefined) {
-        if (assignedTo === 0) {
-          // Conversas não atribuídas
-          whereConditions.push(sql`${conversations.assignedTo} IS NULL`);
-        } else {
-          // Conversas atribuídas a um agente específico
-          whereConditions.push(eq(conversations.assignedTo, assignedTo));
-        }
+      if (assignedTo) {
+        conditions.push(eq(conversations.assignedTo, assignedTo));
+      } else if (unassigned) {
+        conditions.push(sql`${conversations.assignedTo} IS NULL`);
       }
       
-      // Aplicar os filtros à consulta
-      if (whereConditions.length > 0) {
-        queryBuilder = queryBuilder.where(and(...whereConditions));
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
       }
       
-      // Adicionar paginação
-      const offset = (page - 1) * limit;
-      queryBuilder = queryBuilder.limit(limit).offset(offset);
+      const allConversations = await query.orderBy(desc(conversations.lastMessageAt));
       
-      const conversationsResult = await queryBuilder;
-      
-      // Buscar detalhes relacionados (contato, canal, última mensagem)
+      // Get related data for each conversation
       const conversationsWithDetails = await Promise.all(
-        conversationsResult.map(async (conversation) => {
-          // Buscar contato
+        allConversations.map(async (conversation) => {
           const contact = await db.query.contacts.findFirst({
             where: eq(contacts.id, conversation.contactId)
           });
           
-          // Buscar canal
           const channel = await db.query.channels.findFirst({
             where: eq(channels.id, conversation.channelId)
           });
           
-          // Buscar última mensagem
-          const lastMessage = await db.query.messages.findFirst({
+          const assignedUser = conversation.assignedTo 
+            ? await db.query.users.findFirst({
+                where: eq(users.id, conversation.assignedTo)
+              })
+            : undefined;
+            
+          // Get last message
+          const lastMessages = await db.query.messages.findMany({
             where: eq(messages.conversationId, conversation.id),
-            orderBy: desc(messages.createdAt),
+            orderBy: [desc(messages.createdAt)],
             limit: 1
           });
           
-          // Buscar agente atribuído
-          let assignedUser = null;
-          if (conversation.assignedTo) {
-            assignedUser = await db.query.users.findFirst({
-              where: eq(users.id, conversation.assignedTo)
-            });
-          }
+          const lastMessage = lastMessages[0];
           
           return {
             ...conversation,
-            contact,
-            channel,
-            lastMessage,
-            assignedUser
+            contact: contact!,
+            channel: channel!,
+            assignedUser: assignedUser 
+              ? { 
+                  id: assignedUser.id, 
+                  name: assignedUser.name, 
+                  username: assignedUser.username,
+                  role: assignedUser.role,
+                  avatarUrl: assignedUser.avatarUrl
+                } 
+              : undefined,
+            lastMessage
           };
         })
       );
       
-      // Contar total para paginação
-      const countResult = await db
-        .select({ count: sql`count(*)` })
-        .from(conversations);
-        
-      const totalCount = Number(countResult[0].count);
-      const totalPages = Math.ceil(totalCount / limit);
+      return res.json(conversationsWithDetails);
       
-      return res.json({
-        data: conversationsWithDetails,
-        pagination: {
-          page,
-          limit,
-          totalCount,
-          totalPages
-        }
-      });
     } catch (error) {
       console.error("Error fetching conversations:", error);
       return res.status(500).json({ message: "Internal server error" });
     }
   });
   
-  // Obter uma conversa específica
-  app.get(`${apiPrefix}/conversations/:id`, isAuthenticated, async (req: Request, res: Response) => {
+  // Get conversation by ID
+  app.get(`${apiPrefix}/conversations/:id`, isAuthenticated, async (req, res) => {
     try {
       const conversationId = parseInt(req.params.id);
       
@@ -162,45 +138,43 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
         return res.status(404).json({ message: "Conversation not found" });
       }
       
-      // Buscar contato relacionado
       const contact = await db.query.contacts.findFirst({
         where: eq(contacts.id, conversation.contactId)
       });
       
-      // Buscar canal relacionado
       const channel = await db.query.channels.findFirst({
         where: eq(channels.id, conversation.channelId)
       });
       
-      // Buscar última mensagem
-      const lastMessage = await db.query.messages.findFirst({
-        where: eq(messages.conversationId, conversationId),
-        orderBy: desc(messages.createdAt),
+      const assignedUser = conversation.assignedTo 
+        ? await db.query.users.findFirst({
+            where: eq(users.id, conversation.assignedTo)
+          })
+        : undefined;
+        
+      // Get last message
+      const lastMessages = await db.query.messages.findMany({
+        where: eq(messages.conversationId, conversation.id),
+        orderBy: [desc(messages.createdAt)],
         limit: 1
       });
       
-      // Buscar usuário atribuído
-      let assignedUser = null;
-      if (conversation.assignedTo) {
-        assignedUser = await db.query.users.findFirst({
-          where: eq(users.id, conversation.assignedTo)
-        });
-      }
-      
-      // Se não houver contagem de não lidas, definir como 0
-      const unreadCount = conversation.unreadCount ?? 0;
-      
-      // Verificar se é o primeiro acesso do agente à conversa (para auto-atribuição)
-      const isFirstAgentAccess = !conversation.assignedTo && unreadCount > 0;
+      const lastMessage = lastMessages[0];
       
       return res.json({
         ...conversation,
         contact,
         channel,
-        lastMessage,
-        assignedUser,
-        unreadCount,
-        isFirstAgentAccess
+        assignedUser: assignedUser 
+          ? { 
+              id: assignedUser.id, 
+              name: assignedUser.name, 
+              username: assignedUser.username,
+              role: assignedUser.role,
+              avatarUrl: assignedUser.avatarUrl
+            } 
+          : undefined,
+        lastMessage
       });
       
     } catch (error) {
@@ -209,14 +183,11 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
     }
   });
   
-  // Obter as mensagens de uma conversa
-  app.get(`${apiPrefix}/conversations/:id/messages`, isAuthenticated, async (req: Request, res: Response) => {
+  // Get messages for conversation
+  app.get(`${apiPrefix}/conversations/:id/messages`, isAuthenticated, async (req, res) => {
     try {
       const conversationId = parseInt(req.params.id);
-      const page = Number(req.query.page) || 1;
-      const limit = Number(req.query.limit) || 50;
       
-      // Verificar se a conversa existe
       const conversation = await db.query.conversations.findFirst({
         where: eq(conversations.id, conversationId)
       });
@@ -225,97 +196,75 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
         return res.status(404).json({ message: "Conversation not found" });
       }
       
-      // Buscar canal para acessar configurações
-      const channel = await db.query.channels.findFirst({
-        where: eq(channels.id, conversation.channelId)
-      });
-      
-      // Buscar mensagens da conversa
-      const messagesResult = await db.query.messages.findMany({
+      // Get all messages for the conversation
+      const allMessages = await db.query.messages.findMany({
         where: eq(messages.conversationId, conversationId),
-        orderBy: asc(messages.createdAt),
-        limit,
-        offset: (page - 1) * limit
+        orderBy: [asc(messages.createdAt)]
       });
       
-      // Buscar detalhes adicionais (agente, contato) para cada mensagem
+      // Get related data for each message
       const messagesWithDetails = await Promise.all(
-        messagesResult.map(async (message) => {
-          let agent = undefined;
-          if (message.agentId) {
-            agent = await db.query.users.findFirst({
-              where: eq(users.id, message.agentId)
-            });
+        allMessages.map(async (message) => {
+          const agent = message.agentId 
+            ? await db.query.users.findFirst({
+                where: eq(users.id, message.agentId)
+              })
+            : undefined;
             
-            // Simplificar o objeto do agente para não expor dados sensíveis
-            if (agent) {
-              agent = {
-                id: agent.id,
-                name: agent.name,
-                username: agent.username,
-                role: agent.role,
-                avatarUrl: agent.avatarUrl
-              };
-            }
-          }
-          
-          let contact = undefined;
-          if (conversation.contactId) {
-            contact = await db.query.contacts.findFirst({
-              where: eq(contacts.id, conversation.contactId)
-            });
-          }
+          const contact = await db.query.contacts.findFirst({
+            where: eq(contacts.id, conversation.contactId)
+          });
           
           return {
             ...message,
-            agent,
-            contact
+            agent: agent 
+              ? { 
+                  id: agent.id, 
+                  name: agent.name, 
+                  username: agent.username,
+                  role: agent.role,
+                  avatarUrl: agent.avatarUrl
+                } 
+              : undefined,
+            contact: contact!
           };
         })
       );
       
-      // Marcar conversa como lida se foi acessada pelo agente
-      if (conversation.unreadCount) {
+      // Reset unread count after fetching messages
+      if (conversation.unreadCount > 0) {
         await db
           .update(conversations)
-          .set({ 
-            unreadCount: 0,
-            // Se não há agente atribuído e está sendo visualizada, atribuir automaticamente
-            ...(conversation.assignedTo ? {} : { assignedTo: req.session.userId })
-          })
+          .set({ unreadCount: 0 })
           .where(eq(conversations.id, conversationId));
-          
-        // Notificar outros clientes sobre a atualização da conversa
-        broadcastToClients({
-          type: "conversation_updated",
-          data: {
-            conversationId,
-            unreadCount: 0,
-            assignedTo: conversation.assignedTo || req.session.userId,
-            timestamp: new Date().toISOString()
-          }
-        });
       }
       
       return res.json(messagesWithDetails);
       
     } catch (error) {
-      console.error("Error fetching conversation messages:", error);
+      console.error("Error fetching messages:", error);
       return res.status(500).json({ message: "Internal server error" });
     }
   });
   
-  // Enviar uma nova mensagem de texto
-  app.post(`${apiPrefix}/conversations/:id/messages`, isAuthenticated, async (req: Request, res: Response) => {
+  // Send a message
+  app.post(`${apiPrefix}/conversations/:id/messages`, isAuthenticated, async (req, res) => {
     try {
       const conversationId = parseInt(req.params.id);
-      const { content } = req.body;
       
-      if (!content || content.trim() === '') {
-        return res.status(400).json({ message: "Message cannot be empty" });
+      // Validate request body
+      const validation = insertMessageSchema.safeParse({
+        ...req.body,
+        conversationId
+      });
+      
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Invalid message data", 
+          errors: validation.error.errors 
+        });
       }
       
-      // Verificar se a conversa existe
       const conversation = await db.query.conversations.findFirst({
         where: eq(conversations.id, conversationId)
       });
@@ -324,7 +273,7 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
         return res.status(404).json({ message: "Conversation not found" });
       }
       
-      // Buscar o canal
+      // Buscar o canal para verificar se é Z-API
       const channel = await db.query.channels.findFirst({
         where: eq(channels.id, conversation.channelId)
       });
@@ -333,7 +282,7 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
         return res.status(404).json({ message: "Channel not found" });
       }
       
-      // Buscar o contato
+      // Buscar o contato para obter o número de telefone
       const contact = await db.query.contacts.findFirst({
         where: eq(contacts.id, conversation.contactId)
       });
@@ -342,63 +291,105 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
         return res.status(404).json({ message: "Contact not found" });
       }
       
-      // Status inicial da mensagem
+      const messageData: Partial<InsertMessage> = {
+        conversationId,
+        content: req.body.content,
+        isFromAgent: req.body.isFromAgent || false
+      };
+      
+      // If message is from agent, add agent ID
+      if (messageData.isFromAgent) {
+        messageData.agentId = req.session.userId;
+      } else {
+        // If message is from contact, add contact ID
+        messageData.contactId = conversation.contactId;
+      }
+      
+      // Insert message
+      // Garantir que todos os campos obrigatórios estejam presentes
+      // Certifique-se de que conversationId e content são números/strings válidos
+      if (typeof messageData.conversationId !== 'number' || 
+          typeof messageData.content !== 'string' || 
+          !messageData.content.trim()) {
+        return res.status(400).json({ message: "Invalid message data: content and conversationId are required" });
+      }
+      
+      // Status inicial - será atualizado com base no resultado do envio externo
       let messageStatus = "sent";
       let externalMessageId = null;
       
-      // Enviar mensagem para o WhatsApp se for canal de WhatsApp
-      if (channel.type === "whatsapp") {
+      // Se a mensagem é de um agente e o canal é WhatsApp, enviar para o canal apropriado
+      if (messageData.isFromAgent && channel.type === "whatsapp") {
         try {
-          // Importar serviço WhatsApp
+          // Importar serviço WhatsApp que roteará para o provedor correto (Z-API, Meta, etc.)
           const whatsAppService = await import("../services/channels/whatsapp");
           
-          // Enviar mensagem via API do WhatsApp
+          console.log(`Enviando mensagem WhatsApp para ${contact.phone} via ${channel.config?.provider || 'padrão'}: "${messageData.content}"`);
+          
+          // Usar o serviço central de WhatsApp que roteia para Z-API ou outro provedor
           const result = await whatsAppService.sendWhatsAppMessage(
-            channel,
-            contact.phone,
-            content
+            channel, 
+            contact.phone, 
+            messageData.content
           );
           
           if (result.status === "success") {
             messageStatus = "delivered";
             externalMessageId = result.messageId;
+            console.log(`Mensagem WhatsApp enviada com sucesso, ID: ${result.messageId}`);
           } else {
-            console.error(`Error sending WhatsApp message: ${result.message}`);
+            console.error(`Erro ao enviar mensagem WhatsApp: ${result.message}`);
             messageStatus = "failed";
           }
         } catch (error) {
-          console.error("Error sending WhatsApp message:", error);
+          console.error("Erro ao enviar mensagem WhatsApp:", error);
           messageStatus = "failed";
         }
       }
       
-      // Criar mensagem no banco de dados
-      const messageData = {
-        conversationId,
-        content,
-        isFromAgent: true,
-        agentId: req.session.userId,
+      const validMessageData = {
+        conversationId: messageData.conversationId,
+        content: messageData.content,
+        isFromAgent: messageData.isFromAgent === true,
+        agentId: messageData.agentId || null,
+        contactId: messageData.contactId || null,
         status: messageStatus,
-        metadata: externalMessageId ? { externalMessageId } : undefined
+        metadata: externalMessageId ? { externalMessageId } : {}
       };
       
       const [newMessage] = await db
         .insert(messages)
-        .values(messageData)
+        .values([validMessageData])
         .returning();
       
-      // Atualizar data da última mensagem na conversa
+      // Update conversation lastMessageAt
       await db
         .update(conversations)
         .set({ 
-          lastMessageAt: new Date()
+          lastMessageAt: new Date(),
+          unreadCount: messageData.isFromAgent 
+            ? 0 
+            : sql`${conversations.unreadCount} + 1`
         })
         .where(eq(conversations.id, conversationId));
+        
+      // Create activity for contact
+      if (messageData.isFromAgent) {
+        await db.insert(activities).values({
+          contactId: conversation.contactId,
+          type: "conversation",
+          description: "Message sent by agent",
+          details: req.body.content.substring(0, 50) + (req.body.content.length > 50 ? "..." : "")
+        });
+      }
       
-      // Buscar detalhes do agente
-      const agent = await db.query.users.findFirst({
-        where: eq(users.id, req.session.userId)
-      });
+      // Get agent details if applicable
+      let agent = undefined;
+      if (messageData.isFromAgent && messageData.agentId) {
+        agent = await db.query.users.findFirst({
+          where: eq(users.id, messageData.agentId)
+        });
+      }
       
       const messageWithDetails = {
         ...newMessage,
@@ -411,10 +402,11 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
               avatarUrl: agent.avatarUrl
             } 
           : undefined,
-        contact
+        contact: contact
       };
       
-      // Broadcast nova mensagem para todos os clientes conectados
+      // Broadcast new message to all connected clients
+      console.log("Enviando nova mensagem via WebSocket broadcast:", messageWithDetails);
       broadcastToClients({
         type: "new_message",
         data: messageWithDetails
@@ -428,191 +420,6 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
     }
   });
   
-  // Enviar uma mídia (imagem, documento, áudio ou vídeo)
-  app.post(`${apiPrefix}/conversations/:id/media`, isAuthenticated, async (req: Request, res: Response) => {
-    try {
-      const conversationId = parseInt(req.params.id);
-      
-      // Verificar se a conversa existe
-      const conversation = await db.query.conversations.findFirst({
-        where: eq(conversations.id, conversationId)
-      });
-      
-      if (!conversation) {
-        return res.status(404).json({ message: "Conversa não encontrada" });
-      }
-      
-      // Buscar o canal
-      const channel = await db.query.channels.findFirst({
-        where: eq(channels.id, conversation.channelId)
-      });
-      
-      if (!channel) {
-        return res.status(404).json({ message: "Canal não encontrado" });
-      }
-      
-      // Buscar o contato
-      const contact = await db.query.contacts.findFirst({
-        where: eq(contacts.id, conversation.contactId)
-      });
-      
-      if (!contact) {
-        return res.status(404).json({ message: "Contato não encontrado" });
-      }
-      
-      // Verificar se há um arquivo na requisição
-      if (!req.files || Object.keys(req.files).length === 0) {
-        return res.status(400).json({ message: "Nenhum arquivo enviado" });
-      }
-      
-      // Tipagem para o express-fileupload
-      const fileUpload = req.files.file as import('express-fileupload').UploadedFile;
-      const mediaType = req.body.mediaType as 'image' | 'file' | 'voice' | 'video';
-      
-      if (!fileUpload || !mediaType) {
-        return res.status(400).json({ 
-          message: "Dados de mídia inválidos",
-          detail: "O arquivo e o tipo de mídia são obrigatórios"
-        });
-      }
-      
-      // Salvar o arquivo em um local temporário para poder enviá-lo
-      const uploadDir = './uploads';
-      const fileName = fileUpload.name;
-      let filePath = `${uploadDir}/${Date.now()}-${fileName}`;
-      
-      // Criar diretório uploads se não existir
-      if (!require('fs').existsSync(uploadDir)) {
-        require('fs').mkdirSync(uploadDir, { recursive: true });
-      }
-      
-      // Mover o arquivo para o diretório de uploads
-      await fileUpload.mv(filePath);
-      
-      console.log(`Arquivo salvo em ${filePath}, tamanho: ${fileUpload.size} bytes`);
-      
-      // Para o Z-API, precisamos converter o arquivo para base64
-      const fileBuffer = require('fs').readFileSync(filePath);
-      const base64File = `data:${fileUpload.mimetype};base64,${fileBuffer.toString('base64')}`;
-      
-      // A Z-API aceita tanto URLs quanto base64 para envio de mídia
-      const mediaUrl = base64File;
-      
-      let content = '';
-      switch(mediaType) {
-        case 'image':
-          content = 'Imagem enviada';
-          break;
-        case 'file':
-          content = `Documento enviado: ${fileName}`;
-          break;
-        case 'voice':
-          content = 'Áudio enviado';
-          break;
-        case 'video':
-          content = 'Vídeo enviado';
-          break;
-        default:
-          content = 'Mídia enviada';
-      }
-      
-      // Status inicial da mensagem
-      let messageStatus = "sent";
-      let externalMessageId = null;
-      
-      // Enviar mídia para o WhatsApp se for canal de WhatsApp
-      if (channel.type === "whatsapp") {
-        try {
-          // Importar serviço WhatsApp
-          const whatsAppService = await import("../services/channels/whatsapp");
-          
-          console.log(`Enviando mídia de tipo ${mediaType} para ${contact.phone}: "${mediaUrl}"`);
-          
-          // Usar serviço WhatsApp para enviar mídia
-          const result = await whatsAppService.sendWhatsAppMessage(
-            channel,
-            contact.phone,
-            content,
-            mediaType,
-            mediaUrl,
-            fileName
-          );
-          
-          if (result.status === "success") {
-            messageStatus = "delivered";
-            externalMessageId = result.messageId;
-            console.log(`Mídia enviada com sucesso, ID: ${result.messageId}`);
-          } else {
-            console.error(`Erro ao enviar mídia: ${result.message}`);
-            messageStatus = "failed";
-          }
-        } catch (error) {
-          console.error("Erro ao enviar mídia:", error);
-          messageStatus = "failed";
-        }
-      }
-      
-      // Criar mensagem no banco de dados
-      const messageData = {
-        conversationId,
-        content,
-        isFromAgent: true,
-        agentId: req.session.userId,
-        status: messageStatus,
-        metadata: {
-          mediaType,
-          mediaUrl,
-          fileName,
-          ...(externalMessageId ? { externalMessageId } : {})
-        }
-      };
-      
-      const [newMessage] = await db
-        .insert(messages)
-        .values(messageData)
-        .returning();
-      
-      // Atualizar data da última mensagem na conversa
-      await db
-        .update(conversations)
-        .set({ 
-          lastMessageAt: new Date()
-        })
-        .where(eq(conversations.id, conversationId));
-      
-      // Buscar detalhes do agente
-      const agent = await db.query.users.findFirst({
-        where: eq(users.id, req.session.userId)
-      });
-      
-      const messageWithDetails = {
-        ...newMessage,
-        agent: agent 
-          ? { 
-              id: agent.id, 
-              name: agent.name, 
-              username: agent.username,
-              role: agent.role,
-              avatarUrl: agent.avatarUrl
-            } 
-          : undefined,
-        contact
-      };
-      
-      // Broadcast nova mensagem para todos os clientes conectados
-      broadcastToClients({
-        type: "new_message",
-        data: messageWithDetails
-      });
-      
-      return res.status(201).json(messageWithDetails);
-      
-    } catch (error) {
-      console.error("Erro ao enviar mídia:", error);
-      return res.status(500).json({ message: "Erro interno do servidor" });
-    }
-  });
-
   // Mark message as read
   app.patch(`${apiPrefix}/conversations/:conversationId/messages/:messageId/read`, isAuthenticated, async (req, res) => {
     try {

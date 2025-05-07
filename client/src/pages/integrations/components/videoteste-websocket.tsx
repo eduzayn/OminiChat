@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { Loader2, CheckCircle, XCircle, InfoIcon } from "lucide-react";
+import { ReloadIcon, CheckCircle, XCircle, InfoIcon } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -287,7 +287,7 @@ export default function VideoTesteWebSocket() {
             >
               {loading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <ReloadIcon className="mr-2 h-4 w-4 animate-spin" />
                   Enviando...
                 </>
               ) : "Enviar Vídeo"}
@@ -312,7 +312,7 @@ export default function VideoTesteWebSocket() {
               >
                 {loading ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <ReloadIcon className="mr-2 h-4 w-4 animate-spin" />
                     Testando...
                   </>
                 ) : "Testar Conexão com API"}

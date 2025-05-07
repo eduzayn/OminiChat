@@ -5,12 +5,12 @@ import { queryClient } from "@/lib/queryClient";
 
 export function useConversations() {
   const {
-    data: conversations,
+    data,
     isLoading,
     isError,
     error,
     refetch
-  } = useQuery<Conversation[]>({
+  } = useQuery({
     queryKey: ["/api/conversations"],
     queryFn: async () => {
       const response = await fetch("/api/conversations", {
@@ -24,6 +24,9 @@ export function useConversations() {
       return response.json();
     }
   });
+  
+  // Garantir que o resultado é sempre um array, independente da resposta da API
+  const conversations = Array.isArray(data) ? data : (data?.data || []);
 
   const assignConversation = useMutation({
     mutationFn: async ({ 

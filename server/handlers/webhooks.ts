@@ -294,9 +294,14 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
   app.post(`${apiPrefix}/webhooks/zapi/:channelId`, async (req: Request, res: Response) => {
     try {
       const channelId = parseInt(req.params.channelId);
-      console.log(`[ZAPI Webhook] Recebido para Canal ID: ${channelId}`);
+      const isTestRequest = req.headers['x-webhook-test'] === 'true';
+      
+      // Log mais detalhado para depuração
+      console.log(`[ZAPI Webhook] ${isTestRequest ? '[TESTE] ' : ''}Recebido para Canal ID: ${channelId}`);
       console.log('[ZAPI Webhook] Headers:', JSON.stringify(req.headers, null, 2));
       console.log('[ZAPI Webhook] Body:', JSON.stringify(req.body, null, 2));
+      console.log('[ZAPI Webhook] URL Completa:', req.originalUrl);
+      console.log('[ZAPI Webhook] Método:', req.method);
       
       // Verificar se é uma mensagem ou algum outro tipo de notificação
       const webhook = req.body;
@@ -549,7 +554,8 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
           status: "delivered",
           metadata: {
             zapiMessageId: eventData.messageId,
-            rawEvent: eventData
+            // Converter dado complexo para string JSON para evitar problemas de validação
+            rawEventStr: JSON.stringify(eventData)
           }
         };
         

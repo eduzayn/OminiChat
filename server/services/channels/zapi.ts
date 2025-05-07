@@ -348,16 +348,16 @@ export async function sendTextMessage(
     
     console.log(`[Z-API] Headers:`, JSON.stringify(headers));
     
-    // Enviar mensagem usando o endpoint conforme documentação atual:
-    // https://www.postman.com/docs-z-api/z-api-s-public-workspace/request/p8ttncb/enviar-texto-simples
-    const url = `${BASE_URL}/instances/${instanceId}/token/${token}/message/text`;
+    // Enviar mensagem usando o endpoint correto conforme documentação atual:
+    // https://developer.z-api.io/message/send-message-text
+    const url = `${BASE_URL}/instances/${instanceId}/token/${token}/send-text`;
     
     console.log(`[Z-API] URL de envio: ${url}`);
     
     // Payload conforme a documentação atual da Z-API
     const payload = {
       phone: formattedPhone,
-      text: content,
+      message: content,
       isGroup: false // Assumindo que não é grupo por padrão
     };
     

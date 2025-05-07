@@ -3,14 +3,24 @@ import { Conversation } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
 import { queryClient } from "@/lib/queryClient";
 
+interface ConversationsResponse {
+  data: Conversation[];
+  pagination: {
+    page: number;
+    limit: number;
+    totalCount: number;
+    totalPages: number;
+  };
+}
+
 export function useConversations() {
   const {
-    data: conversations,
+    data,
     isLoading,
     isError,
     error,
     refetch
-  } = useQuery<Conversation[]>({
+  } = useQuery<ConversationsResponse>({
     queryKey: ["/api/conversations"],
     queryFn: async () => {
       const response = await fetch("/api/conversations", {
@@ -24,6 +34,9 @@ export function useConversations() {
       return response.json();
     }
   });
+  
+  // Extrair o array de conversas da resposta (lidar com estrutura nula)
+  const conversations = data?.data || [];
 
   const assignConversation = useMutation({
     mutationFn: async ({ 

@@ -88,8 +88,8 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
         );
         
         // Obter número total de conversas para paginação
-        const countResult = await db.query.conversations.count();
-        const totalCount = countResult || 0;
+        const countResult = await db.select({ count: sql`count(*)` }).from(conversations);
+        const totalCount = Number(countResult[0].count) || 0;
         const totalPages = Math.ceil(totalCount / limit);
         
         return res.json({

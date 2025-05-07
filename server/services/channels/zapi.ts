@@ -153,37 +153,39 @@ export async function setupZAPIChannel(channel: Channel): Promise<{ status: stri
     // Verifica se as credenciais estão disponíveis
     const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
     const token = channel.config?.token || ZAPI_TOKEN;
+    const clientToken = channel.config?.clientToken || ZAPI_CLIENT_TOKEN;
 
     if (!instanceId || !token) {
+      console.log(`[Z-API] Erro: Credenciais não configuradas para canal ${channel.id}`);
       return {
         status: "error",
         message: "Credenciais da Z-API não configuradas (instanceId, token)"
       };
     }
 
-    // Configura o webhook para recebimento de mensagens
-    const webhookUrl = process.env.BASE_URL 
-      ? `${process.env.BASE_URL}/api/webhooks/zapi/${channel.id}` 
-      : `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}/api/webhooks/zapi/${channel.id}`;
-      
-    // Registrar o webhook na Z-API
-    try {
-      await axios.post(
-        `${BASE_URL}/instances/${instanceId}/token/${token}/webhook`,
-        {
-          url: webhookUrl,
-          webhookFeatures: {
-            receiveAllNotifications: true
-          }
-        },
-        {
-          headers: getHeadersWithToken(token)
-        }
-      );
-      console.log(`Webhook Z-API configurado para ${webhookUrl}`);
-    } catch (webhookError) {
-      console.error("Erro ao configurar webhook Z-API:", webhookError);
-      // Não interromper o fluxo se falhar o registro do webhook
+    console.log(`[Z-API] Configurando canal ${channel.id} (${channel.name})`);
+    console.log(`[Z-API] Instância: ${instanceId}`);
+    console.log(`[Z-API] Token: ${token.substring(0, 8)}...`);
+    console.log(`[Z-API] Client-Token: ${clientToken ? "Configurado" : "Não configurado"}`);
+
+    // Configurar webhook para recebimento de mensagens (PASSO CRUCIAL)
+    console.log(`[Z-API] Iniciando configuração do webhook para canal ${channel.id}...`);
+    
+    // Chamar a função configureWebhook com features ativadas para garantir que recebemos as mensagens
+    const webhookResult = await configureWebhook(channel, undefined, {
+      receiveAllNotifications: true,
+      messageReceived: true,
+      messageCreate: true,
+      statusChange: true,
+      presenceChange: true,
+      deviceConnected: true
+    });
+    
+    if (webhookResult.status === "success") {
+      console.log(`[Z-API] Webhook configurado com sucesso: ${webhookResult.webhookUrl}`);
+    } else {
+      console.warn(`[Z-API] Alerta: Problema na configuração do webhook: ${webhookResult.message}`);
+      // Continuamos o fluxo mesmo com erro no webhook
     }
 
     try {
@@ -1349,12 +1351,14 @@ export async function configureWebhook(
     deviceConnected?: boolean;
     receiveByEmail?: boolean;
   }
-): Promise<{ status: string; message?: string; configured?: boolean; webhookUrl?: string }> {
+): Promise<{ status: string; message?: string; configured?: boolean; webhookUrl?: string; webhookFeatures?: any }> {
   try {
     const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
     const token = channel.config?.token || ZAPI_TOKEN;
+    const clientToken = channel.config?.clientToken || ZAPI_CLIENT_TOKEN;
     
     if (!instanceId || !token) {
+      console.log(`[Z-API] Erro: Credenciais não configuradas para canal ${channel.id}`);
       return {
         status: "error",
         message: "Credenciais Z-API não configuradas"
@@ -1390,95 +1394,166 @@ export async function configureWebhook(
     console.log(`[Z-API] Instância: ${instanceId}`);
     
     // Headers com o Client-Token correto
-    const headers = getHeadersWithToken(token, ZAPI_CLIENT_TOKEN);
-    console.log(`[Z-API] Headers:`, JSON.stringify(headers, null, 2));
+    const headers = getHeadersWithToken(token, clientToken);
+    console.log(`[Z-API] Headers para configuração do webhook:`, JSON.stringify(headers, null, 2));
     
-    // Implementação comprovada - usar o formato da API v2 que mostrou funcionar,
-    // apesar do erro "Unable to find matching target resource method"
-    console.log(`[Z-API] Tentando configurar webhook usando API v2...`);
+    // Configurar o webhook na Z-API usando os vários endpoints disponíveis (para compatibilidade)
+    let webhookConfigured = false;
+    let configError = null;
     
-    // Payload para a API v2 (baseado na documentação oficial e implementação que funcionou)
-    // Incluindo explicitamente onMessageReceived que é o evento necessário para receber mensagens
-    const payload = {
-      on: {
-        events: {
-          onSend: features.messageCreate,
-          onReceive: features.messageReceived,
-          onMessageReceived: true, // Garantir que este evento específico esteja ativado
-          onMessage: true, // Versões antigas usam onMessage também
-          onStatus: features.statusChange,
-          onPresence: features.presenceChange,
-          onConnect: features.deviceConnected,
-          onDisconnect: true
-        },
-        url: finalWebhookUrl
-      }
-    };
-    
-    console.log(`[Z-API] Payload:`, JSON.stringify(payload, null, 2));
-    
+    // Método 1: Configuração via API v2 (on-webhook)
     try {
+      console.log(`[Z-API] Método 1: Configurando webhook via on-webhook...`);
+      
+      // Payload para a API v2 (baseado na documentação oficial e implementação que funcionou)
+      // Incluindo explicitamente onMessageReceived que é o evento necessário para receber mensagens
+      const payload = {
+        on: {
+          events: {
+            onSend: features.messageCreate,
+            onReceive: features.messageReceived,
+            onMessageReceived: true, // Garantir que este evento específico esteja ativado
+            onMessage: true, // Versões antigas usam onMessage também
+            onStatus: features.statusChange,
+            onPresence: features.presenceChange,
+            onConnect: features.deviceConnected,
+            onDisconnect: true
+          },
+          url: finalWebhookUrl
+        }
+      };
+      
+      console.log(`[Z-API] Payload:`, JSON.stringify(payload, null, 2));
+      
       const response = await axios.post(
         `${BASE_URL}/instances/${instanceId}/token/${token}/on-webhook`,
         payload,
         { headers }
       );
       
-      console.log(`[Z-API] Resposta da configuração de webhook:`, JSON.stringify(response.data, null, 2));
+      console.log(`[Z-API] Resposta da configuração via on-webhook:`, 
+        JSON.stringify(response.data, null, 2));
+      
+      webhookConfigured = true;
     } catch (error) {
-      // Ignoramos este erro porque sabemos que funciona mesmo com a resposta de erro
+      // A API pode retornar erro mesmo quando configura corretamente
       // "Unable to find matching target resource method"
-      console.log("[Z-API] Erro esperado (pode ser ignorado):", error.message);
+      if (error instanceof Error) {
+        configError = error;
+        console.log("[Z-API] Erro no método 1 (tentando outros métodos):", error.message);
+      }
     }
     
-    // Vamos tentar configurar usando outro endpoint também, para garantir compatibilidade
-    console.log(`[Z-API] Tentando configurar webhook usando endpoint alternativo...`);
+    // Método 2: Configuração via webhook endpoint direto
     try {
-      // Endpoint mais antigo para compatibilidade
-      await axios.post(
+      console.log(`[Z-API] Método 2: Configurando webhook via endpoint webhook...`);
+      const response = await axios.post(
         `${BASE_URL}/instances/${instanceId}/token/${token}/webhook`,
         { webhook: finalWebhookUrl },
         { headers }
       );
-    } catch (webhookError) {
+      
+      console.log(`[Z-API] Resposta da configuração via webhook:`, 
+        JSON.stringify(response.data, null, 2));
+      
+      webhookConfigured = true;
+    } catch (error) {
       // Ignorar erros, pois é apenas uma tentativa alternativa
-      console.log("[Z-API] Erro ao tentar configuração alternativa (pode ser ignorado):", webhookError.message);
+      if (error instanceof Error) {
+        console.log("[Z-API] Erro no método 2 (tentando outros métodos):", error.message);
+      }
     }
     
-    // Mesmo recebendo o erro da Z-API, o webhook é configurado corretamente
-    // conforme demonstrado na UI e nos logs
+    // Método 3: Configuração via on-message-received (foco específico em mensagens recebidas)
+    try {
+      console.log(`[Z-API] Método 3: Configurando webhook via on-message-received...`);
+      const response = await axios.post(
+        `${BASE_URL}/instances/${instanceId}/token/${token}/on-message-received`,
+        { value: finalWebhookUrl },
+        { headers }
+      );
+      
+      console.log(`[Z-API] Resposta da configuração via on-message-received:`, 
+        JSON.stringify(response.data, null, 2));
+      
+      // Este é um método complementar, portanto não alteramos o status de sucesso
+    } catch (error) {
+      // Ignorar erros, pois é um método complementar
+      if (error instanceof Error) {
+        console.log("[Z-API] Erro no método 3 (complementar, pode ser ignorado):", error.message);
+      }
+    }
+    
+    // Método 4: Configuração via callback (mais uma alternativa)
+    try {
+      console.log(`[Z-API] Método 4: Configurando webhook via callback...`);
+      const response = await axios.post(
+        `${BASE_URL}/instances/${instanceId}/token/${token}/callback`,
+        { value: finalWebhookUrl },
+        { headers }
+      );
+      
+      console.log(`[Z-API] Resposta da configuração via callback:`, 
+        JSON.stringify(response.data, null, 2));
+      
+      webhookConfigured = true;
+    } catch (error) {
+      // Ignorar erros, pois é apenas uma tentativa alternativa
+      if (error instanceof Error) {
+        console.log("[Z-API] Erro no método 4 (pode ser ignorado):", error.message);
+      }
+    }
     
     // Atualizar metadados do canal para armazenar o status da configuração
-    // Isso será importante para verificação futura do webhook
     try {
       // Importar db para atualizar o canal
       const { db } = await import("../../../db");
       const { channels } = await import("../../../shared/schema");
       const { eq } = await import("drizzle-orm");
       
-      // Atualizar o canal com a informação de webhook configurado
-      await db.update(channels)
-        .set({
-          metadata: {
-            ...channel.metadata,
-            webhookConfigured: true,
-            webhookUrl: finalWebhookUrl,
-            webhookFeatures: features,
-            lastWebhookSetup: new Date().toISOString()
-          }
-        })
+      // Obter canal atualizado para ter metadados atuais
+      const [currentChannel] = await db.select()
+        .from(channels)
         .where(eq(channels.id, channel.id));
       
-      console.log(`[Z-API] Metadados do canal atualizados com informações do webhook`);
+      // Preparar metadados com informações de webhook
+      const metadata = {
+        ...(currentChannel?.metadata || {}),
+        webhookConfigured: true,
+        webhookUrl: finalWebhookUrl,
+        webhookFeatures: features,
+        lastWebhookSetup: new Date().toISOString(),
+        webhookConfigurationMethod: webhookConfigured ? "multiple" : "failed"
+      };
+      
+      // Atualizar o canal com a informação de webhook configurado
+      await db.update(channels)
+        .set({ metadata })
+        .where(eq(channels.id, channel.id));
+      
+      console.log(`[Z-API] Metadados do canal atualizados com informações do webhook:`, 
+        JSON.stringify(metadata, null, 2));
     } catch (dbError) {
-      console.error("[Z-API] Erro ao atualizar metadados do canal:", dbError);
+      if (dbError instanceof Error) {
+        console.error("[Z-API] Erro ao atualizar metadados do canal:", dbError.message);
+      }
       // Continuamos mesmo com erro de DB, não é crítico
+    }
+    
+    // Se não conseguimos configurar o webhook com nenhum método, retorna erro
+    if (!webhookConfigured && configError) {
+      return {
+        status: "error",
+        configured: false,
+        message: `Falha ao configurar webhook: ${configError instanceof Error ? configError.message : "Erro desconhecido"}`
+      };
     }
     
     return {
       status: "success",
       configured: true,
       webhookUrl: finalWebhookUrl,
+      webhookFeatures: features,
       message: `Webhook configurado com sucesso para: ${finalWebhookUrl}`
     };
     
@@ -1488,7 +1563,11 @@ export async function configureWebhook(
     
     if (axios.isAxiosError(error)) {
       const responseData = error.response?.data;
-      errorDetails = responseData?.error || responseData?.message || error.message;
+      if (responseData) {
+        errorDetails = responseData.error || responseData.message || error.message;
+      } else {
+        errorDetails = error.message;
+      }
       console.error("[Z-API] Detalhes da resposta:", JSON.stringify(error.response?.data, null, 2));
     } else if (error instanceof Error) {
       errorDetails = error.message;

@@ -323,9 +323,24 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
         fileName: null
       };
       
-      // Verificar os diferentes formatos possíveis do webhook Z-API
-      if (webhook.phone && webhook.message) {
+      // Formato principal baseado na documentação oficial do Z-API para mensagens recebidas
+      // https://developer.z-api.io/webhooks/on-message-received
+      if (webhook.event === 'onMessageReceived' && webhook.phone && webhook.instanceId) {
+        console.log('[Z-API] Processando evento onMessageReceived:', webhook);
+        
+        eventData.isMessage = true;
+        eventData.phone = webhook.phone;
+        eventData.text = webhook.message || webhook.body || '';
+        eventData.messageId = webhook.messageId || webhook.id || '';
+        eventData.senderName = webhook.senderName || '';
+        eventData.timestamp = webhook.timestamp ? new Date(webhook.timestamp) : new Date();
+        eventData.isGroupMessage = !!webhook.isGroup;
+      }
+      // Verificar outros formatos de webhook (para manter compatibilidade com implementações anteriores)
+      else if (webhook.phone && webhook.message) {
         // Formato simples de mensagem
+        console.log('[Z-API] Processando formato simples de mensagem:', webhook);
+        
         eventData.isMessage = true;
         eventData.phone = webhook.phone;
         eventData.text = webhook.message;
@@ -334,6 +349,8 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
         eventData.timestamp = webhook.timestamp ? new Date(webhook.timestamp) : new Date();
       } else if (webhook.type === 'message') {
         // Formato de evento message
+        console.log('[Z-API] Processando evento tipo message:', webhook);
+        
         eventData.isMessage = true;
         eventData.phone = webhook.from || webhook.phone || '';
         eventData.text = webhook.body || webhook.content || webhook.text || '';
@@ -347,8 +364,10 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
           eventData.mediaUrl = webhook.mediaUrl || webhook.media?.url || '';
           eventData.fileName = webhook.fileName || webhook.media?.fileName || '';
         }
-      } else if (webhook.event === 'onMessageReceived' || webhook.event === 'onMessage') {
-        // Formato de evento onMessageReceived
+      } else if (webhook.event === 'onMessage') {
+        // Formato de evento onMessage
+        console.log('[Z-API] Processando evento onMessage:', webhook);
+        
         const messageData = webhook.message || webhook.data || webhook;
         eventData.isMessage = true;
         eventData.phone = messageData.phone || messageData.from || '';

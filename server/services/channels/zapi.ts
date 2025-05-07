@@ -1124,12 +1124,14 @@ export async function configureWebhook(
     // apesar do erro "Unable to find matching target resource method"
     console.log(`[Z-API] Tentando configurar webhook usando API v2...`);
     
-    // Payload para a API v2 (baseado na implementação que funcionou)
+    // Payload para a API v2 (baseado na documentação oficial e implementação que funcionou)
+    // Incluindo explicitamente onMessageReceived que é o evento necessário para receber mensagens
     const payload = {
       on: {
         events: {
           onSend: features.messageCreate,
           onReceive: features.messageReceived,
+          onMessageReceived: true, // Garantir que este evento específico esteja ativado
           onStatus: features.statusChange,
           onPresence: features.presenceChange,
           onConnect: features.deviceConnected,

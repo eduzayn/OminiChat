@@ -142,15 +142,34 @@ export function SocketProvider({ children }: { children: ReactNode }) {
               timestamp: Date.now()
             }));
             
-            // Se não receber um pong em 10 segundos, considera a conexão morta
+            // Se não receber um pong em 15 segundos, considera a conexão morta
             pongTimeoutRef = setTimeout(() => {
               console.warn('Pong não recebido a tempo, verificando conexão...');
               if (ws.readyState === WebSocket.OPEN) {
-                ws.close(4000, 'Pong não recebido');
+                try {
+                  // Tentar enviar outro ping antes de desistir
+                  ws.send(JSON.stringify({
+                    type: 'ping',
+                    timestamp: Date.now(),
+                    retry: true
+                  }));
+                  
+                  // Se ainda não receber em 5 segundos, então desiste
+                  setTimeout(() => {
+                    console.warn('Segundo ping sem resposta, fechando conexão...');
+                    if (ws.readyState === WebSocket.OPEN) {
+                      ws.close(4000, 'Pong não recebido após duas tentativas');
+                    }
+                  }, 5000);
+                } catch (e) {
+                  // Se não conseguir enviar o ping, a conexão já está ruim
+                  console.error('Falha ao enviar ping de recuperação:', e);
+                  ws.close(4000, 'Falha ao enviar ping de recuperação');
+                }
               }
-            }, 10000);
+            }, 15000); // Espera 15 segundos pelo pong
           }
-        }, 30000); // Ping a cada 30 segundos
+        }, 20000); // Ping a cada 20 segundos (mais frequente)
       };
 
       ws.onclose = (event) => {
@@ -173,6 +192,10 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       ws.onerror = (error) => {
         console.error("Erro de WebSocket:", error);
         // O evento onclose será disparado automaticamente após um erro
+        // Forçar fechamento após erro (alguns navegadores não chamam onclose automaticamente)
+        if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+          ws.close(1006, "Erro de conexão");
+        }
       };
       
       // Listener para welcome message do servidor, pongs e outros eventos de sistema

@@ -33,14 +33,27 @@ export function setupWebSocketServer(wss: WebSocketServer, db: any): void {
         // Handle ping messages to keep connection alive
         if (messageType === 'ping') {
           console.log(`Recebido ping ${userId ? `do usuário ${userId}` : 'de cliente não autenticado'}`);
+          
+          // Marcar o cliente como vivo
+          (ws as any).isAlive = true;
+          
+          // Verificar se é uma tentativa de recuperação (ping de emergência)
+          const isRetry = messageData.retry === true;
+          
           // Return a pong message with additional info
-          ws.send(JSON.stringify({
-            type: 'pong',
-            timestamp: Date.now(),
-            serverTime: new Date().toISOString(),
-            clients: clients.size,
-            clientId: userId || 'não autenticado'
-          }));
+          try {
+            ws.send(JSON.stringify({
+              type: 'pong',
+              timestamp: Date.now(),
+              serverTime: new Date().toISOString(),
+              clients: clients.size,
+              clientId: userId || 'não autenticado',
+              originalTimestamp: data.timestamp, // Devolver o timestamp do ping para cálculo de latência
+              isRetryResponse: isRetry
+            }));
+          } catch (e) {
+            console.error('Erro ao enviar resposta pong:', e);
+          }
           return;
         }
         

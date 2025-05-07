@@ -284,14 +284,26 @@ export async function sendTextMessage(
       };
     }
     
-    // Formatar número de telefone (remover +, espaços, etc)
-    const formattedPhone = to.replace(/\D/g, '');
+    // Formatação correta do número do WhatsApp de acordo com documentação Z-API
+    // Remover todos os caracteres não numéricos e garantir o formato correto
+    let formattedPhone = to.replace(/\D/g, '');
     
-    // Enviar mensagem
+    // Se o número não tiver o código do país, adiciona o código do Brasil (55)
+    if (formattedPhone.length <= 11) {
+      formattedPhone = `55${formattedPhone}`;
+    }
+    
+    // Adicionar @ para indicar que é um número do WhatsApp
+    const phoneWithSuffix = `${formattedPhone}@c.us`;
+    
+    console.log(`[Z-API] Enviando texto para ${phoneWithSuffix} (original: ${to}): "${content}"`);
+    
+    // Enviar mensagem usando o endpoint correto conforme documentação
+    // https://developer.z-api.io/message/send-text
     const response = await axios.post(
       `${BASE_URL}/instances/${instanceId}/token/${token}/send-text`,
       {
-        phone: formattedPhone,
+        phone: formattedPhone, // Usar o número formatado
         message: content
       },
       {
@@ -299,19 +311,38 @@ export async function sendTextMessage(
       }
     );
     
-    if (response.data && response.data.zaapId) {
+    console.log(`[Z-API] Resposta de envio:`, JSON.stringify(response.data, null, 2));
+    
+    // Verificar resposta de acordo com a documentação
+    // A resposta pode conter messageId, id, zaapId dependendo da versão da API
+    if (response.data && (response.data.messageId || response.data.id || response.data.zaapId)) {
+      const messageId = response.data.messageId || response.data.id || response.data.zaapId;
+      console.log(`[Z-API] Mensagem enviada com sucesso, ID: ${messageId}`);
       return {
         status: "success",
-        messageId: response.data.zaapId
+        messageId: messageId
       };
     } else {
+      console.error(`[Z-API] Resposta de erro inesperada:`, response.data);
       return {
         status: "error",
-        message: "Falha ao enviar mensagem via Z-API"
+        message: "Falha ao enviar mensagem via Z-API: Resposta sem ID de mensagem"
       };
     }
   } catch (error) {
     console.error("Erro ao enviar mensagem Z-API:", error);
+    
+    // Log detalhado para diagnóstico
+    if (axios.isAxiosError(error)) {
+      console.error(`[Z-API] Status: ${error.response?.status}`);
+      console.error(`[Z-API] Dados:`, error.response?.data);
+      
+      return {
+        status: "error",
+        message: `Erro Z-API: ${error.response?.status || ''} - ${error.response?.data?.error || error.message || "Erro na requisição"}`
+      };
+    }
+    
     return {
       status: "error",
       message: error instanceof Error ? error.message : "Erro desconhecido ao enviar mensagem Z-API"
@@ -344,10 +375,18 @@ export async function sendImageMessage(
       };
     }
     
-    // Formatar número de telefone
-    const formattedPhone = to.replace(/\D/g, '');
+    // Formatação correta do número do WhatsApp de acordo com documentação Z-API
+    let formattedPhone = to.replace(/\D/g, '');
     
-    // Enviar imagem
+    // Se o número não tiver o código do país, adiciona o código do Brasil (55)
+    if (formattedPhone.length <= 11) {
+      formattedPhone = `55${formattedPhone}`;
+    }
+    
+    console.log(`[Z-API] Enviando imagem para ${formattedPhone} (original: ${to})`);
+    
+    // Enviar imagem usando a estrutura correta do payload
+    // https://developer.z-api.io/message/send-image
     const response = await axios.post(
       `${BASE_URL}/instances/${instanceId}/token/${token}/send-image`,
       {
@@ -360,19 +399,37 @@ export async function sendImageMessage(
       }
     );
     
-    if (response.data && response.data.zaapId) {
+    console.log(`[Z-API] Resposta de envio de imagem:`, JSON.stringify(response.data, null, 2));
+    
+    // Verificar resposta conforme documentação
+    if (response.data && (response.data.messageId || response.data.id || response.data.zaapId)) {
+      const messageId = response.data.messageId || response.data.id || response.data.zaapId;
+      console.log(`[Z-API] Imagem enviada com sucesso, ID: ${messageId}`);
       return {
         status: "success",
-        messageId: response.data.zaapId
+        messageId: messageId
       };
     } else {
+      console.error(`[Z-API] Resposta de erro ao enviar imagem:`, response.data);
       return {
         status: "error",
-        message: "Falha ao enviar imagem via Z-API"
+        message: "Falha ao enviar imagem via Z-API: Resposta sem ID de mensagem"
       };
     }
   } catch (error) {
     console.error("Erro ao enviar imagem Z-API:", error);
+    
+    // Log detalhado para diagnóstico
+    if (axios.isAxiosError(error)) {
+      console.error(`[Z-API] Status: ${error.response?.status}`);
+      console.error(`[Z-API] Dados:`, error.response?.data);
+      
+      return {
+        status: "error",
+        message: `Erro Z-API: ${error.response?.status || ''} - ${error.response?.data?.error || error.message || "Erro na requisição"}`
+      };
+    }
+    
     return {
       status: "error",
       message: error instanceof Error ? error.message : "Erro desconhecido ao enviar imagem Z-API"
@@ -407,10 +464,18 @@ export async function sendDocumentMessage(
       };
     }
     
-    // Formatar número de telefone
-    const formattedPhone = to.replace(/\D/g, '');
+    // Formatação correta do número do WhatsApp de acordo com documentação Z-API
+    let formattedPhone = to.replace(/\D/g, '');
     
-    // Enviar documento
+    // Se o número não tiver o código do país, adiciona o código do Brasil (55)
+    if (formattedPhone.length <= 11) {
+      formattedPhone = `55${formattedPhone}`;
+    }
+    
+    console.log(`[Z-API] Enviando documento para ${formattedPhone} (original: ${to}): ${fileName}`);
+    
+    // Enviar documento usando o payload correto de acordo com a documentação
+    // https://developer.z-api.io/message/send-document
     const response = await axios.post(
       `${BASE_URL}/instances/${instanceId}/token/${token}/send-document`,
       {
@@ -424,19 +489,37 @@ export async function sendDocumentMessage(
       }
     );
     
-    if (response.data && response.data.zaapId) {
+    console.log(`[Z-API] Resposta de envio de documento:`, JSON.stringify(response.data, null, 2));
+    
+    // Verificar resposta conforme documentação
+    if (response.data && (response.data.messageId || response.data.id || response.data.zaapId)) {
+      const messageId = response.data.messageId || response.data.id || response.data.zaapId;
+      console.log(`[Z-API] Documento enviado com sucesso, ID: ${messageId}`);
       return {
         status: "success",
-        messageId: response.data.zaapId
+        messageId: messageId
       };
     } else {
+      console.error(`[Z-API] Resposta de erro ao enviar documento:`, response.data);
       return {
         status: "error",
-        message: "Falha ao enviar documento via Z-API"
+        message: "Falha ao enviar documento via Z-API: Resposta sem ID de mensagem"
       };
     }
   } catch (error) {
     console.error("Erro ao enviar documento Z-API:", error);
+    
+    // Log detalhado para diagnóstico
+    if (axios.isAxiosError(error)) {
+      console.error(`[Z-API] Status: ${error.response?.status}`);
+      console.error(`[Z-API] Dados:`, error.response?.data);
+      
+      return {
+        status: "error",
+        message: `Erro Z-API: ${error.response?.status || ''} - ${error.response?.data?.error || error.message || "Erro na requisição"}`
+      };
+    }
+    
     return {
       status: "error",
       message: error instanceof Error ? error.message : "Erro desconhecido ao enviar documento Z-API"
@@ -467,10 +550,18 @@ export async function sendAudioMessage(
       };
     }
     
-    // Formatar número de telefone
-    const formattedPhone = to.replace(/\D/g, '');
+    // Formatação correta do número do WhatsApp de acordo com documentação Z-API
+    let formattedPhone = to.replace(/\D/g, '');
     
-    // Enviar áudio
+    // Se o número não tiver o código do país, adiciona o código do Brasil (55)
+    if (formattedPhone.length <= 11) {
+      formattedPhone = `55${formattedPhone}`;
+    }
+    
+    console.log(`[Z-API] Enviando áudio para ${formattedPhone} (original: ${to})`);
+    
+    // Enviar áudio usando o endpoint e payload corretos conforme documentação Z-API
+    // https://developer.z-api.io/message/send-audio
     const response = await axios.post(
       `${BASE_URL}/instances/${instanceId}/token/${token}/send-audio`,
       {
@@ -482,19 +573,37 @@ export async function sendAudioMessage(
       }
     );
     
-    if (response.data && response.data.zaapId) {
+    console.log(`[Z-API] Resposta de envio de áudio:`, JSON.stringify(response.data, null, 2));
+    
+    // Verificar resposta de acordo com documentação
+    if (response.data && (response.data.messageId || response.data.id || response.data.zaapId)) {
+      const messageId = response.data.messageId || response.data.id || response.data.zaapId;
+      console.log(`[Z-API] Áudio enviado com sucesso, ID: ${messageId}`);
       return {
         status: "success",
-        messageId: response.data.zaapId
+        messageId: messageId
       };
     } else {
+      console.error(`[Z-API] Resposta de erro ao enviar áudio:`, response.data);
       return {
         status: "error",
-        message: "Falha ao enviar áudio via Z-API"
+        message: "Falha ao enviar áudio via Z-API: Resposta sem ID de mensagem"
       };
     }
   } catch (error) {
     console.error("Erro ao enviar áudio Z-API:", error);
+    
+    // Log detalhado para diagnóstico
+    if (axios.isAxiosError(error)) {
+      console.error(`[Z-API] Status: ${error.response?.status}`);
+      console.error(`[Z-API] Dados:`, error.response?.data);
+      
+      return {
+        status: "error",
+        message: `Erro Z-API: ${error.response?.status || ''} - ${error.response?.data?.error || error.message || "Erro na requisição"}`
+      };
+    }
+    
     return {
       status: "error",
       message: error instanceof Error ? error.message : "Erro desconhecido ao enviar áudio Z-API"

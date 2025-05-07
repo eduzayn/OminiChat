@@ -6,7 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Loader2, AlertCircle, CheckCircle, XCircle, RefreshCw, Link, CheckCircle2 } from "lucide-react";
-import apiRequest from "@/lib/apiRequest";
+import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 type WebhookDiagnosticProps = {
@@ -57,9 +57,7 @@ const ZAPIDiagnosticPanel: React.FC<WebhookDiagnosticProps> = ({ channelId, onDi
       setIsRunning(true);
       setReport(null);
       
-      const response = await apiRequest(`/api/channels/${channelId}/diagnose-webhook`, {
-        method: "POST"
-      });
+      const response = await apiRequest('POST', `/api/channels/${channelId}/diagnose-webhook`, null);
       
       if (response.success && response.diagnosticReport) {
         setReport(response.diagnosticReport);
@@ -87,7 +85,7 @@ const ZAPIDiagnosticPanel: React.FC<WebhookDiagnosticProps> = ({ channelId, onDi
           toast({
             title: "Diagnóstico concluído",
             description: "O webhook está configurado e funcionando corretamente.",
-            variant: "success"
+            variant: "default"
           });
         }
       } else {
@@ -142,7 +140,7 @@ const ZAPIDiagnosticPanel: React.FC<WebhookDiagnosticProps> = ({ channelId, onDi
           </div>
         ) : (
           <div className="space-y-6">
-            <Alert variant={report.connectionStatus.connected ? "success" : "destructive"}>
+            <Alert variant={report.connectionStatus.connected ? "default" : "destructive"}>
               <CheckCircle2 className="h-4 w-4" />
               <AlertTitle>
                 Status da Conexão: {report.connectionStatus.connected ? "Conectado" : "Desconectado"}
@@ -150,7 +148,7 @@ const ZAPIDiagnosticPanel: React.FC<WebhookDiagnosticProps> = ({ channelId, onDi
               <AlertDescription>{report.connectionStatus.message}</AlertDescription>
             </Alert>
             
-            <Alert variant={report.webhookFinalStatus.configured ? "success" : "destructive"}>
+            <Alert variant={report.webhookFinalStatus.configured ? "default" : "destructive"}>
               <CheckCircle2 className="h-4 w-4" />
               <AlertTitle>
                 Status do Webhook: {report.webhookFinalStatus.configured ? "Configurado" : "Não Configurado"}
@@ -171,7 +169,7 @@ const ZAPIDiagnosticPanel: React.FC<WebhookDiagnosticProps> = ({ channelId, onDi
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Mensagens Recebidas:</span>
-                <Badge variant={report.channelMetadata.webhookReceiveCount > 0 ? "success" : "destructive"}>
+                <Badge variant={report.channelMetadata.webhookReceiveCount > 0 ? "secondary" : "destructive"}>
                   {report.channelMetadata.webhookReceiveCount}
                 </Badge>
               </div>

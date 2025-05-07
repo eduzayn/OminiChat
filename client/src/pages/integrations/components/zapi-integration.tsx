@@ -22,6 +22,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2, Check, AlertCircle, RefreshCw } from 'lucide-react';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import ZAPIDiagnosticPanel from '@/components/zapi-diagnostic-panel';
 
 interface ZAPIIntegrationDialogProps {
   open: boolean;
@@ -298,10 +299,13 @@ export function ZAPIIntegrationDialog({
         </DialogHeader>
 
         <Tabs value={currentTab} onValueChange={setCurrentTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="config">Configuração</TabsTrigger>
             <TabsTrigger value="status" disabled={!channelForm.id}>
               Status e Conexão
+            </TabsTrigger>
+            <TabsTrigger value="diagnostic" disabled={!channelForm.id}>
+              Diagnóstico
             </TabsTrigger>
           </TabsList>
 
@@ -532,6 +536,27 @@ export function ZAPIIntegrationDialog({
               </div>
             </div>
 
+            <DialogFooter className="mt-6">
+              <Button type="button" onClick={() => onOpenChange(false)}>
+                Fechar
+              </Button>
+            </DialogFooter>
+          </TabsContent>
+
+          {/* Aba de Diagnóstico */}
+          <TabsContent value="diagnostic">
+            <div className="space-y-6">
+              {channelForm.id && (
+                <ZAPIDiagnosticPanel 
+                  channelId={channelForm.id} 
+                  onDiagnosticComplete={() => {
+                    // Após o diagnóstico, podemos verificar o status de conexão novamente
+                    checkConnectionStatus();
+                  }}
+                />
+              )}
+            </div>
+            
             <DialogFooter className="mt-6">
               <Button type="button" onClick={() => onOpenChange(false)}>
                 Fechar

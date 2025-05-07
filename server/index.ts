@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
+import fileUpload from 'express-fileupload';
 import { pool } from '@db';
 
 // Estender a sessão

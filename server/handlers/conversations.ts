@@ -420,6 +420,173 @@ export function registerConversationRoutes(app: Express, apiPrefix: string) {
     }
   });
   
+  // Rota para enviar mídia
+  app.post(`${apiPrefix}/conversations/:id/media`, isAuthenticated, async (req, res) => {
+    try {
+      const conversationId = parseInt(req.params.id);
+      
+      // Verificar se existe a conversa
+      const conversation = await db.query.conversations.findFirst({
+        where: eq(conversations.id, conversationId)
+      });
+      
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversa não encontrada" });
+      }
+      
+      // Buscar o canal para verificar se é WhatsApp
+      const channel = await db.query.channels.findFirst({
+        where: eq(channels.id, conversation.channelId)
+      });
+      
+      if (!channel) {
+        return res.status(404).json({ message: "Canal não encontrado" });
+      }
+      
+      // Buscar o contato para obter o número de telefone
+      const contact = await db.query.contacts.findFirst({
+        where: eq(contacts.id, conversation.contactId)
+      });
+      
+      if (!contact) {
+        return res.status(404).json({ message: "Contato não encontrado" });
+      }
+      
+      // Verificar se há um arquivo na requisição
+      if (!req.files || Object.keys(req.files).length === 0) {
+        return res.status(400).json({ message: "Nenhum arquivo enviado" });
+      }
+      
+      const file = req.files.file;
+      const mediaType = req.body.mediaType as 'image' | 'file' | 'voice' | 'video';
+      
+      if (!file || !mediaType) {
+        return res.status(400).json({ 
+          message: "Dados de mídia inválidos",
+          detail: "O arquivo e o tipo de mídia são obrigatórios"
+        });
+      }
+      
+      // Gerar URL temporária para o arquivo (em uma implementação real, faria upload para Amazon S3, etc.)
+      // Para teste, usaremos uma URL de exemplo
+      const mediaUrl = "https://example.com/media/test-image.jpg";
+      const fileName = file.name;
+      
+      let content = '';
+      switch(mediaType) {
+        case 'image':
+          content = 'Imagem enviada';
+          break;
+        case 'file':
+          content = `Documento enviado: ${fileName}`;
+          break;
+        case 'voice':
+          content = 'Áudio enviado';
+          break;
+        case 'video':
+          content = 'Vídeo enviado';
+          break;
+        default:
+          content = 'Mídia enviada';
+      }
+      
+      // Status inicial da mensagem
+      let messageStatus = "sent";
+      let externalMessageId = null;
+      
+      // Enviar mídia para o WhatsApp se for canal de WhatsApp
+      if (channel.type === "whatsapp") {
+        try {
+          // Importar serviço WhatsApp
+          const whatsAppService = await import("../services/channels/whatsapp");
+          
+          console.log(`Enviando mídia de tipo ${mediaType} para ${contact.phone}: "${mediaUrl}"`);
+          
+          // Usar serviço WhatsApp para enviar mídia
+          const result = await whatsAppService.sendWhatsAppMessage(
+            channel,
+            contact.phone,
+            content,
+            mediaType,
+            mediaUrl,
+            fileName
+          );
+          
+          if (result.status === "success") {
+            messageStatus = "delivered";
+            externalMessageId = result.messageId;
+            console.log(`Mídia enviada com sucesso, ID: ${result.messageId}`);
+          } else {
+            console.error(`Erro ao enviar mídia: ${result.message}`);
+            messageStatus = "failed";
+          }
+        } catch (error) {
+          console.error("Erro ao enviar mídia:", error);
+          messageStatus = "failed";
+        }
+      }
+      
+      // Criar mensagem no banco de dados
+      const messageData = {
+        conversationId,
+        content,
+        isFromAgent: true,
+        agentId: req.session.userId,
+        status: messageStatus,
+        metadata: {
+          mediaType,
+          mediaUrl,
+          fileName,
+          ...(externalMessageId ? { externalMessageId } : {})
+        }
+      };
+      
+      const [newMessage] = await db
+        .insert(messages)
+        .values(messageData)
+        .returning();
+      
+      // Atualizar data da última mensagem na conversa
+      await db
+        .update(conversations)
+        .set({ 
+          lastMessageAt: new Date()
+        })
+        .where(eq(conversations.id, conversationId));
+      
+      // Buscar detalhes do agente
+      const agent = await db.query.users.findFirst({
+        where: eq(users.id, req.session.userId)
+      });
+      
+      const messageWithDetails = {
+        ...newMessage,
+        agent: agent 
+          ? { 
+              id: agent.id, 
+              name: agent.name, 
+              username: agent.username,
+              role: agent.role,
+              avatarUrl: agent.avatarUrl
+            } 
+          : undefined,
+        contact
+      };
+      
+      // Broadcast nova mensagem para todos os clientes conectados
+      broadcastToClients({
+        type: "new_message",
+        data: messageWithDetails
+      });
+      
+      return res.status(201).json(messageWithDetails);
+      
+    } catch (error) {
+      console.error("Erro ao enviar mídia:", error);
+      return res.status(500).json({ message: "Erro interno do servidor" });
+    }
+  });
+
   // Mark message as read
   app.patch(`${apiPrefix}/conversations/:conversationId/messages/:messageId/read`, isAuthenticated, async (req, res) => {
     try {

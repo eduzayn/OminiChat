@@ -286,6 +286,7 @@ function ConversationView() {
   const [isTyping, setIsTyping] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [mediaUploading, setMediaUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   
@@ -524,6 +525,69 @@ function ConversationView() {
     }
   };
   
+  // Função para lidar com upload de arquivos
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, mediaType: 'image' | 'file' | 'voice' | 'video') => {
+    if (!activeConversation || !e.target.files || e.target.files.length === 0) return;
+    
+    const file = e.target.files[0];
+    
+    // Verificar tamanho do arquivo (limite de 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast({
+        variant: "destructive",
+        title: "Arquivo muito grande",
+        description: "O tamanho máximo permitido é de 10MB."
+      });
+      return;
+    }
+    
+    try {
+      setMediaUploading(true);
+      
+      // Criar FormData para o upload
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('mediaType', mediaType);
+      formData.append('conversationId', activeConversation.id.toString());
+      
+      // Enviar arquivo para o servidor
+      const response = await fetch(`/api/conversations/${activeConversation.id}/media`, {
+        method: 'POST',
+        body: formData
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Erro ao enviar mídia');
+      }
+      
+      // Atualizar a lista de mensagens
+      queryClient.invalidateQueries({ 
+        queryKey: [`/api/conversations/${activeConversation.id}/messages`] 
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/conversations"] });
+      
+      toast({
+        description: `${mediaType === 'image' ? 'Imagem' : 
+                       mediaType === 'file' ? 'Documento' : 
+                       mediaType === 'voice' ? 'Áudio' : 'Vídeo'} enviado com sucesso.`
+      });
+      
+    } catch (error) {
+      console.error("Erro ao enviar mídia:", error);
+      toast({
+        variant: "destructive",
+        title: "Erro ao enviar mídia",
+        description: error instanceof Error ? error.message : "Não foi possível enviar o arquivo. Tente novamente."
+      });
+    } finally {
+      setMediaUploading(false);
+      // Limpar o input file
+      e.target.value = '';
+    }
+  };
+
   const createPaymentRequest = async () => {
     if (!activeConversation) return;
     

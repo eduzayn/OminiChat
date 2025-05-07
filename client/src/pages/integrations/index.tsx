@@ -309,10 +309,13 @@ export default function IntegrationsPage() {
                   </div>
                 ) : (
                   <>
-                    {getChannelsByProvider('zapi').map((channel) => (
-                      <div key={channel.id} className="mb-6 last:mb-0">
-                        <ZAPIWebhookConfig channelId={channel.id} />
-                      </div>
+                    {/* Modificação para exibir apenas um canal para webhook, evitando duplicação */}
+                    {getChannelsByProvider('zapi')
+                      .filter(channel => channel.id === 24) // Exibir apenas o canal 24, que está ativo
+                      .map((channel) => (
+                        <div key={channel.id} className="mb-6 last:mb-0">
+                          <ZAPIWebhookConfig channelId={channel.id} />
+                        </div>
                     ))}
                   </>
                 )}

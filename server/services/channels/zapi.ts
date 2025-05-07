@@ -41,14 +41,17 @@ console.log("==========================================================");
 
 // Função de ajuda para garantir que incluímos sempre o Client-Token nos headers
 function getHeadersWithToken(token: string, clientToken: string = ZAPI_CLIENT_TOKEN) {
-  // Muito importante! De acordo com a documentação Z-API, o Client-Token é crucial
-  // para autenticação das requisições e deve estar presente em todos os headers
-  // A Z-API usa o formato "client-token" (minúsculo e com hífen)
-  // O Client-Token deve ser o token de segurança da conta, não o token da instância
+  // IMPORTANTE: De acordo com a documentação da Z-API e a coleção do Postman,
+  // o formato correto do header é 'Client-Token' (com C e T maiúsculos)
+  // https://www.postman.com/docs-z-api/z-api-s-public-workspace/folder/4aisbsg/messages
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'client-token': clientToken,
+    'Client-Token': clientToken,
   };
+  
+  // Log para diagnóstico
+  console.log(`[Z-API] Headers configurados:`, JSON.stringify(headers));
+  
   return headers;
 }
 
@@ -276,6 +279,7 @@ export async function sendTextMessage(
   try {
     const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
     const token = channel.config?.token || ZAPI_TOKEN;
+    const clientToken = channel.config?.clientToken || ZAPI_CLIENT_TOKEN;
     
     if (!instanceId || !token) {
       return {
@@ -284,8 +288,7 @@ export async function sendTextMessage(
       };
     }
     
-    // Formatação correta do número do WhatsApp de acordo com documentação Z-API
-    // Remover todos os caracteres não numéricos e garantir o formato correto
+    // Formatação do número do WhatsApp de acordo com a documentação ATUAL da Z-API
     let formattedPhone = to.replace(/\D/g, '');
     
     // Se o número não tiver o código do país, adiciona o código do Brasil (55)
@@ -293,34 +296,46 @@ export async function sendTextMessage(
       formattedPhone = `55${formattedPhone}`;
     }
     
-    // Adicionar @ para indicar que é um número do WhatsApp
-    const phoneWithSuffix = `${formattedPhone}@c.us`;
+    // IMPORTANTE: A versão mais recente da Z-API NÃO utiliza o sufixo @c.us para o número
+    console.log(`[Z-API] Enviando texto para ${formattedPhone} (original: ${to}): "${content}"`);
+    console.log(`[Z-API] Usando instância: ${instanceId} e token: ${token.slice(0, 5)}...`);
     
-    console.log(`[Z-API] Enviando texto para ${phoneWithSuffix} (original: ${to}): "${content}"`);
+    // Headers completos conforme a documentação
+    const headers = {
+      'Content-Type': 'application/json',
+      'Client-Token': clientToken
+    };
     
-    // Enviar mensagem usando o endpoint correto conforme documentação
-    // https://developer.z-api.io/message/send-text
+    console.log(`[Z-API] Headers:`, JSON.stringify(headers));
+    
+    // Enviar mensagem usando o endpoint de v1/send-text conforme documentação
+    // https://developer.z-api.io/message/send-text e https://www.postman.com/docs-z-api/z-api-s-public-workspace/
+    // Payload exatamente conforme documentação: https://www.postman.com/docs-z-api/z-api-s-public-workspace/folder/4aisbsg/messages
     const response = await axios.post(
       `${BASE_URL}/instances/${instanceId}/token/${token}/send-text`,
       {
-        phone: formattedPhone, // Usar o número formatado
+        phone: formattedPhone,
         message: content
       },
-      {
-        headers: getHeadersWithToken(token)
-      }
+      { headers }
     );
     
     console.log(`[Z-API] Resposta de envio:`, JSON.stringify(response.data, null, 2));
     
-    // Verificar resposta de acordo com a documentação
-    // A resposta pode conter messageId, id, zaapId dependendo da versão da API
+    // Verificar resposta de acordo com a documentação atualizada
     if (response.data && (response.data.messageId || response.data.id || response.data.zaapId)) {
       const messageId = response.data.messageId || response.data.id || response.data.zaapId;
       console.log(`[Z-API] Mensagem enviada com sucesso, ID: ${messageId}`);
       return {
         status: "success",
         messageId: messageId
+      };
+    } else if (response.data && response.data.value) {
+      // Algumas versões da API retornam o campo value como true para indicar sucesso
+      console.log(`[Z-API] Mensagem enviada com sucesso, resposta sem ID (usar Z-API mais recente)`);
+      return {
+        status: "success",
+        messageId: "unknown" // Não temos ID neste caso
       };
     } else {
       console.error(`[Z-API] Resposta de erro inesperada:`, response.data);
@@ -367,6 +382,7 @@ export async function sendImageMessage(
   try {
     const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
     const token = channel.config?.token || ZAPI_TOKEN;
+    const clientToken = channel.config?.clientToken || ZAPI_CLIENT_TOKEN;
     
     if (!instanceId || !token) {
       return {
@@ -385,6 +401,12 @@ export async function sendImageMessage(
     
     console.log(`[Z-API] Enviando imagem para ${formattedPhone} (original: ${to})`);
     
+    // Headers atualizados conforme documentação
+    const headers = {
+      'Content-Type': 'application/json',
+      'Client-Token': clientToken
+    };
+    
     // Enviar imagem usando a estrutura correta do payload
     // https://developer.z-api.io/message/send-image
     const response = await axios.post(
@@ -394,9 +416,7 @@ export async function sendImageMessage(
         image: imageUrl,
         caption: caption || ''
       },
-      {
-        headers: getHeadersWithToken(token)
-      }
+      { headers }
     );
     
     console.log(`[Z-API] Resposta de envio de imagem:`, JSON.stringify(response.data, null, 2));
@@ -408,6 +428,13 @@ export async function sendImageMessage(
       return {
         status: "success",
         messageId: messageId
+      };
+    } else if (response.data && response.data.value) {
+      // Algumas versões da API retornam o campo value como true para indicar sucesso
+      console.log(`[Z-API] Imagem enviada com sucesso, resposta sem ID (usar Z-API mais recente)`);
+      return {
+        status: "success",
+        messageId: "unknown" // Não temos ID neste caso
       };
     } else {
       console.error(`[Z-API] Resposta de erro ao enviar imagem:`, response.data);
@@ -456,6 +483,7 @@ export async function sendDocumentMessage(
   try {
     const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
     const token = channel.config?.token || ZAPI_TOKEN;
+    const clientToken = channel.config?.clientToken || ZAPI_CLIENT_TOKEN;
     
     if (!instanceId || !token) {
       return {
@@ -474,6 +502,14 @@ export async function sendDocumentMessage(
     
     console.log(`[Z-API] Enviando documento para ${formattedPhone} (original: ${to}): ${fileName}`);
     
+    // Headers atualizados conforme documentação 
+    const headers = {
+      'Content-Type': 'application/json',
+      'Client-Token': clientToken
+    };
+    
+    console.log(`[Z-API] Headers para envio de documento:`, JSON.stringify(headers));
+    
     // Enviar documento usando o payload correto de acordo com a documentação
     // https://developer.z-api.io/message/send-document
     const response = await axios.post(
@@ -484,9 +520,7 @@ export async function sendDocumentMessage(
         fileName: fileName,
         caption: caption || ''
       },
-      {
-        headers: getHeadersWithToken(token)
-      }
+      { headers }
     );
     
     console.log(`[Z-API] Resposta de envio de documento:`, JSON.stringify(response.data, null, 2));
@@ -498,6 +532,13 @@ export async function sendDocumentMessage(
       return {
         status: "success",
         messageId: messageId
+      };
+    } else if (response.data && response.data.value) {
+      // Algumas versões da API retornam o campo value como true para indicar sucesso
+      console.log(`[Z-API] Documento enviado com sucesso, resposta sem ID (usar Z-API mais recente)`);
+      return {
+        status: "success",
+        messageId: "unknown" // Não temos ID neste caso
       };
     } else {
       console.error(`[Z-API] Resposta de erro ao enviar documento:`, response.data);
@@ -542,6 +583,7 @@ export async function sendAudioMessage(
   try {
     const instanceId = channel.config?.instanceId || ZAPI_INSTANCE_ID;
     const token = channel.config?.token || ZAPI_TOKEN;
+    const clientToken = channel.config?.clientToken || ZAPI_CLIENT_TOKEN;
     
     if (!instanceId || !token) {
       return {
@@ -560,6 +602,14 @@ export async function sendAudioMessage(
     
     console.log(`[Z-API] Enviando áudio para ${formattedPhone} (original: ${to})`);
     
+    // Headers atualizados conforme documentação
+    const headers = {
+      'Content-Type': 'application/json',
+      'Client-Token': clientToken
+    };
+    
+    console.log(`[Z-API] Headers para envio de áudio:`, JSON.stringify(headers));
+    
     // Enviar áudio usando o endpoint e payload corretos conforme documentação Z-API
     // https://developer.z-api.io/message/send-audio
     const response = await axios.post(
@@ -568,9 +618,7 @@ export async function sendAudioMessage(
         phone: formattedPhone,
         audio: audioUrl
       },
-      {
-        headers: getHeadersWithToken(token)
-      }
+      { headers }
     );
     
     console.log(`[Z-API] Resposta de envio de áudio:`, JSON.stringify(response.data, null, 2));
@@ -582,6 +630,13 @@ export async function sendAudioMessage(
       return {
         status: "success",
         messageId: messageId
+      };
+    } else if (response.data && response.data.value) {
+      // Algumas versões da API retornam o campo value como true para indicar sucesso
+      console.log(`[Z-API] Áudio enviado com sucesso, resposta sem ID (usar Z-API mais recente)`);
+      return {
+        status: "success",
+        messageId: "unknown" // Não temos ID neste caso
       };
     } else {
       console.error(`[Z-API] Resposta de erro ao enviar áudio:`, response.data);
@@ -674,18 +729,24 @@ export async function checkConnectionStatus(channel: Channel): Promise<{ status:
       };
     }
     
-    console.log(`Verificando status da conexão Z-API: ${instanceId} com client-token: ${clientToken}`);
+    console.log(`[Z-API] Verificando status da conexão: ${instanceId}`);
+    
+    // Headers atualizados conforme documentação
+    const headers = {
+      'Content-Type': 'application/json',
+      'Client-Token': clientToken
+    };
+    
+    console.log(`[Z-API] Headers para verificação de status:`, JSON.stringify(headers));
     
     // Verificar status
     const response = await axios.get(
       `${BASE_URL}/instances/${instanceId}/token/${token}/status`,
-      {
-        headers: getHeadersWithToken(token, clientToken)
-      }
+      { headers }
     );
     
     if (response.data) {
-      console.log(`Resposta de status Z-API:`, JSON.stringify(response.data));
+      console.log(`[Z-API] Resposta de status:`, JSON.stringify(response.data));
       return {
         status: "success",
         connected: response.data.connected === true,
@@ -698,7 +759,19 @@ export async function checkConnectionStatus(channel: Channel): Promise<{ status:
       };
     }
   } catch (error) {
-    console.error("Erro ao verificar status Z-API:", error);
+    console.error("[Z-API] Erro ao verificar status:", error);
+    
+    // Log detalhado para diagnóstico
+    if (axios.isAxiosError(error)) {
+      console.error(`[Z-API] Status: ${error.response?.status}`);
+      console.error(`[Z-API] Dados:`, error.response?.data);
+      
+      return {
+        status: "error",
+        message: `Erro Z-API: ${error.response?.status || ''} - ${error.response?.data?.error || error.message || "Erro na requisição"}`
+      };
+    }
+    
     return {
       status: "error",
       message: error instanceof Error ? error.message : "Erro desconhecido ao verificar status"

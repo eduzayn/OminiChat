@@ -440,7 +440,7 @@ export function ZAPIIntegrationDialog({
                       <div className="flex items-center text-gray-600">
                         <span>Status desconhecido</span>
                       </div>
-                    )
+                    )}
                   </div>
                   
                   {/* QR Code para conexão, se disponível */}

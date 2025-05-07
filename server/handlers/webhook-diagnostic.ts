@@ -106,7 +106,8 @@ export function registerWebhookDiagnosticRoute(app: Express, apiPrefix: string) 
         channelMetadata: {
           lastWebhookReceived: channel.metadata?.lastWebhookReceived || null,
           webhookReceiveCount: channel.metadata?.webhookReceiveCount || 0,
-          lastWebhookSetup: channel.metadata?.lastWebhookSetup || null
+          lastWebhookSetup: channel.metadata?.lastWebhookSetup || null,
+          lastWebhookBody: channel.metadata?.lastWebhookBody || null
         },
         recommendation: ""
       };
@@ -132,6 +133,83 @@ export function registerWebhookDiagnosticRoute(app: Express, apiPrefix: string) 
       return res.status(500).json({
         success: false,
         message: "Erro ao diagnosticar webhook",
+        error: error instanceof Error ? error.message : "Erro desconhecido"
+      });
+    }
+  });
+  
+  // Endpoint de teste para simular um webhook Z-API
+  app.post(`${apiPrefix}/test-webhook/:channelId`, isAuthenticated, async (req, res) => {
+    try {
+      const channelId = parseInt(req.params.channelId);
+      const userId = req.session.userId;
+      const simulatedPayload = req.body;
+      
+      console.log(`[WebhookTest] Simulando webhook para canal ${channelId} pelo usuário ${userId}`);
+      console.log(`[WebhookTest] Payload: ${JSON.stringify(simulatedPayload, null, 2)}`);
+      
+      // Verificar se o canal existe
+      const channel = await db.query.channels.findFirst({
+        where: eq(channels.id, channelId)
+      });
+      
+      if (!channel) {
+        return res.status(404).json({
+          success: false,
+          message: "Canal não encontrado"
+        });
+      }
+      
+      // Criar payload padrão se não fornecido
+      const testPayload = simulatedPayload || {
+        event: "onMessageReceived",
+        phone: "5511999999999",
+        message: "Esta é uma mensagem de teste via webhook simulado",
+        messageId: `test_msg_${Date.now()}`,
+        senderName: "Contato de Teste",
+        timestamp: new Date().toISOString()
+      };
+      
+      // Fazer uma chamada para o endpoint do webhook interno
+      const webhookUrl = `/api/webhooks/zapi/${channelId}`;
+      
+      console.log(`[WebhookTest] Enviando payload para endpoint interno: ${webhookUrl}`);
+      
+      // Fazer a chamada diretamente para o handler de webhook dentro da mesma aplicação
+      try {
+        // Criar uma nova requisição para o endpoint do webhook
+        const webhookResponse = await axios.post(
+          `http://localhost:5000${webhookUrl}`, // Usando localhost porque é o mesmo processo
+          testPayload,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Webhook-Test': 'true' // Para identificar que é um teste
+            }
+          }
+        );
+        
+        console.log(`[WebhookTest] Resposta do webhook: ${JSON.stringify(webhookResponse.data, null, 2)}`);
+        
+        return res.json({
+          success: true,
+          message: "Webhook simulado enviado com sucesso",
+          webhookResponse: webhookResponse.data
+        });
+      } catch (webhookError) {
+        console.error(`[WebhookTest] Erro ao chamar o webhook interno:`, webhookError);
+        
+        return res.status(500).json({
+          success: false,
+          message: "Erro ao processar webhook internamente",
+          error: webhookError instanceof Error ? webhookError.message : "Erro desconhecido"
+        });
+      }
+    } catch (error) {
+      console.error("[WebhookTest] Erro ao simular webhook:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Erro ao simular webhook",
         error: error instanceof Error ? error.message : "Erro desconhecido"
       });
     }

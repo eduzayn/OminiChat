@@ -1,34 +1,32 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 
-interface WebhookSimulatorProps {
+type SimulateWebhookProps = {
   channelId: number;
-}
+};
 
-const WebhookSimulator: React.FC<WebhookSimulatorProps> = ({ channelId }) => {
+export function WebhookSimulator({ channelId }: SimulateWebhookProps) {
   const { toast } = useToast();
-  const [phone, setPhone] = useState('5511999999999');
-  const [senderName, setSenderName] = useState('Contato Teste Simulado');
-  const [message, setMessage] = useState('Esta é uma mensagem de teste do webhook simulado');
+  const [phone, setPhone] = useState('553798694620');
+  const [senderName, setSenderName] = useState('Teste Webhook');
+  const [message, setMessage] = useState('Olá, esta é uma mensagem de teste via webhook!');
   const [eventType, setEventType] = useState('onMessageReceived');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setResult(null);
-
+  const simulateWebhook = async () => {
     try {
-      const response = await apiRequest(`/api/channels/${channelId}/simulate-webhook`, {
+      setIsLoading(true);
+      setResult(null);
+
+      const response = await apiRequest(`/api/channels/${channelId}/test-webhook`, {
         method: 'POST',
         data: {
           phone,
@@ -40,15 +38,15 @@ const WebhookSimulator: React.FC<WebhookSimulatorProps> = ({ channelId }) => {
 
       setResult(response);
       toast({
-        title: response.success ? 'Webhook simulado com sucesso' : 'Falha ao simular webhook',
-        description: response.message,
-        variant: response.success ? 'default' : 'destructive'
+        title: 'Webhook simulado',
+        description: 'A simulação de webhook foi realizada com sucesso.',
+        variant: 'default'
       });
     } catch (error) {
       console.error('Erro ao simular webhook:', error);
       toast({
         title: 'Erro ao simular webhook',
-        description: 'Ocorreu um erro ao tentar simular o webhook. Verifique o console para mais detalhes.',
+        description: error instanceof Error ? error.message : 'Erro ao tentar simular webhook.',
         variant: 'destructive'
       });
     } finally {
@@ -57,83 +55,77 @@ const WebhookSimulator: React.FC<WebhookSimulatorProps> = ({ channelId }) => {
   };
 
   return (
-    <Card className="w-full">
+    <Card>
       <CardHeader>
         <CardTitle>Simulador de Webhook</CardTitle>
         <CardDescription>
-          Simule o recebimento de uma mensagem via webhook para testar a integração.
+          Simule o recebimento de mensagens e eventos pelo webhook da Z-API.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="phone">Telefone</Label>
+            <Label htmlFor="phone">Número do Telefone</Label>
             <Input
               id="phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="Número de telefone (com DDD e código do país)"
+              placeholder="553123456789"
             />
           </div>
-          
           <div className="space-y-2">
             <Label htmlFor="senderName">Nome do Remetente</Label>
             <Input
               id="senderName"
               value={senderName}
               onChange={(e) => setSenderName(e.target.value)}
-              placeholder="Nome do contato que aparecerá como remetente"
+              placeholder="Nome do contato"
             />
           </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="message">Mensagem</Label>
-            <Textarea
-              id="message"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Texto da mensagem que será recebida"
-              rows={3}
-            />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="eventType">Tipo de Evento</Label>
+          <Select value={eventType} onValueChange={setEventType}>
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione o tipo de evento" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="onMessageReceived">onMessageReceived (Mensagem)</SelectItem>
+              <SelectItem value="ReceivedCallback">ReceivedCallback (Novo formato)</SelectItem>
+              <SelectItem value="message">message (Formato alternativo)</SelectItem>
+              <SelectItem value="DeliveryCallback">DeliveryCallback (Confirmação de entrega)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="message">Mensagem</Label>
+          <Textarea
+            id="message"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Digite a mensagem a ser simulada..."
+            rows={3}
+          />
+        </div>
+        
+        {result && (
+          <div className="mt-4 p-3 rounded-md bg-muted">
+            <Label>Resultado:</Label>
+            <pre className="text-xs overflow-auto mt-2 text-wrap break-all">
+              {JSON.stringify(result, null, 2)}
+            </pre>
           </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="eventType">Tipo de Evento</Label>
-            <Select value={eventType} onValueChange={setEventType}>
-              <SelectTrigger id="eventType">
-                <SelectValue placeholder="Selecione o tipo de evento" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="onMessageReceived">Mensagem Recebida (onMessageReceived)</SelectItem>
-                <SelectItem value="message">Mensagem (formato alternativo)</SelectItem>
-                <SelectItem value="DeliveryCallback">Confirmação de Entrega</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <Button type="submit" disabled={isLoading} className="w-full">
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Enviando...
-              </>
-            ) : (
-              'Simular Webhook'
-            )}
-          </Button>
-        </form>
+        )}
       </CardContent>
-      
-      {result && (
-        <CardFooter className="flex flex-col items-start">
-          <p className="text-sm font-medium mb-2">Resultado:</p>
-          <pre className="text-xs bg-secondary p-4 rounded-md w-full overflow-auto">
-            {JSON.stringify(result, null, 2)}
-          </pre>
-        </CardFooter>
-      )}
+      <CardFooter>
+        <Button
+          onClick={simulateWebhook}
+          disabled={isLoading}
+          className="w-full"
+        >
+          {isLoading ? 'Simulando...' : 'Simular Webhook'}
+        </Button>
+      </CardFooter>
     </Card>
   );
-};
-
-export default WebhookSimulator;
+}

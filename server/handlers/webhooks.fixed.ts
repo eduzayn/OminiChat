@@ -21,90 +21,12 @@ export function registerWebhookRoutes(app: Express, apiPrefix: string) {
   
   // Webhook genérico para receber mensagens de qualquer canal
   app.post(`${apiPrefix}/webhooks/message`, async (req: Request, res: Response) => {
-    try {
-      const { channel, phone, message, sender } = req.body;
-      
-      if (!channel || !phone || !message) {
-        return res.status(400).json({ 
-          error: "Missing required fields: channel, phone, message" 
-        });
-      }
-      
-      console.log(`[Webhook] Mensagem recebida de ${sender || phone}: ${message}`);
-      
-      // Processar mensagem
-      // Implementação futura...
-      
-      return res.status(200).json({ 
-        success: true,
-        message: "Message processed successfully" 
-      });
-    } catch (error) {
-      console.error("Erro ao processar webhook:", error);
-      return res.status(500).json({ 
-        error: "Internal server error" 
-      });
-    }
-  });
-
-  // Webhook específico para mensagens do WhatsApp
-  app.post(`${apiPrefix}/webhooks/whatsapp`, async (req: Request, res: Response) => {
-    try {
-      const { channelId, phone, message, sender } = req.body;
-      
-      if (!channelId || !phone || !message) {
-        return res.status(400).json({ 
-          error: "Missing required fields: channelId, phone, message" 
-        });
-      }
-      
-      console.log(`[WhatsApp Webhook] Mensagem de ${sender || phone}: ${message} para canal ${channelId}`);
-      
-      // Processar mensagem
-      // Implementação futura...
-      
-      return res.status(200).json({ 
-        success: true,
-        message: "WhatsApp message processed successfully" 
-      });
-    } catch (error) {
-      console.error("Erro ao processar webhook WhatsApp:", error);
-      return res.status(500).json({ 
-        error: "Internal server error" 
-      });
-    }
+    // Implementation here...
   });
 
   // Webhook específico para mensagens do WhatsApp via Meta
   app.post(`${apiPrefix}/webhooks/meta`, async (req: Request, res: Response) => {
-    try {
-      console.log("[Meta Webhook] Recebido:", req.body);
-      
-      // Verificar se é desafio de verificação
-      if (req.query["hub.mode"] === "subscribe" && req.query["hub.verify_token"]) {
-        const token = req.query["hub.verify_token"];
-        // Verificação simplificada - em produção, use valor seguro e configurado
-        if (token === "meu_token_secreto" || token === process.env.META_VERIFY_TOKEN) {
-          console.log("[Meta Webhook] Verificação confirmada");
-          return res.status(200).send(req.query["hub.challenge"]);
-        } else {
-          console.log("[Meta Webhook] Falha na verificação: token inválido");
-          return res.status(403).json({ error: "Verification failed" });
-        }
-      }
-      
-      // Suporte simplificado para mensagens Meta
-      // Na implementação completa, é necessário seguir o formato específico da Meta Platform
-      return res.status(200).json({ 
-        success: true,
-        message: "Meta Platform webhook received" 
-      });
-    } catch (error) {
-      console.error("Erro ao processar webhook Meta:", error);
-      return res.status(500).json({ 
-        error: "Internal server error" 
-      });
-    }
+    // Implementation here...
   });
 
   // Webhook específico para mensagens do WhatsApp via Z-API

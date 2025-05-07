@@ -1,102 +1,104 @@
-/**
- * webhook-test.ts
- * Serviço para simular mensagens recebidas via webhook
- */
+import { db } from '@db';
+import { channels } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
-import axios from 'axios';
-
-interface WebhookTestOptions {
+type SimulateWebhookOptions = {
   channelId: number;
-  phone?: string;
-  senderName?: string;
-  message?: string;
-  eventType?: string;
-}
+  phone: string;
+  message: string;
+  senderName: string;
+  eventType: string;
+};
 
 /**
- * Simula uma mensagem recebida para testes de webhook
+ * Simula um evento de webhook e passa para o handler de webhook
+ * Útil para testar o fluxo de recebimento de mensagens
  */
-export async function simulateWebhookMessage(options: WebhookTestOptions) {
-  const {
-    channelId,
-    phone = '5511999999999',
-    senderName = 'Contato Teste Simulado',
-    message = 'Esta é uma mensagem de teste do webhook simulado',
-    eventType = 'onMessageReceived'
-  } = options;
-
-  // Gera um messageId único para cada teste
-  const messageId = `test_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-  
-  // URL base
-  const baseUrl = process.env.BASE_URL || `https://${process.env.REPLIT_DOMAINS?.split(',')[0]}`;
-  const webhookUrl = `${baseUrl}/api/webhooks/zapi/${channelId}`;
-  
-  // Constrói payload de acordo com o tipo de evento
-  let payload: any = {};
-  
-  if (eventType === 'onMessageReceived') {
-    // Formato para mensagem recebida (formato documentado da Z-API)
-    payload = {
-      phone,
-      senderName,
-      message,
-      messageId,
-      instanceId: "3DF871A7ADFB20FB49998E66062CE0C1",
-      timestamp: new Date().getTime(),
-      event: 'onMessageReceived',
-      isGroup: false
-    };
-  } else if (eventType === 'message') {
-    // Formato alternativo
-    payload = {
-      from: phone,
-      sender: {
-        name: senderName
-      },
-      body: message,
-      id: messageId,
-      type: 'message',
-      timestamp: new Date().getTime()
-    };
-  } else if (eventType === 'DeliveryCallback') {
-    // Formato de callback de entrega
-    payload = {
-      phone,
-      messageId,
-      status: 'DELIVERED',
-      type: 'DeliveryCallback',
-      instanceId: "3DF871A7ADFB20FB49998E66062CE0C1",
-      timestamp: new Date().getTime()
-    };
-  }
-  
-  // Define cabeçalho para marcar como simulação
-  const headers = {
-    'Content-Type': 'application/json',
-    'X-Webhook-Test': 'true'
-  };
-  
+export async function simulateWebhookMessage(options: SimulateWebhookOptions) {
   try {
-    // Envia a requisição POST para o webhook
-    const response = await axios.post(webhookUrl, payload, { headers });
+    const { channelId, phone, message, senderName, eventType } = options;
+    
+    console.log(`[Simulação] Gerando evento webhook ${eventType} para canal ${channelId}`);
+    
+    // Verificar se o canal existe
+    const channel = await db.query.channels.findFirst({
+      where: eq(channels.id, channelId)
+    });
+    
+    if (!channel) {
+      console.error(`[Simulação] Canal ${channelId} não encontrado`);
+      return {
+        success: false,
+        message: 'Canal não encontrado'
+      };
+    }
+    
+    // Construir o payload do webhook baseado no tipo de evento
+    let webhookPayload: any = {};
+    
+    if (eventType === 'onMessageReceived') {
+      webhookPayload = {
+        event: 'onMessageReceived',
+        instanceId: '3DF871A7ADFB20FB49998E66062CE0C1',
+        phone,
+        senderName,
+        message,
+        messageId: `SIMULATED_${Date.now()}`,
+        timestamp: new Date().toISOString()
+      };
+    } else if (eventType === 'message') {
+      // Formato alternativo de mensagem
+      webhookPayload = {
+        type: 'message',
+        fromMe: false,
+        phone,
+        senderName,
+        body: message,
+        id: `SIMULATED_${Date.now()}`,
+        timestamp: Date.now()
+      };
+    } else if (eventType === 'DeliveryCallback') {
+      // Simulação de callback de entrega
+      webhookPayload = {
+        event: 'status',
+        status: 'READ',
+        id: `SIMULATED_${Date.now()}`,
+        messageId: `MESSAGE_${Date.now()}`,
+        phone
+      };
+    } else {
+      return {
+        success: false,
+        message: `Tipo de evento desconhecido: ${eventType}`
+      };
+    }
+    
+    console.log(`[Simulação] Enviando webhook simulado:`, webhookPayload);
+    
+    // Chamada direta ao endpoint do webhook
+    const webhookUrl = `/api/webhooks/zapi/${channelId}`;
+    
+    // Fazer a chamada interna para o endpoint de webhook
+    // em um ambiente de produção, você poderia usar fetch ou axios,
+    // mas aqui vamos simular a chamada diretamente através do handler
+    
+    // Importar o handler de webhook dinamicamente para evitar dependências circulares
+    const webhookHandler = await import('../../handlers/webhooks');
+    
+    // Chamar o manipulador de webhook diretamente com o payload simulado
+    const result = await webhookHandler.processZapiWebhook(channelId, webhookPayload, true);
     
     return {
       success: true,
-      status: response.status,
-      data: response.data,
-      messageId,
-      webhookUrl,
-      payload
+      message: 'Webhook simulado processado com sucesso',
+      result,
+      webhookPayload
     };
-  } catch (error: any) {
-    console.error('Erro ao simular webhook:', error.message);
+  } catch (error) {
+    console.error('[Simulação] Erro ao simular webhook:', error);
     return {
       success: false,
-      error: error.message,
-      messageId,
-      webhookUrl,
-      payload
+      message: `Erro ao simular webhook: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
     };
   }
 }

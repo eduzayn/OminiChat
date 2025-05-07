@@ -389,6 +389,34 @@ export async function processZapiWebhook(channelId: number, webhook: any, isTest
           .where(eq(conversations.id, conversation.id));
       }
       
+      // Verificar se esta mensagem não é um eco de uma mensagem enviada pelo agente
+      // PROBLEMA: Z-API às vezes envia um webhook de confirmação para mensagens enviadas pelo próprio agente
+      // Isto pode causar duplicação de mensagens como se viessem do cliente
+      
+      // Verificar se já existe uma mensagem do agente com o mesmo conteúdo nos últimos segundos
+      const recentAgentMessages = await db.query.messages.findMany({
+        where: and(
+          eq(messages.conversationId, conversation.id),
+          eq(messages.isFromAgent, true),
+          eq(messages.content, eventData.text),
+          // Mensagens enviadas nos últimos 30 segundos
+          gte(messages.createdAt, new Date(Date.now() - 30 * 1000))
+        ),
+        orderBy: [desc(messages.createdAt)],
+        limit: 1
+      });
+      
+      // Se encontramos uma mensagem recente do agente com o mesmo conteúdo,
+      // isso provavelmente é apenas um eco, então ignoramos
+      if (recentAgentMessages.length > 0) {
+        console.log(`[Z-API Webhook] Ignorando mensagem que parece ser eco de mensagem do agente: "${eventData.text}"`);
+        return {
+          success: true,
+          message: "Mensagem ignorada por ser eco de mensagem do agente",
+          ignored: true
+        };
+      }
+      
       // Salvar a mensagem
       const messageData = {
         conversationId: conversation.id,

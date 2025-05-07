@@ -20,7 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { IntegrationCard } from './components/integration-card';
 import { MetaIntegrationDialog } from './components/meta-integration';
 import { ZAPIChannelDialog } from '@/components/dialogs/zapi-channel-dialog';
-import { ZAPIDiagnosticPanel } from '@/components/zapi-diagnostic-panel';
+import { ZAPITestPanel } from './components/zapi-test-original';
 import { ZAPIWebhookConfig } from './components/zapi-webhook-config';
 import { toast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
@@ -286,7 +286,7 @@ export default function IntegrationsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ZAPIDiagnosticPanel />
+                <ZAPITestPanel />
               </CardContent>
             </Card>
 
